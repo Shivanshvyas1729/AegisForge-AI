@@ -1,0 +1,39 @@
+================================================================================
+RAW FIELD INSPECTION CLIPBOARD NOTE - GUWAHATI REFINERY (HCU-11)
+SCANNED SHEET / OCR LOG STREAM - ENGINE: TESSERACT-OCR v5.3 / ON-DEVICE VISION
+Date of Scan: 04-SEP-2026  16:42 IST  |  Device: Toughbook CF-33 Scanner
+================================================================================
+
+[OCR TEXT STREAM BEGIN]
+*** CONFIDENTIAL REFINERY PLANT MAINTENENCE LOG ***
+Unit: HCU - 11   Date: 04/09/2026   Shift: General Shift
+Eqpmnt Tag: 11-V-102 (Ist Stage HP Separator drum)
+Material: 2.25Cr-1Mo + 347 SS cladding
+Inspector: S. Chandrasekhar (ASNT L-3 Cert # 84902)
+Guage: Olympus 38DL+  Probe: D790-SM 5Mhz Hi-Temp Cal Zero: 5.92us
+
+LOCAT1ON ID   | POINT DESC              | T-NOM  | CURR_MEAS (mm) | REMARKS
+-------------------------------------------------------------------------------
+TH-01         | Top Head Crown           | 140.0  | 139.60 mm      | Normal, light scale
+SC-1A         | C-1 0 deg North          | 145.0  | 142.40 mm      | Cladding intact
+SC-1B         | C-1 180 deg South        | 145.0  | 142.15 mm      | No pitting
+SC-2A         | C-2 90 deg East          | 145.0  | 141.20 mm      | Uniform thinning
+SC-2B         | C-2 270 deg West         | 145.0  | 141.05 mm      | OK
+BK-01 !!CRIT! | Bottom Knuckle impingemnt| 145.0  | 138.20 mm **** | *** BREACH ***
+BK-02         | Liquid Sump drain        | 145.0  | 140.10 mm      | Moderate wear
+
+[HANDWRITTEN MARGINAL NOTE BY INSPECTOR]:
+"Attn DGM (Insp): Point BK-01 measured only 138.20 mm! Design ASME code minimum t_min is 138.57 mm.
+Corrosion rate jumped to 0.75 mm/yr from previous 0.32 mm/yr due to sour gas swirl.
+Remaining service life is BELOW ZERO (-0.49 yrs).
+HTHA micro-fissuring indications seen on longitudinal weld L-1.
+Vessel cannot safely operate at 145 barg. DERATE IMMEDIATELY to 118 barg!
+Need urgent Note for Approval (NFA) for emergency weld overlay or head replacement during Oct shutdown.
+Estimated repair cost around Rs 85 - 95 Lakhs."
+
+[OFFICIAL RUBBER STAMP IMPRESSION (PARTIALLY SMUDGED)]:
+"CHIEF INSPECTOR OF BOILERS & FACTORIES / ASSAM
+INSPECTION STATUS: RE-ASSESSMENT ORDERED // CONDITIONAL RUNNING DERATED ONLY"
+
+[OCR TEXT STREAM END]
+================================================================================

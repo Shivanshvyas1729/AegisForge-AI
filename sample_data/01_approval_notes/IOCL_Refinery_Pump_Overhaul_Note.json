@@ -1,0 +1,59 @@
+{
+  "document_metadata": {
+    "doc_id": "GHR/MECH/ROT-EQUIP/2026/NFA-0842",
+    "document_type": "Note for Approval (NFA)",
+    "organization": "Indian Oil Corporation Limited",
+    "facility": "Guwahati Refinery",
+    "unit": "Hydrocracker Unit (HCU)",
+    "date": "2026-09-12",
+    "security_classification": "RESTRICTED / CONFIDENTIAL",
+    "originating_department": "Mechanical Maintenance (Rotating Equipment Group)"
+  },
+  "technical_summary": {
+    "equipment_tag": "11-P-101A",
+    "equipment_name": "High-Pressure Hydrocracker Feed Pump",
+    "equipment_oem": "M/s Sulzer Pumps India Pvt. Ltd.",
+    "failure_mode": "Catastrophic fatigue failure of thrust bearing and balance piston sleeve",
+    "vibration_recorded_rms_mms": 8.4,
+    "trip_limit_rms_mms": 7.1,
+    "standby_status": "11-P-101B running on single-point failure exposure",
+    "risk_profile": "Refinery throughput loss of 18,500 BPD / ₹1.45 Cr flaring loss per day"
+  },
+  "procurement_compliance": {
+    "procurement_method": "Single Tender on Proprietary Article Certificate (PAC)",
+    "pac_certificate_number": "PAC/GHR/2026/041",
+    "cvc_compliance_order": "CVC Office Order No. 23/07/07",
+    "gem_non_availability_certificate": "GNA-2026-08992",
+    "vendor_name": "Sulzer Pumps India Pvt. Ltd."
+  },
+  "financial_analysis": {
+    "currency": "INR",
+    "base_amount": 8020000,
+    "gst_rate_percent": 18,
+    "gst_amount": 1443600,
+    "total_financial_commitment": 9463600,
+    "cost_center": "4420-1100",
+    "budget_head": "Emergency Plant Maintenance (GL Account: 520104)",
+    "allocated_budget_fy26": 125000000,
+    "uncommitted_balance_available": 77000000,
+    "finance_concurrence_ref": "FIN/GHR/2026/3409"
+  },
+  "approval_hierarchy": {
+    "initiator": {
+      "name": "Er. Rajesh Kumar Sharma",
+      "designation": "Chief Manager (Mechanical - Rotating Equipment)"
+    },
+    "recommending_authority": {
+      "name": "P. K. Goswami",
+      "designation": "Chief General Manager (Technical Services & Maintenance)"
+    },
+    "concurring_authority": {
+      "name": "Sunita Narang",
+      "designation": "General Manager (Finance & Accounts)"
+    },
+    "approving_authority": {
+      "designation": "Executive Director & Head of Refinery (ED & HR)",
+      "delegation_of_power_clause": "Item 7.2.1 of IOCL DOP 2024 (Empowered up to INR 1.50 Crore)"
+    }
+  }
+}

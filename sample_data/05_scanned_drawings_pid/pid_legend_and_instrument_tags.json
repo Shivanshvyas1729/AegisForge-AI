@@ -1,0 +1,95 @@
+{
+  "drawing_metadata": {
+    "drawing_number": "GHR-CDU1-PID-104",
+    "revision": "04",
+    "facility": "Guwahati Refinery",
+    "unit": "Crude Distillation Unit (CDU-1)",
+    "standards_compliance": ["ISA-5.1 (Instrumentation Symbols)", "ASME B31.3 (Process Piping)", "API 520 / 521"]
+  },
+  "identified_equipment": [
+    {
+      "tag": "11-TK-01",
+      "name": "Crude Oil Storage Tank",
+      "type": "Atmospheric Storage Tank",
+      "design_code": "API 650"
+    },
+    {
+      "tag": "11-P-101A",
+      "name": "Crude Charge Feed Pump",
+      "type": "Centrifugal Multistage Pump",
+      "design_code": "API 610"
+    },
+    {
+      "tag": "11-E-101",
+      "name": "Crude / LGO Pre-heat Exchanger",
+      "type": "Shell & Tube Heat Exchanger (AES Type)",
+      "design_code": "TEMA R / ASME Sec VIII"
+    },
+    {
+      "tag": "11-V-101",
+      "name": "Electrostatic Desalter",
+      "type": "Horizontal Dual-Grid Desalter",
+      "design_code": "ASME Sec VIII Div 1"
+    }
+  ],
+  "instrument_tag_registry": [
+    {
+      "tag": "PT-101",
+      "service": "Charge Pump Suction Pressure Transmitter",
+      "type": "Electronic Pressure Transmitter (4-20mA HART)",
+      "location": "Pump 11-P-101A Suction line"
+    },
+    {
+      "tag": "FT-101",
+      "service": "Charge Pump Discharge Flow Transmitter",
+      "type": "Differential Pressure Transmitter across Orifice FE-101",
+      "location": "Line 6-CR-1002-A1A"
+    },
+    {
+      "tag": "FIC-101",
+      "service": "Flow Indicating Controller",
+      "type": "DCS Distributed Control Loop",
+      "controls": "FCV-101"
+    },
+    {
+      "tag": "FCV-101",
+      "service": "Crude Charge Flow Control Valve",
+      "fail_mode": "Fail Closed (FC) on Air Failure",
+      "actuator": "Pneumatic Diaphragm"
+    },
+    {
+      "tag": "TT-102",
+      "service": "Exchanger 11-E-101 Crude Outlet Temperature",
+      "type": "Dual RTD PT-100 in Thermowell"
+    },
+    {
+      "tag": "PSV-101",
+      "service": "Desalter Overpressure Protection",
+      "set_pressure_barg": 12.5,
+      "discharge_destination": "Refinery Flare Header FL-01"
+    }
+  ],
+  "piping_line_specifications": [
+    {
+      "line_number": "6\"-CR-1001-A1A",
+      "service": "Crude Oil Suction",
+      "nominal_size_inch": 6,
+      "rating": "ASME Class 150 RF",
+      "material": "ASTM A106 Gr. B Seamless"
+    },
+    {
+      "line_number": "6\"-CR-1002-A1A",
+      "service": "Crude Oil High-Pressure Discharge",
+      "nominal_size_inch": 6,
+      "rating": "ASME Class 300 RF",
+      "material": "ASTM A106 Gr. B Seamless"
+    },
+    {
+      "line_number": "8\"-CR-1003-A1A",
+      "service": "Exchanger to Desalter Feed",
+      "nominal_size_inch": 8,
+      "rating": "ASME Class 300 RF",
+      "material": "ASTM A106 Gr. B Seamless"
+    }
+  ]
+}
