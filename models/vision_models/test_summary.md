@@ -97,8 +97,8 @@ The sole, stable OCR test script. Initializes EasyOCR on CPU, reads the engineer
 ### `models/vision_models/convert_svg.py`
 A utility script using `svglib` + `rlPyCairo` to rasterize vector P&ID `.svg` drawings into `.png` format required by EasyOCR.
 
-### `models/vision_models/requirements-vision.txt`
-Minimal, clean dependencies required to run the full pipeline:
-- **Core ML:** `torch>=2.0.0`, `transformers>=4.40.0`, `torchvision`
-- **OCR Engine:** `easyocr`
-- **SVG Rasterization:** `svglib`, `reportlab`, `rlPyCairo`
+### `requirements.txt` (Root)
+Unified project dependencies configured for the `SIH` Conda environment (CUDA 12.4 enabled):
+- **Core ML & Vision:** `torch>=2.0.0` (with CUDA), `torchvision`, `easyocr`
+- **SVG Rasterization:** `svglib`, `reportlab`
+- **Orchestration & Serving:** `langchain`, `langgraph`, `ollama`, `fastapi`
