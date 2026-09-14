@@ -104,6 +104,28 @@ class SovereignModelRouter:
             }
 
 
+class LocalModelHandler:
+    def __init__(self, model_name: str):
+        self.model_name = model_name
+
+    def invoke(self, prompt: str):
+        try:
+            import ollama
+            res = ollama.chat(
+                model=self.model_name,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            content = res["message"]["content"]
+        except Exception as e:
+            content = f"[{self.model_name}] Local model response for: '{prompt}' (Ollama notice: {e})"
+
+        class ResponseWrapper:
+            def __init__(self, text):
+                self.content = text
+        return ResponseWrapper(content)
+
+
+
 if __name__ == "__main__":
     router = SovereignModelRouter()
     test_queries = [
