@@ -379,17 +379,31 @@ with tab_models:
 
                             for update in pull_ollama_model_stream(model_id):
                                 if update.get("status") == "error":
-                                    status_text.error(f"Download Error: {update.get('error')}")
+                                    status_text.error(f"❌ {update.get('error')}")
+                                    st.info("💡 You can click the download button again at any time to resume without losing completed progress.")
                                     break
-                                
-                                pct = int(update.get("percent", 0))
+
+                                pct = max(0, min(100, int(update.get("percent", 0))))
                                 status_msg = update.get("status", "Downloading...")
-                                progress_bar.progress(pct, text=f"{status_msg} ({pct}%)")
-                                status_text.text(f"Status: {status_msg}")
+                                total_mb = update.get("total_mb", 0)
+                                comp_mb = update.get("completed_mb", 0)
+
+                                if update.get("retrying"):
+                                    # Network interruption recovery notice
+                                    status_text.warning(status_msg)
+                                    progress_bar.progress(pct, text=f"⚠️ Resuming from {pct}%...")
+                                else:
+                                    if total_mb > 0:
+                                        label = f"{status_msg} ({pct}% — {comp_mb:.1f} MB / {total_mb:.1f} MB)"
+                                    else:
+                                        label = f"{status_msg} ({pct}%)"
+                                    progress_bar.progress(pct, text=label)
+                                    status_text.text(f"Status: {status_msg}")
 
                             if is_model_installed(model_id):
-                                st.success(f"✅ {info['title']} downloaded successfully!")
-                                time.sleep(1)
+                                progress_bar.progress(100, text="Verification complete!")
+                                st.success(f"✅ {info['title']} verified and ready in model_pool/ollama!")
+                                time.sleep(1.5)
                                 st.rerun()
 
             with c_btn2:

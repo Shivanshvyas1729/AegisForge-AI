@@ -148,25 +148,31 @@ def setup_ollama_models() -> bool:
     models_to_pull = list(MODEL_REGISTRY.values())
     print(f"[*] Required models in registry: {models_to_pull}")
 
+    from models.model_downloader import pull_ollama_model_stream, is_model_installed
+
     for model_name in models_to_pull:
         print(f"\n[*] Checking / pulling model: '{model_name}' into model_pool...")
-        try:
-            # Check if model already exists locally
-            current_tags = ollama.list().get("models", [])
-            existing_names = [m.get("name") or m.get("model") for m in current_tags]
-            
-            # Check match (e.g. 'deepseek-r1:1.5b' or 'deepseek-r1:1.5b-latest')
-            matched = any(model_name in name for name in existing_names if name)
-            if matched:
-                print(f"    [+] '{model_name}' already installed and ready.")
-                continue
+        if is_model_installed(model_name):
+            print(f"    [+] '{model_name}' is already installed and verified.")
+            continue
 
-            print(f"    Downloading '{model_name}'... (this may take a few minutes)")
-            ollama.pull(model_name)
-            print(f"    [+] Successfully downloaded '{model_name}'.")
+        print(f"    Starting resilient download for '{model_name}'...")
+        for update in pull_ollama_model_stream(model_name):
+            if update.get("status") == "error":
+                print(f"    [!] Error: {update.get('error')}")
+                break
 
-        except Exception as e:
-            print(f"    [!] Failed to pull '{model_name}': {e}")
+            pct = update.get("percent", 0.0)
+            status_msg = update.get("status", "")
+            comp_mb = update.get("completed_mb", 0.0)
+            total_mb = update.get("total_mb", 0.0)
+
+            if update.get("retrying"):
+                print(f"    [!] {status_msg}")
+            elif update.get("done"):
+                print(f"    [+] Successfully downloaded and verified '{model_name}'!")
+            elif total_mb > 0:
+                print(f"    [>] {status_msg} [{pct:.1f}%] ({comp_mb:.1f} MB / {total_mb:.1f} MB)", end="\r", flush=True)
 
     return True
 

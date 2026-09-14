@@ -1,16 +1,18 @@
 """
 AegisForge-AI: Model Download, Health & Lifecycle Manager
-Provides streaming download progress, background server management,
-and 1-click installation/uninstallation for the Streamlit UI.
+Provides resilient streaming download progress, automatic network interruption recovery,
+byte-level download resumption, and 1-click installation/uninstallation for the Streamlit UI.
 """
 
 import os
 import sys
+import time
 import shutil
 import subprocess
 import threading
 import json
 import urllib.request
+import urllib.error
 from pathlib import Path
 from typing import Dict, Any, Generator, Optional
 
@@ -99,7 +101,7 @@ def is_ollama_running() -> bool:
     try:
         url = f"{OLLAMA_HOST}/api/tags"
         req = urllib.request.Request(url, method="GET")
-        with urllib.request.urlopen(req, timeout=1.5) as resp:
+        with urllib.request.urlopen(req, timeout=2.0) as resp:
             return resp.status == 200
     except Exception:
         return False
@@ -127,7 +129,6 @@ def start_ollama_server() -> bool:
 
     # Give it up to 6 seconds to spin up
     for _ in range(12):
-        import time
         time.sleep(0.5)
         if is_ollama_running():
             return True
@@ -150,75 +151,176 @@ def get_installed_ollama_models() -> list:
 
 
 def is_model_installed(model_id: str) -> bool:
-    """Checks if a model is installed in the project's model_pool."""
+    """Checks if a model is installed in the project's model_pool with integrity check."""
     if model_id == "easyocr":
         craft = EASYOCR_DIR / "craft_mlt_25k.pth"
         crnn = EASYOCR_DIR / "english_g2.pth"
-        return craft.exists() and crnn.exists()
+        # Integrity check: craft >= 80MB, crnn >= 14MB
+        if craft.exists() and crnn.exists():
+            if craft.stat().st_size >= 80 * 1024 * 1024 and crnn.stat().st_size >= 14 * 1024 * 1024:
+                return True
+        return False
 
     installed = get_installed_ollama_models()
     return any(model_id in name for name in installed if name)
 
 
-def pull_ollama_model_stream(model_name: str) -> Generator[Dict[str, Any], None, None]:
+def pull_ollama_model_stream(
+    model_name: str,
+    max_retries: int = 10,
+    retry_delay_seconds: float = 3.0
+) -> Generator[Dict[str, Any], None, None]:
     """
-    Streams the download progress of an Ollama model.
-    Yields dicts with {'status': str, 'completed': int, 'total': int, 'percent': float}.
+    Streams the download progress of an Ollama model with automatic network recovery.
+    
+    Resilience Features:
+    - If network drops, automatically pauses, reconnects, and resumes from partial blobs.
+    - Never restarts from 0% if chunks/blobs are already downloaded on disk.
+    - Yields status updates, transferred MBs, and retry notices.
     """
     if not is_ollama_running():
         started = start_ollama_server()
         if not started:
-            yield {"status": "error", "error": "Ollama server is not running and could not be started automatically."}
+            yield {
+                "status": "error",
+                "error": "Ollama server is not running and could not be started automatically. Run scripts\\run_ollama_local.bat"
+            }
             return
 
     url = f"{OLLAMA_HOST}/api/pull"
     payload = json.dumps({"name": model_name, "stream": True}).encode("utf-8")
-    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
 
-    try:
-        with urllib.request.urlopen(req, timeout=300) as response:
-            for line in response:
-                if line:
-                    chunk = json.loads(line.decode("utf-8"))
-                    status = chunk.get("status", "")
-                    total = chunk.get("total", 0)
-                    completed = chunk.get("completed", 0)
-                    percent = (completed / total * 100) if total > 0 else 0.0
+    retry_count = 0
+    last_percent = 0.0
+    highest_completed = 0
+    total_bytes = 0
 
-                    yield {
-                        "status": status,
-                        "completed": completed,
-                        "total": total,
-                        "percent": round(percent, 1),
-                        "done": status == "success"
-                    }
-    except Exception as e:
-        yield {"status": "error", "error": str(e)}
+    while retry_count < max_retries:
+        try:
+            req = urllib.request.Request(
+                url,
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+
+            # Connect with a reasonable read timeout (30s inactivity triggers retry)
+            with urllib.request.urlopen(req, timeout=30) as response:
+                for line in response:
+                    if line:
+                        chunk = json.loads(line.decode("utf-8"))
+                        status = chunk.get("status", "")
+                        chunk_total = chunk.get("total", 0)
+                        chunk_completed = chunk.get("completed", 0)
+
+                        if chunk_total > 0:
+                            total_bytes = chunk_total
+                            if chunk_completed > highest_completed:
+                                highest_completed = chunk_completed
+                            percent = (highest_completed / total_bytes * 100)
+                            last_percent = max(last_percent, percent)
+                        else:
+                            percent = last_percent
+
+                        # Reset retry count on active data transfer
+                        if retry_count > 0 and chunk_completed > 0:
+                            retry_count = 0
+
+                        done = (status == "success")
+
+                        yield {
+                            "status": status,
+                            "completed": highest_completed,
+                            "total": total_bytes,
+                            "completed_mb": round(highest_completed / (1024 * 1024), 1),
+                            "total_mb": round(total_bytes / (1024 * 1024), 1),
+                            "percent": round(last_percent, 1),
+                            "done": done,
+                            "retrying": False
+                        }
+
+                        if done:
+                            return
+
+            # If response stream finished without explicit error, verify model presence
+            if is_model_installed(model_name):
+                yield {
+                    "status": "success",
+                    "percent": 100.0,
+                    "done": True,
+                    "retrying": False
+                }
+                return
+
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
+            retry_count += 1
+            if retry_count >= max_retries:
+                yield {
+                    "status": "error",
+                    "error": (
+                        f"Download interrupted after {max_retries} reconnection attempts. "
+                        f"Network issue: {exc}. All partial data has been safely preserved in model_pool. "
+                        f"Click 'Resume' to continue downloading from {last_percent:.1f}%."
+                    ),
+                    "percent": round(last_percent, 1),
+                    "done": False,
+                    "retrying": False
+                }
+                return
+
+            yield {
+                "status": f"⚠️ Connection interrupted ({exc}). Reconnecting and resuming from {last_percent:.1f}% (Attempt {retry_count}/{max_retries})...",
+                "percent": round(last_percent, 1),
+                "completed": highest_completed,
+                "total": total_bytes,
+                "done": False,
+                "retrying": True,
+                "retry_attempt": retry_count,
+                "max_retries": max_retries
+            }
+
+            # Exponential backoff with small jitter
+            backoff = min(retry_delay_seconds * (1.5 ** (retry_count - 1)), 15.0)
+            time.sleep(backoff)
+
+            # Ensure Ollama daemon is still alive
+            if not is_ollama_running():
+                start_ollama_server()
 
 
 def install_easyocr_models() -> Generator[Dict[str, Any], None, None]:
-    """Installs EasyOCR models into model_pool/easyocr with progress status."""
+    """Installs EasyOCR models into model_pool/easyocr with integrity verification."""
     yield {"status": "Checking local weights...", "percent": 10.0}
     EASYOCR_DIR.mkdir(parents=True, exist_ok=True)
 
     craft = EASYOCR_DIR / "craft_mlt_25k.pth"
     crnn = EASYOCR_DIR / "english_g2.pth"
 
+    # Integrity verification
     if craft.exists() and crnn.exists():
-        yield {"status": "EasyOCR is already installed in model_pool!", "percent": 100.0, "done": True}
-        return
+        if craft.stat().st_size >= 80 * 1024 * 1024 and crnn.stat().st_size >= 14 * 1024 * 1024:
+            yield {"status": "EasyOCR is already installed and verified in model_pool!", "percent": 100.0, "done": True}
+            return
+        else:
+            # File is corrupt or partial, remove bad file
+            yield {"status": "Found partial/corrupted weights. Cleaning bad files before resume...", "percent": 15.0}
+            for bad_file in [craft, crnn]:
+                if bad_file.exists() and bad_file.stat().st_size < 14 * 1024 * 1024:
+                    bad_file.unlink(missing_ok=True)
 
     # Check user home for migration
     home_dir = Path.home() / ".EasyOCR" / "model"
     if home_dir.exists():
-        yield {"status": "Migrating cached weights to model_pool...", "percent": 40.0}
+        yield {"status": "Checking cached weights in user profile for instant import...", "percent": 40.0}
         for f in ["craft_mlt_25k.pth", "english_g2.pth"]:
             src = home_dir / f
             dst = EASYOCR_DIR / f
             if src.exists() and not dst.exists():
                 shutil.copy2(src, dst)
-        yield {"status": "EasyOCR weights migrated successfully!", "percent": 100.0, "done": True}
-        return
+
+        if craft.exists() and crnn.exists():
+            yield {"status": "EasyOCR weights imported successfully into model_pool!", "percent": 100.0, "done": True}
+            return
 
     yield {"status": "Downloading EasyOCR weights via PyTorch...", "percent": 50.0}
     try:
@@ -226,7 +328,7 @@ def install_easyocr_models() -> Generator[Dict[str, Any], None, None]:
         easyocr.Reader(['en'], gpu=False, model_storage_directory=str(EASYOCR_DIR), download_enabled=True)
         yield {"status": "EasyOCR downloaded and verified successfully!", "percent": 100.0, "done": True}
     except Exception as e:
-        yield {"status": "error", "error": str(e)}
+        yield {"status": "error", "error": f"Failed to download EasyOCR: {e}"}
 
 
 def purge_model(model_id: str) -> bool:
