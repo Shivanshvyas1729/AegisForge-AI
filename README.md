@@ -38,6 +38,7 @@ AegisForge-AI/
 ├── LICENSE
 ├── README.md
 ├── requirements.txt
+├── TEAM_TASKS_MVP.md
 │
 ├── agent_orchestrator/
 │   └── .gitkeep
@@ -142,6 +143,7 @@ AegisForge-AI/
 | File | What It Contains | What It Does | Purpose |
 | :--- | :--- | :--- | :--- |
 | **`README.md`** | Complete system documentation, architectural breakdown, file catalog, execution guides, and benchmark descriptions. | Informs developers, operators, and evaluators on how the system works and how to run it. | Serves as the single source of truth for repository architecture, setup instructions, and component purposes. |
+| **`TEAM_TASKS_MVP.md`** | 5-person team task division, specific MVP golden path workflow, JSON interface contracts, non-goals, and multi-phase roadmap. | Directs team members on exactly which specific task to build first for the MVP and what to tackle next. | Eliminates team overlap and accelerates MVP delivery for hackathon/demonstration milestones. |
 | **`requirements.txt`** | Python dependencies pinned for Python 3.11 in the Conda `SIH` environment (FastAPI, LangChain, LangGraph, Ollama, EasyOCR, python-docx, openpyxl, python-pptx, svglib, reportlab). | Defines all third-party libraries needed to run the API, agents, router, OCR, and document generators. | Ensures a reproducible, unified Python environment across GPU and CPU workstations. |
 | **`commit.bat`** | Windows batch script with Git status tracking and staging commands. | Automatically runs `git add -A`, displays `git status --short`, and commits with a descriptive commit message. | Streamlines git workflow for developers working on Windows offline workstations. |
 | **`LICENSE`** | Standard MIT open-source license terms. | Grants rights for copying, modifying, and distributing the software. | Defines the open-source licensing parameters of the AegisForge-AI project. |
