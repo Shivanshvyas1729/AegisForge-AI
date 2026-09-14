@@ -1,0 +1,78 @@
+{
+  "audit_metadata": {
+    "report_id": "NDT/HCU/2026/UT-9021",
+    "facility": "Guwahati Refinery",
+    "unit": "Hydrocracker Unit (HCU-11)",
+    "equipment_tag": "11-V-102",
+    "equipment_name": "High-Pressure Separator Drum",
+    "inspection_date": "2026-09-04",
+    "applicable_standards": ["API 510", "API 572", "ASME Section VIII Div 1 UG-27"],
+    "inspector": {
+      "name": "S. Chandrasekhar",
+      "certification": "ASNT Level-III (UT/RT/MPI)"
+    }
+  },
+  "design_parameters": {
+    "material": "SA-387 Gr 22 Cl 2 (2.25Cr-1Mo)",
+    "design_pressure_barg": 145.0,
+    "operating_pressure_barg": 138.0,
+    "design_temp_celsius": 285.0,
+    "nominal_thickness_mm": 145.0,
+    "code_minimum_thickness_mm": 138.57,
+    "original_corrosion_allowance_mm": 4.0
+  },
+  "inspection_points": [
+    {
+      "point_id": "TH-01",
+      "description": "Top Head Crown",
+      "baseline_2012_mm": 140.2,
+      "turnaround_2022_mm": 139.8,
+      "current_2026_mm": 139.6,
+      "loss_from_baseline_mm": 0.6,
+      "short_term_corrosion_rate_mm_year": 0.05,
+      "remaining_life_years": 20.6,
+      "status": "ACCEPTABLE"
+    },
+    {
+      "point_id": "SC-1A",
+      "description": "Upper Shell Course C-1 (0° North)",
+      "baseline_2012_mm": 145.1,
+      "turnaround_2022_mm": 143.2,
+      "current_2026_mm": 142.4,
+      "loss_from_baseline_mm": 2.7,
+      "short_term_corrosion_rate_mm_year": 0.2,
+      "remaining_life_years": 19.15,
+      "status": "ACCEPTABLE"
+    },
+    {
+      "point_id": "SC-2A",
+      "description": "Middle Shell Course C-2 (90° East)",
+      "baseline_2012_mm": 145.2,
+      "turnaround_2022_mm": 142.5,
+      "current_2026_mm": 141.2,
+      "loss_from_baseline_mm": 4.0,
+      "short_term_corrosion_rate_mm_year": 0.325,
+      "remaining_life_years": 8.09,
+      "status": "MONITOR"
+    },
+    {
+      "point_id": "BK-01",
+      "description": "Bottom Dish Knuckle (Vapor Inlet Impingement)",
+      "baseline_2012_mm": 145.0,
+      "turnaround_2022_mm": 141.2,
+      "current_2026_mm": 138.2,
+      "loss_from_baseline_mm": 6.8,
+      "short_term_corrosion_rate_mm_year": 0.75,
+      "remaining_life_years": -0.49,
+      "status": "CRITICAL_BREACH",
+      "breach_margin_mm": -0.37,
+      "defect_findings": "HTHA micro-fissuring indications on weld seam L-1, severe localized sour erosion"
+    }
+  ],
+  "mandatory_recommendations": {
+    "immediate_derate_pressure_barg": 118.0,
+    "turnaround_action": "Automated GTAW 347 SS weld overlay restoration or bottom head replacement",
+    "approval_note_trigger": true,
+    "budgetary_estimate_inr": 8800000
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "system": "Yokogawa CENTUM VP DCS - Modbus Gateway Interface",
+  "facility": "Guwahati Refinery - Hydrocracker Unit (HCU-11)",
+  "baud_rate": 19200,
+  "parity": "EVEN",
+  "data_bits": 8,
+  "stop_bits": 1,
+  "registers": {
+    "30001": {
+      "tag": "PT-101",
+      "name": "Crude Feed Suction Pressure",
+      "unit": "barg",
+      "scale": 0.01,
+      "range_min": 0.0,
+      "range_max": 50.0,
+      "alarm_low": 12.0,
+      "alarm_high": 35.0,
+      "trip_high": 42.0
+    },
+    "30002": {
+      "tag": "TT-102",
+      "name": "Crude Pre-heat Exchanger Outlet Temp",
+      "unit": "degC",
+      "scale": 0.1,
+      "range_min": 0.0,
+      "range_max": 350.0,
+      "alarm_low": 140.0,
+      "alarm_high": 240.0,
+      "trip_high": 265.0
+    },
+    "30003": {
+      "tag": "FT-103",
+      "name": "Charge Pump Main Discharge Flow",
+      "unit": "m3/hr",
+      "scale": 0.1,
+      "range_min": 0.0,
+      "range_max": 300.0,
+      "alarm_low": 40.0,
+      "alarm_high": 250.0,
+      "trip_high": 280.0
+    },
+    "30004": {
+      "tag": "VT-104",
+      "name": "Pump 11-P-101A DE Bearing Vibration",
+      "unit": "mm/s RMS",
+      "scale": 0.01,
+      "range_min": 0.0,
+      "range_max": 25.0,
+      "alarm_low": null,
+      "alarm_high": 4.5,
+      "trip_high": 7.1
+    },
+    "30005": {
+      "tag": "LT-105",
+      "name": "High-Pressure Separator Liquid Level",
+      "unit": "%",
+      "scale": 0.1,
+      "range_min": 0.0,
+      "range_max": 100.0,
+      "alarm_low": 20.0,
+      "alarm_high": 80.0,
+      "trip_high": 88.0
+    }
+  }
+}
