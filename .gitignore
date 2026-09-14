@@ -228,3 +228,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ==============================================================================
+# AegisForge-AI Model Pool Storage (Self-Contained Model Weights & Blobs)
+# ==============================================================================
+model_pool/easyocr/*.pth
+model_pool/ollama/blobs/
+model_pool/ollama/manifests/
+model_pool/downloads/
+!model_pool/**/.gitkeep
+

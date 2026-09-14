@@ -1,8 +1,16 @@
 import os
 import sys
+from pathlib import Path
 import argparse
 import easyocr
 from PIL import Image
+
+# Ensure project root is on sys.path so config is importable regardless of current directory
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from config.settings import EASYOCR_DIR
 
 # Fix Windows terminal encoding issue with EasyOCR's Unicode progress bar
 sys.stdout.reconfigure(encoding='utf-8')
@@ -20,7 +28,13 @@ def test_easyocr(image_path, force_cpu=False):
         use_gpu = torch.cuda.is_available() and not force_cpu
         device_str = f"GPU ({torch.cuda.get_device_name(0)})" if use_gpu else "CPU"
         print(f"Initializing EasyOCR on {device_str}...")
-        reader = easyocr.Reader(['en'], gpu=use_gpu)
+        print(f"Model Storage Directory: {EASYOCR_DIR}")
+        reader = easyocr.Reader(
+            ['en'],
+            gpu=use_gpu,
+            model_storage_directory=str(EASYOCR_DIR),
+            download_enabled=True
+        )
 
         print("Running OCR inference on image...")
         results = reader.readtext(image_path)

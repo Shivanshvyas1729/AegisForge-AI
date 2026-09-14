@@ -9,19 +9,19 @@ Evaluates incoming task tokens/modality and routes to the most efficient local m
 
 import os
 import sys
+from pathlib import Path
 from typing import Dict, Any, Optional, List
 import ollama
 
+# Ensure project root is on sys.path so config is importable regardless of current directory
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from config.settings import MODEL_REGISTRY, OLLAMA_MODELS_DIR, OLLAMA_HOST
+
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
-
-# Configurable local model designations for RTX 3050 (4GB VRAM)
-MODEL_REGISTRY = {
-    "coding": "qwen2.5-coder:1.5b",
-    "reasoning": "deepseek-r1:1.5b",
-    "vision": "moondream",
-    "general": "llama3.2:3b",
-}
 
 # Heuristic keywords for fast task classification
 CODING_KEYWORDS = [
