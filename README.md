@@ -133,7 +133,8 @@ AegisForge-AI/
 ├── tests/
 │   └── .gitkeep
 └── tools/
-    └── .gitkeep
+    ├── .gitkeep
+    └── file_io.py
 ```
 
 ---
@@ -350,7 +351,7 @@ The repository contains modular directory structures (initialized with `.gitkeep
 | **`routing_api/`** | Routing REST Services | High-performance FastAPI endpoints providing model routing and agent invocation services to external on-premises tools. |
 | **`schemas/`** | Data Contracts & Schemas | Pydantic and JSON Schema definitions for structured agent outputs (approval notes, board decks, telemetry records, NDT audits). |
 | **`tests/`** | Automated Test Suites | Unit and integration tests covering model routing, OCR accuracy, calculation precision, and air-gap attestation. |
-| **`tools/`** | Agent Tools & Utilities | Deterministic tool library for agents (ASME $t_{min}$ calculator, Darcy-Weisbach flow solver, Modbus CRC validator, unit converters). |
+| **`tools/`** | Agent Tools & Utilities | Deterministic tool library for agents (ASME $t_{min}$ calculator, Darcy-Weisbach flow solver, Modbus CRC validator, unit converters, file I/O operations). |
 
 ---
 
