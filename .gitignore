@@ -3,6 +3,15 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Runtime outputs & database files
+data/output/*.docx
+data/output/*.xlsx
+data/output/*.pptx
+data/audit.db
+data/uploads/*
+!data/uploads/.gitkeep
+!data/output/.gitkeep
+
 # C extensions
 *.so
 .env 

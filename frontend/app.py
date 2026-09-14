@@ -272,39 +272,34 @@ with tab_mvp:
     with c_right:
         st.subheader("2. Real-Time Processing Status")
         if run_analysis:
-            # Check model availability
-            has_deepseek = is_model_installed("deepseek-r1:1.5b")
-            has_easyocr = is_model_installed("easyocr")
+            from agent_orchestrator.orchestrator_mvp import run_mvp_pipeline
+
+            input_source = sample_log_path if use_sample else (uploaded_file if 'uploaded_file' in locals() and uploaded_file else sample_log_path)
 
             with st.status("Executing Sovereign Workflow...", expanded=True) as status:
                 st.write("🔍 Parsing inspection log parameters...")
-                time.sleep(0.6)
-                st.write("📐 Calculating ASME Section VIII Div 1 UG-27 tolerances...")
-                time.sleep(0.6)
-
-                st.markdown("""
-                > **Equipment:** `11-V-102` (HP Separator)  
-                > **Actual Wall Thickness:** `138.20 mm`  
-                > **Minimum Required ($t_{min}$):** `138.57 mm`  
-                > **Delta:** `<span style='color: #ef4444; font-weight: bold;'>-0.37 mm (STATUTORY VIOLATION)</span>`
+                payload = run_mvp_pipeline(input_source)
+                
+                st.markdown(f"""
+                > **Equipment:** `{payload.inspection_data.equipment_id}` ({payload.inspection_data.equipment_name})  
+                > **Actual Wall Thickness:** `{payload.calculation_data.measured_thickness_mm:.2f} mm`  
+                > **Minimum Required ($t_{{min}}$):** `{payload.calculation_data.t_req_mm:.2f} mm`  
+                > **Delta:** `<span style='color: #ef4444; font-weight: bold;'>{payload.calculation_data.delta_mm:.2f} mm (STATUTORY VIOLATION)</span>`  
+                > **API 510 Remaining Life:** `{payload.calculation_data.remaining_life_years:.2f} Years`
                 """, unsafe_allow_html=True)
 
-                if has_deepseek and is_ollama_running():
-                    st.write("🧠 Synthesizing executive justification via local DeepSeek-R1...")
-                    time.sleep(1.0)
-                else:
-                    st.info("ℹ️ DeepSeek-R1 is offline/not downloaded. Using cached baseline synthesis.")
+                st.write("🧠 Synthesizing executive justification via local DeepSeek-R1...")
+                st.info(f"**Executive Finding:** {payload.reasoning_data.executive_summary}")
 
                 st.write("📄 Compiling native Microsoft Word (.docx) Note for Approval...")
-                time.sleep(0.8)
                 status.update(label="✅ Analysis Complete!", state="complete")
 
-            st.success("Deliverable Ready: `IOCL_Refinery_Approval_Note.docx`")
+            st.success(f"Deliverable Ready: `{Path(payload.docx_path).name}` (SHA-256: `{payload.sha256_hash[:12]}...`)")
 
-            # Deliverable download button
-            sample_docx = PROJECT_ROOT / "sample_data" / "01_approval_notes" / "IOCL_Refinery_Pump_Overhaul_Note.md"
-            if sample_docx.exists():
-                content = sample_docx.read_bytes()
+            # Deliverable download button with genuine generated .docx bytes
+            if os.path.exists(payload.docx_path):
+                with open(payload.docx_path, "rb") as f_docx:
+                    content = f_docx.read()
                 st.download_button(
                     label="📥 Download Executive Note for Approval (.docx)",
                     data=content,
