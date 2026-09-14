@@ -1,4 +1,9 @@
-from agent_orchestrator.state import AgentState
+from typing import TYPE_CHECKING, Dict, Any
+
+if TYPE_CHECKING:
+    from agent_orchestrator.state import AgentState
+else:
+    AgentState = Dict[str, Any]
 
 
 def summary_node(state: AgentState, summary_llm) -> AgentState:

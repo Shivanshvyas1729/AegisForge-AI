@@ -1,4 +1,9 @@
-from agent_orchestrator.state import AgentState
+from typing import TYPE_CHECKING, Dict, Any
+
+if TYPE_CHECKING:
+    from agent_orchestrator.state import AgentState
+else:
+    AgentState = Dict[str, Any]
 
 
 def multimodal_node(state: AgentState, multimodal_llm) -> AgentState:

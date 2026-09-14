@@ -3,12 +3,10 @@ from langgraph.graph import StateGraph, START, END
 from .state import AgentState
 from .router import router_node, route_decision
 from .validator import validator_node, validation_decision
-from models import (
-    coding_node,
-    reasoning_node,
-    summary_node,
-    multimodal_node,
-)
+from models.coding_models.coding import coding_node
+from models.reasoning_models.reasoning import reasoning_node
+from models.summary_models.summary import summary_node
+from models.vision_models.multimodal import multimodal_node
 
 
 def next_after_multimodal(state: AgentState) -> str:

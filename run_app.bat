@@ -16,20 +16,18 @@ echo Model Storage:      %OLLAMA_MODELS%
 echo ======================================================================
 
 :: Python executable check
-set "PYTHON_EXE=%PROJECT_ROOT%\.venv\Scripts\python.exe"
-set "STREAMLIT_EXE=%PROJECT_ROOT%\.venv\Scripts\streamlit.exe"
-
-if not exist "%STREAMLIT_EXE%" (
-    echo [ERROR] Streamlit executable not found at %STREAMLIT_EXE%
-    echo Please make sure dependencies are installed in .venv
-    pause
-    exit /b 1
+if exist "%PROJECT_ROOT%\.venv\Scripts\streamlit.exe" (
+    set "STREAMLIT_CMD="%PROJECT_ROOT%\.venv\Scripts\streamlit.exe""
+) else if exist "C:\Users\rahul\anaconda3\envs\SIH\Scripts\streamlit.exe" (
+    set "STREAMLIT_CMD="C:\Users\rahul\anaconda3\envs\SIH\Scripts\streamlit.exe""
+) else (
+    set "STREAMLIT_CMD=python -m streamlit"
 )
 
 echo [INFO] Launching AegisForge-AI Web Dashboard...
 echo The app will open in your default browser automatically.
 echo.
 
-"%STREAMLIT_EXE%" run "%PROJECT_ROOT%\frontend\app.py" --server.port 8501 --server.headless false
+%STREAMLIT_CMD% run "%PROJECT_ROOT%\frontend\app.py" --server.port 8501 --server.headless false
 
 endlocal

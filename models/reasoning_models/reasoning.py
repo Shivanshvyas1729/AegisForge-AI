@@ -1,4 +1,9 @@
-from agent_orchestrator.state import AgentState
+from typing import TYPE_CHECKING, Dict, Any
+
+if TYPE_CHECKING:
+    from agent_orchestrator.state import AgentState
+else:
+    AgentState = Dict[str, Any]
 
 
 def reasoning_node(state: AgentState, reasoning_llm) -> AgentState:
