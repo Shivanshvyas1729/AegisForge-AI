@@ -241,9 +241,53 @@ __marimo__/
 # ==============================================================================
 # AegisForge-AI Model Pool Storage (Self-Contained Model Weights & Blobs)
 # ==============================================================================
-model_pool/easyocr/*.pth
-model_pool/ollama/blobs/
-model_pool/ollama/manifests/
-model_pool/downloads/
+# Ignore entire model storage directories (preserve only .gitkeep)
+model_pool/easyocr/*
+model_pool/ollama/*
+model_pool/downloads/*
+model_pool/models/*
 !model_pool/**/.gitkeep
+
+# Explicit model names and weight files
+craft_mlt_25k.pth
+english_g2.pth
+*deepseek*.gguf
+*deepseek*.bin
+*deepseek*.safetensors
+*qwen*.gguf
+*qwen*.bin
+*qwen*.safetensors
+*llama*.gguf
+*llama*.bin
+*llama*.safetensors
+*moondream*.gguf
+*moondream*.bin
+*moondream*.safetensors
+
+# Common AI/ML binary weights and checkpoint formats
+*.pth
+*.pt
+*.bin
+*.safetensors
+*.gguf
+*.onnx
+*.weights
+*.ckpt
+
+# Ollama local cache & installers
+.ollama/
+OllamaSetup.exe
+
+# Ensure source code and docs are never ignored
+!*.py
+!*.md
+!*.bat
+!*.ps1
+!*.sh
+!*.json
+!*.txt
+!*.svg
+!*.png
+
+
 
