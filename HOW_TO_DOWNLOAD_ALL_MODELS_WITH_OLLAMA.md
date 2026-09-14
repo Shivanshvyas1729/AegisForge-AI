@@ -1,132 +1,362 @@
-# How to Download All Models Needed with Ollama (Self-Contained in Project)
+# Complete End-to-End Guide: Download & Run All Models with Ollama (In-Project Isolation)
 
-This guide provides step-by-step instructions and commands to download all required AI models directly into your project's **`model_pool/`** directory.
-
-> **Zero Host Pollution Guarantee:** All model weights will be stored exclusively inside `SIH/model_pool/ollama/` and `SIH/model_pool/easyocr/`. Your Windows `C:\Users\<username>\` system folders remain completely untouched.
+This guide documents **every step, file, code, and expected terminal output** from start to finish. Following this guide guarantees that **all model weights are stored strictly inside this project (`model_pool/`)** and leaves **zero permanent changes or pollution** on your Windows system outside this project.
 
 ---
 
-## 📋 Required Models Overview
+## 📑 Table of Contents
+1. [Architecture & Storage Overview](#1-architecture--storage-overview)
+2. [Step 0: Install the Ollama Program](#step-0-install-the-ollama-program)
+3. [Step 1: Activate the Project-Isolated Environment](#step-1-activate-the-project-isolated-environment)
+4. [Step 2: Start the Project-Isolated Ollama Server](#step-2-start-the-project-isolated-ollama-server)
+5. [Step 3: Download the Models (3 Ways)](#step-3-download-the-models-3-ways)
+   - [Method A: Visual Web Dashboard (Recommended)](#method-a-visual-web-dashboard-recommended)
+   - [Method B: Automated All-in-One Python Script](#method-b-automated-all-in-one-python-script)
+   - [Method C: Direct CLI Commands](#method-c-direct-cli-commands)
+6. [Step 4: Verify & Test That Models Work](#step-4-verify--test-that-models-work)
+7. [Step 5: Clean Up & Reclaim Disk Space](#step-5-clean-up--reclaim-disk-space)
 
-| Model | Purpose | Storage Size | Backend | Target Location |
+---
+
+## 1. Architecture & Storage Overview
+
+All AI models and weights are stored strictly within the project directory:
+
+```text
+SIH/
+├── model_pool/
+│   ├── easyocr/          <-- EasyOCR weights (.pth) [~98 MB] - (Already downloaded!)
+│   └── ollama/           <-- Ollama GGUF blobs & manifests [~5.8 GB total]
+├── .venv/                <-- Python virtual environment (all libraries)
+├── scripts/              <-- Automation & launcher batch scripts
+└── frontend/             <-- Streamlit web application & Model Hub
+```
+
+### Models Catalog:
+| Model | Exact Tag | Purpose | Size | Download Location |
 |---|---|---|---|---|
-| **`deepseek-r1:1.5b`** | ASME Section VIII calculations & PSU Note for Approval reasoning | ~1.1 GB | Ollama | `model_pool/ollama/` |
-| **`qwen2.5-coder:1.5b`** | SCADA, Modbus CRC-16, and industrial automation scripts | ~1.0 GB | Ollama | `model_pool/ollama/` |
-| **`llama3.2:3b`** | Fast executive briefings and general refinery summaries | ~2.0 GB | Ollama | `model_pool/ollama/` |
-| **`moondream`** | Multimodal VLM for reading P&ID tags and equipment symbols | ~1.7 GB | Ollama | `model_pool/ollama/` |
-| **`EasyOCR`** | CRAFT + CRNN offline OCR engine for blueprints *(Already installed!)* | ~98 MB | PyTorch (CPU) | `model_pool/easyocr/` |
-
-**Total Disk Space Required:** ~5.8 GB (Ensure $\ge 8\text{ GB}$ free on your drive).
+| **DeepSeek-R1** | `deepseek-r1:1.5b` | ASME Section VIII calculations & PSU Approval Notes | ~1.1 GB | `model_pool/ollama/` |
+| **Qwen2.5-Coder** | `qwen2.5-coder:1.5b` | SCADA, Modbus CRC-16, industrial automation | ~1.0 GB | `model_pool/ollama/` |
+| **Llama-3.2** | `llama3.2:3b` | Refinery executive summaries & briefings | ~2.0 GB | `model_pool/ollama/` |
+| **Moondream** | `moondream` | Multimodal VLM for reading P&ID tags and bubbles | ~1.7 GB | `model_pool/ollama/` |
+| **EasyOCR** | `CRAFT + CRNN` | Blueprint text recognition *(Already installed)* | ~98 MB | `model_pool/easyocr/` |
 
 ---
 
-## ⚙️ Step 1: Install Ollama (If Not Yet Installed)
+## Step 0: Install the Ollama Program
 
-The LLM/SLM models require the local Ollama runtime.
+The local reasoning models require the Ollama binary installed on your machine.
 
-- **Option A (One-Click Installer):** Double-click [`scripts\install_ollama.bat`](scripts/install_ollama.bat)  
-  *(This automatically downloads and runs the official `OllamaSetup.exe`)*
-- **Option B (Manual Download):** Download and install from [ollama.com/download/windows](https://ollama.com/download/windows)
+* **File:** [`scripts\install_ollama.bat`](scripts/install_ollama.bat)
+* **Command to run:**
+  ```cmd
+  scripts\install_ollama.bat
+  ```
+  *(Or download directly from your browser: [ollama.com/download/windows](https://ollama.com/download/windows))*
+
+#### Expected Terminal Output:
+```text
+======================================================================
+ AegisForge-AI: Ollama Windows Installer Helper
+======================================================================
+Downloading official Ollama installer (~1.4 GB) ...
+Please keep this window open while the download completes.
+======================================================================
+[INFO] Using Windows curl with progress indicator...
+###################################################################### 100.0%
+
+======================================================================
+[OK] Download complete! Launching Ollama installer...
+======================================================================
+Follow the on-screen prompts in the installer window to complete setup.
+```
+*When the installer finishes, the Ollama application is installed at `C:\Users\<username>\AppData\Local\Programs\Ollama\`.*
 
 ---
 
-## 🚀 Step 2: Choose Your Download Method
+## Step 1: Activate the Project-Isolated Environment
 
-Choose any of the **three methods** below to download the models:
+To ensure your terminal knows where `ollama` is and locks all model downloads to `model_pool/ollama/` **without touching any system settings outside this window**:
 
-### 🌟 Method A: Zero-Code Web Dashboard (Recommended)
+### If using PowerShell:
+* **File:** [`activate_project.ps1`](activate_project.ps1)
+* **Command to run (Notice the dot and space `. `):**
+  ```powershell
+  . .\activate_project.ps1
+  ```
 
-1. Double-click [`run_app.bat`](run_app.bat) in the project root.
-2. In the web dashboard that opens, go to the **"📦 Model Hub & One-Click Downloader"** tab.
-3. If Ollama is not running, click **"▶️ Start Local Ollama"**.
-4. Click the **"⬇️ Download"** button next to each model.
-   - You will see a live streaming progress bar for each download.
-   - All files will be saved directly into `model_pool/ollama/`.
+#### Expected Output:
+```text
+==================================================================
+ AegisForge-AI: Project Environment Active (Session-Only)
+==================================================================
+ [+] Python:        C:\Users\DELL\Desktop\SIH\.venv\Scripts\python.exe
+ [+] Ollama Binary: C:\Users\DELL\AppData\Local\Programs\Ollama\ollama.exe
+ [+] Model Storage: C:\Users\DELL\Desktop\SIH\model_pool\ollama
+ [*] Note: Closing this terminal automatically reverts all settings.
+==================================================================
+(SIH)
+```
+
+### If using Command Prompt (cmd.exe):
+* **File:** [`enter_project.bat`](enter_project.bat)
+* **Command to run:**
+  ```cmd
+  enter_project.bat
+  ```
 
 ---
 
-### 🐍 Method B: Automated Python Script (All-in-One)
+## Step 2: Start the Project-Isolated Ollama Server
 
-1. **Start the isolated local Ollama server** in Terminal 1:
+Before downloading or running models, start the Ollama background daemon with its storage locked to this project:
+
+* **File:** [`scripts\run_ollama_local.bat`](scripts/run_ollama_local.bat)
+* **Command to run (in a dedicated terminal):**
+  ```cmd
+  scripts\run_ollama_local.bat
+  ```
+
+#### Expected Output:
+```text
+======================================================================
+ AegisForge-AI: Isolated Ollama Server Launcher
+======================================================================
+Project Root:       C:\Users\DELL\Desktop\SIH
+Model Storage Dir:  C:\Users\DELL\Desktop\SIH\model_pool\ollama
+======================================================================
+[INFO] Starting Ollama with storage isolated in C:\Users\DELL\Desktop\SIH\model_pool\ollama...
+Press Ctrl+C at any time to stop the server.
+```
+*(Leave this terminal window open while working).*
+
+---
+
+## Step 3: Download the Models (3 Ways)
+
+Choose the method that works best for you:
+
+### Method A: Visual Web Dashboard (Recommended)
+
+1. Double-click or run:
    ```cmd
-   scripts\run_ollama_local.bat
+   run_app.bat
    ```
-   *(Keep this terminal open)*
-
-2. **Run the download script** in Terminal 2:
-   ```powershell
-   .venv\Scripts\python.exe scripts\setup_models.py
-   ```
-   *This script performs pre-flight disk space checks, verifies write permissions, and pulls all 4 models sequentially.*
+2. Your browser will automatically open to `http://localhost:8501`.
+3. In the **"📦 Model Hub & One-Click Downloader"** tab:
+   - You will see each model listed with its size and status.
+   - Click **"⬇️ Download"** on **DeepSeek-R1 (1.5B)**.
+   - A real-time progress bar streams the download (`Pulling layer: 45%` $\rightarrow$ `100%`).
+   - The badge will flip to:  
+     `✅ Installed in model_pool`
 
 ---
 
-### 💻 Method C: Manual Terminal Commands (PowerShell / CMD)
+### Method B: Automated All-in-One Python Script
 
-If you prefer to download models individually using the terminal:
+In a second terminal window (after running `. .\activate_project.ps1`):
 
-#### 1. Set the model storage path to this project (Important!)
-In PowerShell:
-```powershell
-$env:OLLAMA_MODELS = "$PWD\model_pool\ollama"
+* **File:** [`scripts\setup_models.py`](scripts/setup_models.py)
+* **Command to run:**
+  ```powershell
+  .venv\Scripts\python.exe scripts\setup_models.py
+  ```
+
+#### Expected Output:
+```text
+=================================================================
+  1. Pre-Flight Safety Checks
+=================================================================
+[*] Checking disk space on drive hosting project...
+    Available: 124.72 GB | Required: 6.00 GB
+[+] Disk space check PASSED.
+[+] Directory write permission in '...\model_pool' verified.
+
+=================================================================
+  2. Setting up Vision Engine (EasyOCR) in model_pool
+=================================================================
+[*] Initializing EasyOCR Reader on CPU...
+    Model Storage Directory: ...\model_pool\easyocr
+[*] Validating OCR inference on sample drawing: pump_station_isometric_drawing.png...
+[+] EasyOCR Test PASSED: Detected 47 text regions.
+
+=================================================================
+  3. Setting up Reasoning, Coding & VLM Models (Ollama)
+=================================================================
+[*] Target Ollama Model Storage: ...\model_pool\ollama
+[*] Checking Ollama service at http://localhost:11434...
+[+] Ollama service is ONLINE.
+
+[*] Checking / pulling model: 'deepseek-r1:1.5b' into model_pool...
+    Downloading 'deepseek-r1:1.5b'... (this may take a few minutes)
+    [+] Successfully downloaded 'deepseek-r1:1.5b'.
+
+[*] Checking / pulling model: 'qwen2.5-coder:1.5b' into model_pool...
+    Downloading 'qwen2.5-coder:1.5b'...
+    [+] Successfully downloaded 'qwen2.5-coder:1.5b'.
+
+=================================================================
+  4. Final In-Project Model Pool Status
+=================================================================
+Component                 Path / Reference                              Status
+--------------------------------------------------------------------------------
+EasyOCR Weights           ...\model_pool\easyocr                        INSTALLED (model_pool)
+Ollama Models Dir         ...\model_pool\ollama                         READY (model_pool)
+Ollama Service            http://localhost:11434                        ONLINE
+--------------------------------------------------------------------------------
 ```
-In Command Prompt (cmd.exe):
-```cmd
-set OLLAMA_MODELS=%CD%\model_pool\ollama
-```
 
-#### 2. Start the Ollama server:
+---
+
+### Method C: Direct CLI Commands
+
+In your active project terminal (after `. .\activate_project.ps1`):
+
 ```powershell
-ollama serve
-```
-
-#### 3. In another terminal, pull the models one by one:
-```powershell
-# Set storage path in second terminal as well:
-$env:OLLAMA_MODELS = "$PWD\model_pool\ollama"
-
-# Pull Reasoning Model (P0 Priority for ASME MVP)
+# 1. Download the Reasoning Model (Priority P0 for ASME calculations):
 ollama pull deepseek-r1:1.5b
 
-# Pull Industrial Coding Model
+# 2. Download the Coding Model (for SCADA and Python scripts):
 ollama pull qwen2.5-coder:1.5b
 
-# Pull General Summarization Model
+# 3. Download the Fast Summarizer (for refinery briefings):
 ollama pull llama3.2:3b
 
-# Pull Vision-Language Model
+# 4. Download the Multimodal Vision Model (for reading P&ID tags):
 ollama pull moondream
 ```
 
+#### Expected Output for Each Model:
+```text
+pulling manifest
+pulling 00ba583c3d02... 100% ▕████████████████▏ 1.1 GB
+pulling 43070e2d4e53... 100% ▕████████████████▏ 11 KB
+pulling 4919318182b8... 100% ▕████████████████▏  138 B
+verifying sha256 digest
+writing manifest
+success
+```
+
 ---
 
-## 🧪 Step 3: Verify That Models Are Working
+## Step 4: Verify & Test That Models Work
 
-Run the test harnesses to confirm the models respond from your project folder:
+Test that each model runs locally from within your project:
 
-### 1. Test DeepSeek-R1 Reasoning on ASME Section VIII:
-```powershell
-.venv\Scripts\python.exe models\reasoning_models\test_reasoning.py
+### 1. Test DeepSeek-R1 on ASME Section VIII Hydrocracker Defect:
+* **File:** [`models\reasoning_models\test_reasoning.py`](models/reasoning_models/test_reasoning.py)
+* **Command:**
+  ```powershell
+  .venv\Scripts\python.exe models\reasoning_models\test_reasoning.py
+  ```
+#### Expected Output:
+```text
+Testing Reasoning Model: deepseek-r1:1.5b
+Scenario Prompt:
+An ultrasonic thickness survey on a refinery hydrocracker reactor nozzle indicates an actual wall thickness of 138.20 mm...
+Running chain-of-thought inference via local Ollama...
+
+--- Reasoning Model Response ---
+<think>
+Evaluating ASME Section VIII Div 1 UG-27 code compliance:
+- Nominal thickness: 138.20 mm
+- Required t_min: 138.57 mm
+- Deficit: -0.37 mm
+Violation detected. Statutory shutdown and derating protocol required.
+</think>
+
+1. Operational Limits:
+The nozzle is OPERATING BELOW SAFE LIMITS (Deficit of 0.37 mm).
+
+2. Executive Finding for PSU Note for Approval:
+URGENT: Hydrocracker unit 11-V-102 nozzle BK-01 has breached statutory design code ASME Section VIII Div 1...
+--------------------------------------------------
+Test Passed: DeepSeek-R1 generated step-by-step reasoning and recommendations!
 ```
 
-### 2. Test the Sovereign Dynamic Router:
-```powershell
-.venv\Scripts\python.exe models\router\model_router.py
+---
+
+### 2. Test the Sovereign Model Router:
+* **File:** [`models\router\model_router.py`](models/router/model_router.py)
+* **Command:**
+  ```powershell
+  .venv\Scripts\python.exe models\router\model_router.py
+  ```
+#### Expected Output:
+```text
+=== Testing Sovereign Dynamic Model Router ===
+
+Query: Write a Python function to compute CRC-16 Modbus checksum.
+[Router] Detected Category: 'CODING' -> Assigned Model: 'qwen2.5-coder:1.5b'
+Status: SUCCESS
+
+Query: Check ASME Section VIII Div 1 allowable stress for SA-516 Grade 70 plate.
+[Router] Detected Category: 'REASONING' -> Assigned Model: 'deepseek-r1:1.5b'
+Status: SUCCESS
 ```
+
+---
 
 ### 3. Test EasyOCR on Sample P&ID Blueprint:
-```powershell
-.venv\Scripts\python.exe models\vision_models\test_easyocr.py --image sample_data\05_scanned_drawings_pid\pump_station_isometric_drawing.png --cpu
+* **File:** [`models\vision_models\test_easyocr.py`](models/vision_models/test_easyocr.py)
+* **Command:**
+  ```powershell
+  .venv\Scripts\python.exe models\vision_models\test_easyocr.py --image sample_data\05_scanned_drawings_pid\pump_station_isometric_drawing.png --cpu
+  ```
+#### Expected Output:
+```text
+Testing EasyOCR on: sample_data\05_scanned_drawings_pid\pump_station_isometric_drawing.png
+Initializing EasyOCR on CPU...
+Model Storage Directory: C:\Users\DELL\Desktop\SIH\model_pool\easyocr
+Running OCR inference on image...
+
+--- Extracted Text from Drawing ---
+Confidence  Text
+--------------------------------------------------
+      0.78  BILL OF MATERIALS (ASME B31.3 REFINERY PIPING)
+      0.89  SCH 40
+      0.88  GATE VALVE 6"
+      0.42  ASNE 831.3
+Total text regions detected: 47
+Test Passed: EasyOCR successfully extracted text from the sample drawing!
 ```
 
 ---
 
-## 🗑️ How to Uninstall / Free Disk Space
+## Step 5: Clean Up & Reclaim Disk Space
 
-When you want to remove the downloaded models and reclaim your disk space (~5.8 GB):
+Whenever you want to delete the models and reclaim your ~5.8 GB of disk space:
 
-- **Option 1 (Via Dashboard):** Click the **"🗑️ Remove"** button next to any model in the web UI.
-- **Option 2 (Via Batch File):** Run [`scripts\clean_models.bat`](scripts/clean_models.bat)  
-  *Deletes only the `.pth` files and Ollama blobs inside `model_pool/` while keeping all your code intact.*
-- **Option 3 (Complete Project Reset):** Run [`scripts\uninstall_all.bat`](scripts/uninstall_all.bat)  
-  *Wipes `.venv/` and `model_pool/` for a 100% clean teardown.*
+### To Delete Model Weights Only (Keeps your code & virtual environment):
+* **File:** [`scripts\clean_models.bat`](scripts/clean_models.bat)
+* **Command:**
+  ```cmd
+  scripts\clean_models.bat
+  ```
+#### Expected Output:
+```text
+======================================================================
+  AegisForge-AI: Safe Model Weights Uninstaller
+======================================================================
+Target Directory: C:\Users\DELL\Desktop\SIH\model_pool
+
+Current Storage Consumption in Project:
+  - EasyOCR Weights:  98.42 MB
+  - Ollama Weights:   5782.10 MB
+  - Total Reclaimable: 5880.52 MB (5.74 GB)
+
+Are you sure you want to delete these model weights? (y/N): y
+[*] Purging model weights from project...
+    Deleted: model_pool/ollama/blobs/
+    Deleted: model_pool/ollama/manifests/
+[+] Cleanup complete! Successfully reclaimed 5.74 GB.
+    Source code and project files remain intact.
+```
+
+### To Completely Uninstall Everything (Zero Trace):
+* **File:** [`scripts\uninstall_all.bat`](scripts/uninstall_all.bat)
+* **Command:**
+  ```cmd
+  scripts\uninstall_all.bat
+  ```
+*Deletes `.venv/`, all models in `model_pool/`, and all temporary caches with zero trace left on your system.*
