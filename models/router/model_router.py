@@ -26,7 +26,8 @@ sys.stderr.reconfigure(encoding='utf-8')
 # Heuristic keywords for fast task classification
 CODING_KEYWORDS = [
     "python", "script", "code", "sql", "modbus", "scada", "crc", "parser",
-    "function", "bug", "algorithm", "database", "query", "syntax"
+    "function", "bug", "algorithm", "database", "query", "syntax", "program",
+    "write code", "implement", "calculate in python", "python script", "def "
 ]
 REASONING_KEYWORDS = [
     "asme", "api 510", "api 570", "t_min", "thickness", "corrosion", "approval note",
@@ -49,13 +50,13 @@ class SovereignModelRouter:
 
         prompt_lower = prompt.lower()
 
+        # Check for coding keywords (e.g. python, script, code, function)
+        if any(kw in prompt_lower for kw in CODING_KEYWORDS):
+            return "coding"
+
         # Check for reasoning / regulatory keywords
         if any(kw in prompt_lower for kw in REASONING_KEYWORDS):
             return "reasoning"
-
-        # Check for coding keywords
-        if any(kw in prompt_lower for kw in CODING_KEYWORDS):
-            return "coding"
 
         # Check for vision/drawing text prompts
         if any(kw in prompt_lower for kw in VISION_KEYWORDS):
