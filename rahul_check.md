@@ -3,6 +3,11 @@
 **Target Audience:** Engineering Leads, Architecture Reviewers, PSU Process Safety Auditors  
 **System:** AegisForge-AI — 100% Air-Gapped Sovereign Industrial AI & Engineering Workbench  
 **Root Path:** `c:\Users\DELL\Desktop\SIH`  
+**Visual Browser Viewer:** Open [`architecture_viewer.html`](file:///c:/Users/DELL/Desktop/SIH/architecture_viewer.html) in your browser to interactively view and zoom all diagrams!
+
+> [!TIP]
+> **Viewing in VS Code:**  
+> Press **`Ctrl + Shift + V`** (or **`Ctrl + K, V`**) to open the visual **Markdown Preview** side-by-side.
 
 ---
 
@@ -11,10 +16,10 @@
 AegisForge-AI is an air-gapped, zero-cloud sovereign industrial engineering platform purpose-built for Indian Public Sector Undertakings (IOCL, ONGC, GAIL, NTPC, etc.). It automates statutory asset integrity audits, engineering calculations (ASME Section VIII, API 510), compliance justification (CVC guidelines, DOP Clause 4.2), and tamper-evident official document generation.
 
 ### Key Guarantees:
-1. **100% Air-Gapped & Sovereign**: Zero telemetry or external API calls. All LLMs, VLMs, and OCR models run on `localhost:11434` or local PyTorch runtimes.
+1. **100% Air-Gapped and Sovereign**: Zero telemetry or external API calls. All LLMs, VLMs, and OCR models run on `localhost:11434` or local PyTorch runtimes.
 2. **Deterministic Physics Enforcement**: Critical safety equations ($t_{\text{min}}$, safety delta, API 510 remaining service life, derated MAWP) are calculated using pure deterministic Python mathematics rather than probabilistic LLM hallucinations.
 3. **Cryptographic Tamper Attestation**: Every generated Microsoft Word (`.docx`) and Adobe PDF (`.pdf`) document is automatically stamped with a SHA-256 cryptographic hash.
-4. **Zero Host Pollution**: Storage is strictly encapsulated within the project directory. The model pool uses an NTFS Windows Junction (`model_pool\ollama` ➔ `C:\Users\DELL\.ollama\models`) ensuring portability and clean uninstallation.
+4. **Zero Host Pollution**: Storage is strictly encapsulated within the project directory. The model pool uses an NTFS Windows Junction (`model_pool\ollama` pointing to `C:\Users\DELL\.ollama\models`) ensuring portability and clean uninstallation.
 
 ---
 
@@ -33,60 +38,60 @@ graph TD
     classDef l1 fill:#1f2937,stroke:#64748b,stroke-width:2px,color:#fff;
     classDef l0 fill:#0f172a,stroke:#475569,stroke-width:2px,color:#fff;
 
-    subgraph L7["Layer 7: Central Operating Gateway & User Interfaces"]
-        L7_CLI["CLI & Central Engine<br/>(main.py)"]
-        L7_UI["Streamlit 6-Tab Workbench<br/>(frontend/app.py)"]
+    subgraph L7["Layer 7: Central Gateway and User Interfaces"]
+        L7_CLI["main.py (Central Gateway and CLI)"]
+        L7_UI["frontend/app.py (Streamlit 6-Tab Workbench)"]
     end
     class L7,L7_CLI,L7_UI l7;
 
-    subgraph L6["Layer 6: Output Emission & Cryptographic Attestation"]
-        L6_DOCX["Word .docx Generator<br/>(output_generation/docx_generator.py)"]
-        L6_PDF["PDF .pdf Generator<br/>(output_generation/pdf_generator.py)"]
-        L6_HASH["SHA-256 Tamper Attestation"]
+    subgraph L6["Layer 6: Output Emission and Cryptography"]
+        L6_DOCX["docx_generator.py (Word Deliverable)"]
+        L6_PDF["pdf_generator.py (PDF Deliverable)"]
+        L6_HASH["SHA-256 File Attestation"]
     end
     class L6,L6_DOCX,L6_PDF,L6_HASH l6;
 
-    subgraph L5["Layer 5: Routing & Multi-Agent Orchestration"]
-        L5_MVP["Golden Path Orchestrator<br/>(agent_orchestrator/orchestrator_mvp.py)"]
-        L5_ROUTER["Sovereign Model Router<br/>(models/router/model_router.py)"]
-        L5_GRAPH["LangGraph State Machine<br/>(agent_orchestrator/graph.py)"]
+    subgraph L5["Layer 5: Routing and Multi-Agent Orchestration"]
+        L5_MVP["orchestrator_mvp.py (Golden Path Pipeline)"]
+        L5_ROUTER["model_router.py (Task Classifier)"]
+        L5_GRAPH["graph.py (LangGraph Machine)"]
     end
     class L5,L5_MVP,L5_ROUTER,L5_GRAPH l5;
 
-    subgraph L4["Layer 4: Sovereign Model Pool & Local Serving"]
-        L4_QWEN["Coding Agent: Qwen2.5-Coder:1.5b"]
-        L4_R1["Reasoning Agent: DeepSeek-R1:1.5b"]
-        L4_LLAMA["Summary Agent: Llama-3.2:3b"]
-        L4_VLM["Vision Agent: Moondream / EasyOCR"]
-        L4_MGR["Model Hub & Downloader<br/>(models/model_downloader.py)"]
+    subgraph L4["Layer 4: Sovereign Model Pool and Local Serving"]
+        L4_QWEN["Qwen2.5-Coder:1.5b (Coding Agent)"]
+        L4_R1["DeepSeek-R1:1.5b (Reasoning Agent)"]
+        L4_LLAMA["Llama-3.2:3b (Summary Agent)"]
+        L4_VLM["Moondream / EasyOCR (Vision Agent)"]
+        L4_MGR["model_downloader.py (Model Hub)"]
     end
     class L4,L4_QWEN,L4_R1,L4_LLAMA,L4_VLM,L4_MGR l4;
 
-    subgraph L3["Layer 3: Deterministic Physics & Air-Gapped Tools"]
-        L3_ASME["ASME Section VIII UG-27 Calculator<br/>(tools/asme_calculator.py)"]
-        L3_BOX["Subprocess Python Sandbox<br/>(tools/sandbox.py)"]
-        L3_DOC["Unified Doc Tool<br/>(tools/doc_generator.py)"]
-        L3_RAG["Local File RAG<br/>(tools/rag.py)"]
-        L3_IO["Safe File I/O<br/>(tools/file_io.py)"]
+    subgraph L3["Layer 3: Deterministic Physics and Tools"]
+        L3_ASME["asme_calculator.py (ASME UG-27 Math Engine)"]
+        L3_BOX["sandbox.py (Air-Gapped Python Sandbox)"]
+        L3_DOC["doc_generator.py (Document Tool API)"]
+        L3_RAG["rag.py (Local File Search)"]
+        L3_IO["file_io.py (Safe JSON/CSV/TXT IO)"]
     end
     class L3,L3_ASME,L3_BOX,L3_DOC,L3_RAG,L3_IO l3;
 
-    subgraph L2["Layer 2: Ingestion & Perception Preprocessing"]
-        L2_INGEST["OCR Log Ingestion & Regex Extractor<br/>(ingestion/extract_inspection_data.py)"]
-        L2_VIS["Multi-Modal Vision Adapter<br/>(models/vision_models/multimodal.py)"]
+    subgraph L2["Layer 2: Ingestion and Perception"]
+        L2_INGEST["extract_inspection_data.py (OCR Log Parser)"]
+        L2_VIS["multimodal.py (Vision VLM Adapter)"]
     end
     class L2,L2_INGEST,L2_VIS l2;
 
-    subgraph L1["Layer 1: Unified Data Contracts & Schemas"]
-        L1_PYD["Pydantic State Schemas<br/>(schemas/mvp_schema.py)"]
-        L1_STATE["LangGraph AgentState<br/>(agent_orchestrator/state.py)"]
+    subgraph L1["Layer 1: Unified Data Contracts and Schemas"]
+        L1_PYD["mvp_schema.py (Pydantic Data Models)"]
+        L1_STATE["state.py (AgentState Schema)"]
     end
     class L1,L1_PYD,L1_STATE l1;
 
-    subgraph L0["Layer 0: Sovereign Runtime & Isolation"]
-        L0_CONF["Root Anchoring & Paths<br/>(config/settings.py)"]
-        L0_SCRIPTS["Offline Scripts & Daemons<br/>(scripts/run_ollama_local.bat)"]
-        L0_JUNCTION["Windows Junction Storage<br/>(model_pool/ollama -> C:\\Users\\DELL\\.ollama\\models)"]
+    subgraph L0["Layer 0: Sovereign Runtime and Isolation"]
+        L0_CONF["config/settings.py (Root Anchoring)"]
+        L0_SCRIPTS["run_ollama_local.bat (Local Daemon)"]
+        L0_JUNCTION["model_pool/ollama (NTFS Junction)"]
     end
     class L0,L0_CONF,L0_SCRIPTS,L0_JUNCTION l0;
 
@@ -95,79 +100,154 @@ graph TD
     L5 --> L4
     L5 --> L3
     L5 --> L2
-    L2 & L3 & L4 & L5 & L6 --> L1
-    L1 & L2 & L3 & L4 & L5 & L6 & L7 --> L0
+    L6 --> L1
+    L5 --> L1
+    L4 --> L1
+    L3 --> L1
+    L2 --> L1
+    L1 --> L0
 ```
 
 ---
 
 ## 3. Complete Component & File-by-File Directory Map
 
-Every folder, module, script, and artifact mapped to its location in the repository:
+The entire system is modularly organized into 7 functional clusters:
 
 ```mermaid
-graph LR
-    classDef rootBox fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#fff;
-    classDef modBox fill:#1e293b,stroke:#94a3b8,stroke-width:1px,color:#f8fafc;
-    classDef fileBox fill:#334155,stroke:#cbd5e1,stroke-width:1px,color:#f1f5f9;
+flowchart TD
+    classDef uiBox fill:#1e3a8a,stroke:#3b82f6,stroke-width:2px,color:#fff;
+    classDef orchBox fill:#4c1d95,stroke:#8b5cf6,stroke-width:2px,color:#fff;
+    classDef toolBox fill:#831843,stroke:#ec4899,stroke-width:2px,color:#fff;
+    classDef modelBox fill:#7c2d12,stroke:#f97316,stroke-width:2px,color:#fff;
+    classDef outBox fill:#065f46,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef baseBox fill:#0f172a,stroke:#475569,stroke-width:2px,color:#fff;
 
-    Root["c:\\Users\\DELL\\Desktop\\SIH"]:::rootBox
+    subgraph SG_Entry["1. Entrypoints and User Interfaces"]
+        MainPy["main.py (Master Gateway and CLI)"]:::uiBox
+        AppPy["frontend/app.py (Streamlit 6-Tab App)"]:::uiBox
+        RunBat["run_app.bat (1-Click Launcher)"]:::uiBox
+    end
 
-    %% Root Controllers
-    Root --> MainPy["main.py (Central Gateway & CLI)"]:::fileBox
-    Root --> RunBat["run_app.bat (1-Click UI Launcher)"]:::fileBox
-    Root --> ActPs1["activate_project.ps1 (Env Setup)"]:::fileBox
+    subgraph SG_Orch["2. Orchestration and State Machine"]
+        OrchMVP["agent_orchestrator/orchestrator_mvp.py"]:::orchBox
+        GraphPy["agent_orchestrator/graph.py"]:::orchBox
+        RouterPy["agent_orchestrator/router.py"]:::orchBox
+        ValPy["agent_orchestrator/validator.py"]:::orchBox
+        StatePy["agent_orchestrator/state.py"]:::orchBox
+        SchemasPy["schemas/mvp_schema.py"]:::orchBox
+    end
 
-    %% Frontend
-    Root --> D_Frontend["frontend/"]:::modBox
-    D_Frontend --> AppPy["app.py (Streamlit 6-Tab App)"]:::fileBox
+    subgraph SG_Ingest["3. Ingestion and Perception"]
+        ExtractPy["ingestion/extract_inspection_data.py"]:::toolBox
+        VisionMod["models/vision_models/multimodal.py"]:::toolBox
+    end
 
-    %% Agent Orchestrator
-    Root --> D_Orch["agent_orchestrator/"]:::modBox
-    D_Orch --> OrchMVP["orchestrator_mvp.py (Golden Path Pipeline)"]:::fileBox
-    D_Orch --> GraphPy["graph.py (LangGraph State Machine)"]:::fileBox
-    D_Orch --> RouterPy["router.py (Node Dispatcher)"]:::fileBox
-    D_Orch --> StatePy["state.py (AgentState TypedDict)"]:::fileBox
-    D_Orch --> ValPy["validator.py (Self-Correction Loop)"]:::fileBox
+    subgraph SG_Tools["4. Deterministic Physics and Tools"]
+        AsmePy["tools/asme_calculator.py"]:::toolBox
+        SandboxPy["tools/sandbox.py"]:::toolBox
+        DocToolPy["tools/doc_generator.py"]:::toolBox
+        RagPy["tools/rag.py"]:::toolBox
+        FileIoPy["tools/file_io.py"]:::toolBox
+    end
 
-    %% Models
-    Root --> D_Models["models/"]:::modBox
-    D_Models --> M_Downloader["model_downloader.py (Pull / Status)"]:::fileBox
-    D_Models --> D_ModRouter["router/model_router.py (Task Classifier)"]:::fileBox
-    D_Models --> D_Coding["coding_models/coding.py (Qwen-Coder)"]:::fileBox
-    D_Models --> D_Reasoning["reasoning_models/reasoning.py (DeepSeek-R1)"]:::fileBox
-    D_Models --> D_Summary["summary_models/summary.py (Llama-3.2)"]:::fileBox
-    D_Models --> D_Vision["vision_models/multimodal.py (Moondream)"]:::fileBox
+    subgraph SG_Models["5. Sovereign Model Pool"]
+        ModelRouter["models/router/model_router.py"]:::modelBox
+        ModelDownloader["models/model_downloader.py"]:::modelBox
+        CodingMod["models/coding_models/coding.py"]:::modelBox
+        ReasoningMod["models/reasoning_models/reasoning.py"]:::modelBox
+        SummaryMod["models/summary_models/summary.py"]:::modelBox
+    end
 
-    %% Tools
-    Root --> D_Tools["tools/"]:::modBox
-    D_Tools --> T_ASME["asme_calculator.py (UG-27 Math Engine)"]:::fileBox
-    D_Tools --> T_Sandbox["sandbox.py (Subprocess Sandbox)"]:::fileBox
-    D_Tools --> T_Doc["doc_generator.py (Doc Tool API)"]:::fileBox
-    D_Tools --> T_RAG["rag.py (Air-Gapped Search)"]:::fileBox
-    D_Tools --> T_FileIO["file_io.py (Safe JSON/CSV/TXT)"]:::fileBox
+    subgraph SG_Output["6. Output Emission and Attestation"]
+        DocxGen["output_generation/docx_generator.py"]:::outBox
+        PdfGen["output_generation/pdf_generator.py"]:::outBox
+    end
 
-    %% Ingestion
-    Root --> D_Ingestion["ingestion/"]:::modBox
-    D_Ingestion --> ExtrPy["extract_inspection_data.py (Log Parser)"]:::fileBox
+    subgraph SG_Storage["7. Runtime and Storage"]
+        SettingsPy["config/settings.py"]:::baseBox
+        OllamaBat["scripts/run_ollama_local.bat"]:::baseBox
+        JunctionDir["model_pool/ollama (Windows Junction)"]:::baseBox
+        DataDir["data/output and data/uploads"]:::baseBox
+    end
 
-    %% Schemas
-    Root --> D_Schemas["schemas/"]:::modBox
-    D_Schemas --> SchemaMVP["mvp_schema.py (Pydantic Models)"]:::fileBox
+    RunBat --> AppPy
+    MainPy --> SG_Orch
+    AppPy --> SG_Orch
+    AppPy --> SG_Tools
+    AppPy --> SG_Models
 
-    %% Output Generation
-    Root --> D_Output["output_generation/"]:::modBox
-    D_Output --> DocxGen["docx_generator.py (Native Word Generator)"]:::fileBox
-    D_Output --> PdfGen["pdf_generator.py (Native PDF Generator)"]:::fileBox
+    SG_Orch --> SG_Ingest
+    SG_Orch --> SG_Tools
+    SG_Orch --> SG_Models
+    SG_Orch --> SG_Output
 
-    %% Config & Scripts & Storage
-    Root --> D_Config["config/settings.py (Anchors & Paths)"]:::fileBox
-    Root --> D_Scripts["scripts/"]:::modBox
-    D_Scripts --> S_RunOllama["run_ollama_local.bat (Ollama Daemon)"]:::fileBox
-    D_Scripts --> S_Setup["setup_models.py (Automated Puller)"]:::fileBox
-    D_Scripts --> S_Clean["clean_models.bat / .py (Purge)"]:::fileBox
-    Root --> D_Pool["model_pool/ (Junction -> .ollama/models)"]:::modBox
-    Root --> D_Data["data/ (output/ & uploads/)"]:::modBox
+    SG_Models --> OllamaBat
+    OllamaBat --> JunctionDir
+    SG_Output --> DataDir
+    SG_Tools --> DataDir
+```
+
+### 📁 Clean Hierarchical Component Tree
+
+```text
+c:\Users\DELL\Desktop\SIH\
+│
+├── 🚀 1. GATEWAY & USER INTERFACES (Layer 7)
+│   ├── main.py                               # Central Master Gateway, CLI commands & programmatic engine
+│   ├── run_app.bat                           # 1-Click launcher: ensures Ollama is active & starts Streamlit UI
+│   └── frontend/
+│       └── app.py                            # Streamlit 6-Tab Sovereign Workbench (Router, MVP, Calc, Sandbox, Models, Info)
+│
+├── 🧠 2. AGENT ORCHESTRATION & STATE (Layers 5 & 1)
+│   ├── schemas/
+│   │   └── mvp_schema.py                     # Pydantic contracts: InspectionInput, CalculationOutput, ReasoningOutput, FinalNFAPayload
+│   └── agent_orchestrator/
+│       ├── orchestrator_mvp.py               # Golden Path coordinator: Ingest -> ASME Math -> DeepSeek-R1 -> Word/PDF
+│       ├── graph.py                          # LangGraph StateGraph compiling router, coding, reasoning, summary, and multimodal nodes
+│       ├── router.py                         # Heuristic prompt classification & routing decision node
+│       ├── validator.py                      # Multi-agent output validator with retry & loopback logic
+│       └── state.py                          # TypedDict AgentState schema passing prompt, files, routes, and messages
+│
+├── 📥 3. INGESTION & PERCEPTION (Layer 2)
+│   └── ingestion/
+│       └── extract_inspection_data.py        # Regex parser extracting equipment ID, thickness, pressure, material from raw OCR logs
+│
+├── 🧮 4. DETERMINISTIC PHYSICS & AIR-GAPPED TOOLS (Layer 3)
+│   └── tools/
+│       ├── asme_calculator.py                # ASME Section VIII Div 1 UG-27 shell thickness, breach delta & API 510 life calculator
+│       ├── sandbox.py                        # Isolated subprocess Python execution engine with strict 15s timeout
+│       ├── doc_generator.py                  # High-level tool wrapping .docx and .pdf generation for agents and UI
+│       ├── rag.py                            # Sovereign air-gapped text search across sample_data/ documents
+│       └── file_io.py                        # Safe reader/writer for local JSON, CSV, and text files
+│
+├── 🤖 5. SOVEREIGN MODEL POOL & SERVING (Layer 4)
+│   └── models/
+│       ├── model_downloader.py               # Local model hub manager: streaming downloader, health checks, model purger
+│       ├── router/
+│       │   └── model_router.py               # SovereignModelRouter & LocalModelHandler for dynamic prompt-to-model dispatching
+│       ├── coding_models/coding.py           # Coding agent node using Qwen2.5-Coder:1.5b
+│       ├── reasoning_models/reasoning.py     # Reasoning agent node using DeepSeek-R1:1.5b
+│       ├── summary_models/summary.py         # Summary agent node using Llama-3.2:3b
+│       └── vision_models/multimodal.py       # Vision agent node using Moondream VLM and EasyOCR
+│
+├── 📄 6. OUTPUT EMISSION & CRYPTOGRAPHY (Layer 6)
+│   └── output_generation/
+│       ├── docx_generator.py                 # Generates styled Microsoft Word (.docx) Note for Approval with SHA-256 hash
+│       └── pdf_generator.py                  # Generates styled Adobe PDF (.pdf) Note for Approval with SHA-256 hash
+│
+└── 🔒 7. RUNTIME, ISOLATION & STORAGE (Layer 0)
+    ├── config/settings.py                    # Root anchor, path definitions, and local model registry mappings
+    ├── model_pool/
+    │   ├── easyocr/                          # CRAFT & CRNN text recognition weight files (.pth)
+    │   └── ollama/                           # Windows NTFS Junction link -> C:\Users\DELL\.ollama\models
+    ├── data/
+    │   ├── output/                           # Destination folder for generated .docx and .pdf deliverables
+    │   └── uploads/                          # User uploaded field logs and engineering drawings
+    └── scripts/
+        ├── run_ollama_local.bat              # Starts local Ollama daemon on port 11434 with model_pool storage
+        ├── setup_models.py                   # Automated model preflight & batch downloader script
+        └── clean_models.bat                  # 1-click model purge script to reclaim 100% disk space
 ```
 
 ---
@@ -179,47 +259,39 @@ The Golden Path executes the complete pipeline: field inspection log ingestion �
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Engineer as PSU Inspection Engineer
-    participant UI as frontend/app.py (Tab 2)
-    participant Orchestrator as agent_orchestrator/orchestrator_mvp.py
-    participant Ingestion as ingestion/extract_inspection_data.py
-    participant MathEngine as tools/asme_calculator.py
-    participant ReasoningLLM as models/reasoning_models/reasoning.py (DeepSeek-R1)
-    participant DocEmitter as output_generation/docx_generator.py & pdf_generator.py
-    participant FileStorage as data/output/
+    actor Engineer as "PSU Inspection Engineer"
+    participant UI as "frontend/app.py (Tab 2)"
+    participant Orchestrator as "agent_orchestrator/orchestrator_mvp.py"
+    participant Ingestion as "ingestion/extract_inspection_data.py"
+    participant MathEngine as "tools/asme_calculator.py"
+    participant ReasoningLLM as "models/reasoning_models/reasoning.py"
+    participant DocEmitter as "output_generation/docx_generator.py"
+    participant FileStorage as "data/output/"
 
-    Engineer->>UI: Selects sample or uploads field inspector log (.txt)
+    Engineer->>UI: Selects sample inspection log (.txt)
     Engineer->>UI: Clicks "Run Sovereign Pipeline"
     
     UI->>Orchestrator: run_mvp_pipeline(input_source)
     
-    %% Step 1: Ingestion
-    Note over Orchestrator,Ingestion: Step 1: Ingestion & Regex Parameter Extraction
+    Note over Orchestrator,Ingestion: Step 1: Ingestion and Parameter Extraction
     Orchestrator->>Ingestion: parse_inspection_input(raw_log_path)
-    Ingestion-->>Orchestrator: InspectionInput(equipment_id="11-V-102", t_act=138.20mm, P=14.5MPa, ...)
+    Ingestion-->>Orchestrator: InspectionInput(equipment_id="11-V-102", t_act=138.20mm)
     
-    %% Step 2: Math
     Note over Orchestrator,MathEngine: Step 2: Deterministic ASME UG-27 Verification
     Orchestrator->>MathEngine: evaluate_vessel_integrity(InspectionInput)
-    Note right of MathEngine: t_req = (P*R)/(S*E - 0.6*P) + CA<br/>t_req = 138.57 mm<br/>delta = 138.20 - 138.57 = -0.37 mm<br/>is_breach = True, Remaining Life = -0.49 yrs
-    MathEngine-->>Orchestrator: CalculationOutput(t_req_mm=138.57, delta_mm=-0.37, is_breach=True, status="CRITICAL_BREACH")
+    MathEngine-->>Orchestrator: CalculationOutput(t_req_mm=138.57, delta_mm=-0.37, breach=True)
     
-    %% Step 3: Reasoning
-    Note over Orchestrator,ReasoningLLM: Step 3: Sovereign CVC & DOP Justification Synthesis
-    Orchestrator->>ReasoningLLM: call_local_reasoning_model(InspectionInput, CalculationOutput)
-    ReasoningLLM->>ReasoningLLM: Local DeepSeek-R1 (127.0.0.1:11434) formats CVC DOP 4.2 emergency justification
-    ReasoningLLM-->>Orchestrator: ReasoningOutput(executive_summary, cvc_guideline_clause, recommended_action, estimated_cost="Rs. 88.0 Lakhs")
+    Note over Orchestrator,ReasoningLLM: Step 3: Sovereign CVC and DOP Justification
+    Orchestrator->>ReasoningLLM: call_local_reasoning_model(Inspection, Calculation)
+    ReasoningLLM-->>Orchestrator: ReasoningOutput(executive_summary, cvc_guideline_clause)
     
-    %% Step 4: Emission
-    Note over Orchestrator,DocEmitter: Step 4: Office Deliverable Compilation & Tamper Attestation
-    Orchestrator->>DocEmitter: generate_approval_nfa_docx(...) & generate_approval_nfa_pdf(...)
-    DocEmitter->>FileStorage: Writes IOCL_Emergency_Approval_Note.docx & .pdf
-    DocEmitter->>DocEmitter: Computes SHA-256 cryptographic hashes
-    DocEmitter-->>Orchestrator: File paths + SHA-256 attestation hashes
+    Note over Orchestrator,DocEmitter: Step 4: Office Deliverables and SHA-256 Attestation
+    Orchestrator->>DocEmitter: generate_approval_nfa_docx and generate_approval_nfa_pdf
+    DocEmitter->>FileStorage: Writes DOCX and PDF deliverables
+    DocEmitter-->>Orchestrator: Emitted file paths and SHA-256 hashes
     
     Orchestrator-->>UI: FinalNFAPayload (Complete Verified State)
-    UI->>UI: Displays Telemetry Metrics, Code Breach Badges & LaTeX Formula Proof
-    UI-->>Engineer: Renders 1-Click DOCX & PDF Download Buttons with File Integrity Attestation
+    UI-->>Engineer: Renders Telemetry, Badges, and 1-Click DOCX / PDF Downloads
 ```
 
 ---
@@ -236,29 +308,27 @@ flowchart TD
     classDef toolNode fill:#7c2d12,stroke:#f97316,stroke-width:2px,color:#fff;
     classDef outNode fill:#0f172a,stroke:#475569,stroke-width:2px,color:#fff;
 
-    UserPrompt["User Prompt / File Upload<br/>(UI Tab 1 or main.py route)"]:::inputNode
-    Classifier{"Task Classifier<br/>(models/router/model_router.py)"}:::classNode
+    UserPrompt["User Prompt or File Upload (UI Tab 1 or main.py route)"]:::inputNode
+    Classifier{"Task Classifier (model_router.py)"}:::classNode
 
     UserPrompt --> Classifier
 
-    %% Branches
-    Classifier -- "Coding Keywords<br/>(python, def, script, modbus, sql)" --> CodingBranch["Coding Model Node<br/>qwen2.5-coder:1.5b"]:::modelNode
-    Classifier -- "Reasoning Keywords<br/>(asme, cvc, breach, t_min, mawp)" --> ReasoningBranch["Reasoning Model Node<br/>deepseek-r1:1.5b"]:::modelNode
-    Classifier -- "Summary / General<br/>(summarize, points, safety notes)" --> SummaryBranch["Summary Model Node<br/>llama3.2:3b"]:::modelNode
-    Classifier -- "Image / Diagram Uploaded<br/>(png, jpg, svg, P&ID)" --> VisionBranch["Vision VLM Node<br/>moondream / EasyOCR"]:::modelNode
+    Classifier -- "Coding Keywords: python, def, script" --> CodingBranch["Qwen2.5-Coder:1.5b (Coding Node)"]:::modelNode
+    Classifier -- "Reasoning Keywords: asme, cvc, breach" --> ReasoningBranch["DeepSeek-R1:1.5b (Reasoning Node)"]:::modelNode
+    Classifier -- "Summary Keywords: summarize, points" --> SummaryBranch["Llama-3.2:3b (Summary Node)"]:::modelNode
+    Classifier -- "Image Uploaded: png, jpg, svg, P&ID" --> VisionBranch["Moondream / EasyOCR (Vision Node)"]:::modelNode
 
-    %% Executions
-    CodingBranch --> CodeExtract["Extract ```python Code Block"]:::toolNode
-    CodeExtract --> SandboxExec["Air-Gapped Subprocess Sandbox<br/>(tools/sandbox.py)<br/>Timeout: 15s | Isolated Subprocess"]:::toolNode
-    SandboxExec --> SandboxResult["Display stdout / stderr & Return Code"]:::outNode
+    CodingBranch --> CodeExtract["Extract Python Code Block"]:::toolNode
+    CodeExtract --> SandboxExec["tools/sandbox.py (15s Timeout Subprocess)"]:::toolNode
+    SandboxExec --> SandboxResult["Display stdout / stderr and Return Code"]:::outNode
 
-    ReasoningBranch --> IntentCheck{"Prompt Intent Check:<br/>Wants DOCX / PDF?"}:::classNode
-    IntentCheck -- "Yes ('need docx', 'need pdf')" --> DocGen["tools/doc_generator.py<br/>Compiles Word / PDF Deliverables"]:::toolNode
-    DocGen --> DownloadBtns["1-Click Native DOCX & PDF Download<br/>with SHA-256 Hash"]:::outNode
-    IntentCheck -- "No (Pure Text Reasoning)" --> TextOutput["Render Markdown Rationale & Formula Proof"]:::outNode
+    ReasoningBranch --> IntentCheck{"Prompt Asks for DOCX / PDF?"}:::classNode
+    IntentCheck -- "Yes: need docx, need pdf" --> DocGen["tools/doc_generator.py (Compiles Word and PDF)"]:::toolNode
+    DocGen --> DownloadBtns["1-Click Native DOCX and PDF Download"]:::outNode
+    IntentCheck -- "No: Pure Text Reasoning" --> TextOutput["Render Markdown Rationale and LaTeX Formula"]:::outNode
 
-    SummaryBranch --> SummaryOutput["Render Structured Bulleted Deliverable"]:::outNode
-    VisionBranch --> VisionOutput["Render Tag / Visual Inspection Analysis"]:::outNode
+    SummaryBranch --> SummaryOutput["Render Structured Executive Deliverable"]:::outNode
+    VisionBranch --> VisionOutput["Render P&ID Tag and Visual Inspection Analysis"]:::outNode
 ```
 
 ---
@@ -270,28 +340,28 @@ When multi-agent state orchestration is executed (`agent_orchestrator/graph.py`)
 ```mermaid
 stateDiagram-v2
     [*] --> START
-    START --> RouterNode : initial_state (user_prompt, files, attempts=0)
+    START --> RouterNode : initial_state
 
     state RouterNode {
         [*] --> ClassifyPrompt
         ClassifyPrompt --> AssignRoute
     }
 
-    RouterNode --> CodingNode : route == 'coding'
-    RouterNode --> ReasoningNode : route == 'reasoning'
-    RouterNode --> SummaryNode : route == 'summary'
-    RouterNode --> MultimodalNode : route == 'multimodal'
-    RouterNode --> MultimodalNode : route == 'pipeline' (Sequential Chain)
+    RouterNode --> CodingNode : route is coding
+    RouterNode --> ReasoningNode : route is reasoning
+    RouterNode --> SummaryNode : route is summary
+    RouterNode --> MultimodalNode : route is multimodal
+    RouterNode --> MultimodalNode : route is pipeline
 
-    state "Sequential Golden Chain (if route == 'pipeline')" as PipelineSeq {
-        MultimodalNode --> CodingNode : next_after_multimodal
-        CodingNode --> ReasoningNode : next_after_coding
-        ReasoningNode --> SummaryNode : next_after_reasoning
+    state PipelineSeq {
+        MultimodalNode --> CodingNode : sequential transition 1
+        CodingNode --> ReasoningNode : sequential transition 2
+        ReasoningNode --> SummaryNode : sequential transition 3
     }
 
-    MultimodalNode --> ValidatorNode : route != 'pipeline'
-    CodingNode --> ValidatorNode : route != 'pipeline'
-    ReasoningNode --> ValidatorNode : route != 'pipeline'
+    MultimodalNode --> ValidatorNode : direct evaluation
+    CodingNode --> ValidatorNode : direct evaluation
+    ReasoningNode --> ValidatorNode : direct evaluation
     SummaryNode --> ValidatorNode
 
     state ValidatorNode {
@@ -299,11 +369,11 @@ stateDiagram-v2
         CheckQuality --> AssessAttempts
     }
 
-    ValidatorNode --> CodingNode : retry coding (attempts < 3)
-    ValidatorNode --> ReasoningNode : retry reasoning (attempts < 3)
-    ValidatorNode --> SummaryNode : retry summary (attempts < 3)
-    ValidatorNode --> MultimodalNode : retry multimodal (attempts < 3)
-    ValidatorNode --> END : validation_decision == 'end'
+    ValidatorNode --> CodingNode : retry coding (attempts under 3)
+    ValidatorNode --> ReasoningNode : retry reasoning (attempts under 3)
+    ValidatorNode --> SummaryNode : retry summary (attempts under 3)
+    ValidatorNode --> MultimodalNode : retry multimodal (attempts under 3)
+    ValidatorNode --> END : validation passed or attempts exhausted
     END --> [*]
 ```
 
@@ -320,31 +390,31 @@ flowchart TD
     classDef proc fill:#065f46,stroke:#10b981,stroke-width:2px,color:#fff;
 
     subgraph HostSystem["Windows Host Storage"]
-        OllamaDefault["C:\\Users\\DELL\\.ollama\\models<br/>(Native Windows Ollama Storage)"]:::disk
+        OllamaDefault["C:\\Users\\DELL\\.ollama\\models (Default Windows Ollama Storage)"]:::disk
     end
 
-    subgraph ProjectWorkspace["Project Root: c:\\Users\\DELL\\Desktop\\SIH\\"]
+    subgraph ProjectWorkspace["Project Root: c:\\Users\\DELL\\Desktop\\SIH"]
         ModelPool["model_pool/"]:::project
-        Junction["model_pool/ollama<br/>(Windows NTFS Junction Link /J)"]:::project
-        EasyOCR_Dir["model_pool/easyocr/<br/>(CRAFT & CRNN .pth weights)"]:::project
-        DataDir["data/output/ & data/uploads/"]:::project
+        Junction["model_pool/ollama (Windows NTFS Junction Link)"]:::project
+        EasyOCR_Dir["model_pool/easyocr/ (CRAFT and CRNN .pth weights)"]:::project
+        DataDir["data/output/ and data/uploads/"]:::project
     end
 
-    subgraph RuntimeProcesses["Local Subprocesses (Air-Gapped, Localhost Only)"]
-        OllamaDaemon["Ollama Local Daemon<br/>(127.0.0.1:11434)<br/>Launched via scripts/run_ollama_local.bat"]:::proc
-        StreamlitUI["Streamlit UI (Port 8501)<br/>Launched via run_app.bat"]:::proc
-        PythonCLI["Master Gateway (main.py)"]:::proc
+    subgraph RuntimeProcesses["Local Subprocesses (Air-Gapped Localhost)"]
+        OllamaDaemon["Ollama Local Daemon (127.0.0.1:11434)"]:::proc
+        StreamlitUI["Streamlit UI (Port 8501)"]:::proc
+        PythonCLI["Master Gateway CLI (main.py)"]:::proc
     end
 
     Junction -. "Zero-Copy NTFS Pointer" .-> OllamaDefault
     ModelPool --> Junction
     ModelPool --> EasyOCR_Dir
 
-    OllamaDaemon -->|"Reads/Writes Weights"| OllamaDefault
-    StreamlitUI -->|"API Requests (localhost:11434)"| OllamaDaemon
-    PythonCLI -->|"API Requests (localhost:11434)"| OllamaDaemon
-    StreamlitUI -->|"Writes Output Files"| DataDir
-    PythonCLI -->|"Writes Output Files"| DataDir
+    OllamaDaemon --> OllamaDefault
+    StreamlitUI --> OllamaDaemon
+    PythonCLI --> OllamaDaemon
+    StreamlitUI --> DataDir
+    PythonCLI --> DataDir
 ```
 
 ---

@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AegisForge-AI | Master Architecture & Flow Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg-dark: #0b0f19;
+      --card-bg: #131b2a;
+      --border-color: #1f2d42;
+      --accent-blue: #3b82f6;
+      --accent-cyan: #06b6d4;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --badge-green: #065f46;
+      --badge-green-txt: #6ee7b7;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Inter', sans-serif;
+      line-height: 1.6;
+      padding-bottom: 60px;
+    }
+    header {
+      background: linear-gradient(180deg, #111827 0%, var(--bg-dark) 100%);
+      border-bottom: 1px solid var(--border-color);
+      padding: 30px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .header-left h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header-left p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-top: 4px;
+    }
+    .badge {
+      display: inline-block;
+      background: var(--badge-green);
+      color: var(--badge-green-txt);
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 30px 40px;
+    }
+    .nav-tabs {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 16px;
+      margin-bottom: 30px;
+    }
+    .tab-btn {
+      background: #1e293b;
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .tab-btn:hover {
+      background: #273549;
+      color: #fff;
+      border-color: var(--accent-blue);
+    }
+    .tab-btn.active {
+      background: var(--accent-blue);
+      color: #fff;
+      border-color: var(--accent-blue);
+      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
+    }
+    .tab-content {
+      display: none;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .tab-content.active {
+      display: block;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .diagram-desc {
+      background: #0f172a;
+      border-left: 4px solid var(--accent-blue);
+      padding: 14px 20px;
+      border-radius: 0 8px 8px 0;
+      margin-bottom: 24px;
+      font-size: 0.95rem;
+      color: #cbd5e1;
+    }
+    .mermaid-wrapper {
+      background: #080c14;
+      border: 1px solid #1a2333;
+      border-radius: 10px;
+      padding: 25px;
+      overflow-x: auto;
+      text-align: center;
+    }
+    .tree-box {
+      background: #080c14;
+      border: 1px solid #1a2333;
+      border-radius: 10px;
+      padding: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88rem;
+      color: #38bdf8;
+      overflow-x: auto;
+      white-space: pre;
+      margin-top: 25px;
+      line-height: 1.5;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      font-size: 0.88rem;
+    }
+    th, td {
+      padding: 12px 16px;
+      border: 1px solid var(--border-color);
+      text-align: left;
+    }
+    th {
+      background: #1e293b;
+      color: #93c5fd;
+      font-weight: 600;
+    }
+    tr:nth-child(even) {
+      background: #0f172a;
+    }
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      color: #38bdf8;
+      background: #1e293b;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-left">
+      <h1>🛡️ AegisForge-AI Architecture Viewer</h1>
+      <p>100% Air-Gapped Sovereign PSU Engineering & Asset Integrity Platform</p>
+    </div>
+    <div>
+      <span class="badge">🔒 Air-Gapped System</span>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <div class="nav-tabs">
+      <button class="tab-btn active" onclick="switchTab(0)">🏗️ 1. 7-Layer Architecture</button>
+      <button class="tab-btn" onclick="switchTab(1)">📁 2. File & Component Map</button>
+      <button class="tab-btn" onclick="switchTab(2)">⚡ 3. Golden Path Flow (Sequence)</button>
+      <button class="tab-btn" onclick="switchTab(3)">💬 4. Model Router & Sandbox</button>
+      <button class="tab-btn" onclick="switchTab(4)">🤖 5. LangGraph State Machine</button>
+      <button class="tab-btn" onclick="switchTab(5)">💾 6. Storage & NTFS Junction</button>
+      <button class="tab-btn" onclick="switchTab(6)">📋 7. Technical Contract Matrix</button>
+    </div>
+
+    <!-- TAB 1: 7-LAYER STACK -->
+    <div class="tab-content active" id="tab-0">
+      <h2>1. End-to-End 7-Layer Structural Hierarchy</h2>
+      <div class="diagram-desc">
+        A high-level blueprint classifying every component from hardware/OS isolation (Layer 0) up to the central gateway and interactive Streamlit workbench (Layer 7).
+      </div>
+      <div class="mermaid-wrapper">
+        <pre class="mermaid">
+graph TD
+    classDef l7 fill:#1e3a8a,stroke:#3b82f6,stroke-width:2px,color:#fff;
+    classDef l6 fill:#065f46,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef l5 fill:#4c1d95,stroke:#8b5cf6,stroke-width:2px,color:#fff;
+    classDef l4 fill:#7c2d12,stroke:#f97316,stroke-width:2px,color:#fff;
+    classDef l3 fill:#831843,stroke:#ec4899,stroke-width:2px,color:#fff;
+    classDef l2 fill:#134e4a,stroke:#14b8a6,stroke-width:2px,color:#fff;
+    classDef l1 fill:#1f2937,stroke:#64748b,stroke-width:2px,color:#fff;
+    classDef l0 fill:#0f172a,stroke:#475569,stroke-width:2px,color:#fff;
+
+    subgraph L7["Layer 7: Central Gateway and User Interfaces"]
+        L7_CLI["main.py (Central Gateway and CLI)"]
+        L7_UI["frontend/app.py (Streamlit 6-Tab Workbench)"]
+    end
+    class L7,L7_CLI,L7_UI l7;
+
+    subgraph L6["Layer 6: Output Emission and Cryptography"]
+        L6_DOCX["docx_generator.py (Word Deliverable)"]
+        L6_PDF["pdf_generator.py (PDF Deliverable)"]
+        L6_HASH["SHA-256 File Attestation"]
+    end
+    class L6,L6_DOCX,L6_PDF,L6_HASH l6;
+
+    subgraph L5["Layer 5: Routing and Multi-Agent Orchestration"]
+        L5_MVP["orchestrator_mvp.py (Golden Path Pipeline)"]
+        L5_ROUTER["model_router.py (Task Classifier)"]
+        L5_GRAPH["graph.py (LangGraph Machine)"]
+    end
+    class L5,L5_MVP,L5_ROUTER,L5_GRAPH l5;
+
+    subgraph L4["Layer 4: Sovereign Model Pool and Local Serving"]
+        L4_QWEN["Qwen2.5-Coder:1.5b (Coding Agent)"]
+        L4_R1["DeepSeek-R1:1.5b (Reasoning Agent)"]
+        L4_LLAMA["Llama-3.2:3b (Summary Agent)"]
+        L4_VLM["Moondream / EasyOCR (Vision Agent)"]
+        L4_MGR["model_downloader.py (Model Hub)"]
+    end
+    class L4,L4_QWEN,L4_R1,L4_LLAMA,L4_VLM,L4_MGR l4;
+
+    subgraph L3["Layer 3: Deterministic Physics and Tools"]
+        L3_ASME["asme_calculator.py (ASME UG-27 Math Engine)"]
+        L3_BOX["sandbox.py (Air-Gapped Python Sandbox)"]
+        L3_DOC["doc_generator.py (Document Tool API)"]
+        L3_RAG["rag.py (Local File Search)"]
+        L3_IO["file_io.py (Safe JSON/CSV/TXT IO)"]
+    end
+    class L3,L3_ASME,L3_BOX,L3_DOC,L3_RAG,L3_IO l3;
+
+    subgraph L2["Layer 2: Ingestion and Perception"]
+        L2_INGEST["extract_inspection_data.py (OCR Log Parser)"]
+        L2_VIS["multimodal.py (Vision VLM Adapter)"]
+    end
+    class L2,L2_INGEST,L2_VIS l2;
+
+    subgraph L1["Layer 1: Unified Data Contracts and Schemas"]
+        L1_PYD["mvp_schema.py (Pydantic Data Models)"]
+        L1_STATE["state.py (AgentState Schema)"]
+    end
+    class L1,L1_PYD,L1_STATE l1;
+
+    subgraph L0["Layer 0: Sovereign Runtime and Isolation"]
+        L0_CONF["config/settings.py (Root Anchoring)"]
+        L0_SCRIPTS["run_ollama_local.bat (Local Daemon)"]
+        L0_JUNCTION["model_pool/ollama (NTFS Junction)"]
+    end
+    class L0,L0_CONF,L0_SCRIPTS,L0_JUNCTION l0;
+
+    L7 --> L6
+    L7 --> L5
+    L5 --> L4
+    L5 --> L3
+    L5 --> L2
+    L6 --> L1
+    L5 --> L1
+    L4 --> L1
+    L3 --> L1
+    L2 --> L1
+    L1 --> L0
+        </pre>
+      </div>
+    </div>
+
+    <!-- TAB 2: COMPONENT MAP -->
+    <div class="tab-content" id="tab-1">
+      <h2>2. Complete File & Component Map</h2>
+      <div class="diagram-desc">
+        A top-to-bottom flowchart mapping every module and file into 7 functional clusters with clean, non-overlapping pipelines.
+      </div>
+      <div class="mermaid-wrapper">
+        <pre class="mermaid">
+flowchart TD
+    classDef uiBox fill:#1e3a8a,stroke:#3b82f6,stroke-width:2px,color:#fff;
+    classDef orchBox fill:#4c1d95,stroke:#8b5cf6,stroke-width:2px,color:#fff;
+    classDef toolBox fill:#831843,stroke:#ec4899,stroke-width:2px,color:#fff;
+    classDef modelBox fill:#7c2d12,stroke:#f97316,stroke-width:2px,color:#fff;
+    classDef outBox fill:#065f46,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef baseBox fill:#0f172a,stroke:#475569,stroke-width:2px,color:#fff;
+
+    subgraph SG_Entry["1. Entrypoints and User Interfaces"]
+        MainPy["main.py (Master Gateway and CLI)"]:::uiBox
+        AppPy["frontend/app.py (Streamlit 6-Tab App)"]:::uiBox
+        RunBat["run_app.bat (1-Click Launcher)"]:::uiBox
+    end
+
+    subgraph SG_Orch["2. Orchestration and State Machine"]
+        OrchMVP["agent_orchestrator/orchestrator_mvp.py"]:::orchBox
+        GraphPy["agent_orchestrator/graph.py"]:::orchBox
+        RouterPy["agent_orchestrator/router.py"]:::orchBox
+        ValPy["agent_orchestrator/validator.py"]:::orchBox
+        StatePy["agent_orchestrator/state.py"]:::orchBox
+        SchemasPy["schemas/mvp_schema.py"]:::orchBox
+    end
+
+    subgraph SG_Ingest["3. Ingestion and Perception"]
+        ExtractPy["ingestion/extract_inspection_data.py"]:::toolBox
+        VisionMod["models/vision_models/multimodal.py"]:::toolBox
+    end
+
+    subgraph SG_Tools["4. Deterministic Physics and Tools"]
+        AsmePy["tools/asme_calculator.py"]:::toolBox
+        SandboxPy["tools/sandbox.py"]:::toolBox
+        DocToolPy["tools/doc_generator.py"]:::toolBox
+        RagPy["tools/rag.py"]:::toolBox
+        FileIoPy["tools/file_io.py"]:::toolBox
+    end
+
+    subgraph SG_Models["5. Sovereign Model Pool"]
+        ModelRouter["models/router/model_router.py"]:::modelBox
+        ModelDownloader["models/model_downloader.py"]:::modelBox
+        CodingMod["models/coding_models/coding.py"]:::modelBox
+        ReasoningMod["models/reasoning_models/reasoning.py"]:::modelBox
+        SummaryMod["models/summary_models/summary.py"]:::modelBox
+    end
+
+    subgraph SG_Output["6. Output Emission and Attestation"]
+        DocxGen["output_generation/docx_generator.py"]:::outBox
+        PdfGen["output_generation/pdf_generator.py"]:::outBox
+    end
+
+    subgraph SG_Storage["7. Runtime and Storage"]
+        SettingsPy["config/settings.py"]:::baseBox
+        OllamaBat["scripts/run_ollama_local.bat"]:::baseBox
+        JunctionDir["model_pool/ollama (Windows Junction)"]:::baseBox
+        DataDir["data/output and data/uploads"]:::baseBox
+    end
+
+    RunBat --> AppPy
+    MainPy --> SG_Orch
+    AppPy --> SG_Orch
+    AppPy --> SG_Tools
+    AppPy --> SG_Models
+
+    SG_Orch --> SG_Ingest
+    SG_Orch --> SG_Tools
+    SG_Orch --> SG_Models
+    SG_Orch --> SG_Output
+
+    SG_Models --> OllamaBat
+    OllamaBat --> JunctionDir
+    SG_Output --> DataDir
+    SG_Tools --> DataDir
+        </pre>
+      </div>
+
+      <div class="tree-box">
+c:\Users\DELL\Desktop\SIH\
+│
+├── 🚀 1. GATEWAY & USER INTERFACES (Layer 7)
+│   ├── main.py                               # Central Master Gateway, CLI commands & programmatic engine
+│   ├── run_app.bat                           # 1-Click launcher: ensures Ollama is active & starts Streamlit UI
+│   └── frontend/app.py                       # Streamlit 6-Tab Sovereign Workbench
+│
+├── 🧠 2. AGENT ORCHESTRATION & STATE (Layers 5 & 1)
+│   ├── schemas/mvp_schema.py                 # Pydantic contracts: Inspection, Calculation, Reasoning
+│   └── agent_orchestrator/
+│       ├── orchestrator_mvp.py               # Golden Path coordinator: Ingest -> Math -> R1 -> Word/PDF
+│       ├── graph.py                          # LangGraph StateGraph compiling all agent nodes
+│       ├── router.py                         # Heuristic prompt classification & routing decision
+│       ├── validator.py                      # Multi-agent output validator with retry loops
+│       └── state.py                          # TypedDict AgentState schema
+│
+├── 📥 3. INGESTION & PERCEPTION (Layer 2)
+│   └── ingestion/extract_inspection_data.py  # Regex parser for ultrasonic inspection logs
+│
+├── 🧮 4. DETERMINISTIC PHYSICS & TOOLS (Layer 3)
+│   └── tools/
+│       ├── asme_calculator.py                # ASME Section VIII Div 1 UG-27 & API 510 engine
+│       ├── sandbox.py                        # Isolated subprocess Python execution engine (15s timeout)
+│       ├── doc_generator.py                  # High-level tool wrapping .docx and .pdf generation
+│       ├── rag.py                            # Air-gapped search across sample_data/ documents
+│       └── file_io.py                        # Safe reader/writer for local JSON, CSV, and text files
+│
+├── 🤖 5. SOVEREIGN MODEL POOL & SERVING (Layer 4)
+│   └── models/
+│       ├── model_downloader.py               # Local model hub: streaming downloader & status manager
+│       ├── router/model_router.py            # SovereignModelRouter & LocalModelHandler
+│       ├── coding_models/coding.py           # Qwen2.5-Coder:1.5b
+│       ├── reasoning_models/reasoning.py     # DeepSeek-R1:1.5b
+│       ├── summary_models/summary.py         # Llama-3.2:3b
+│       └── vision_models/multimodal.py       # Moondream VLM & EasyOCR
+│
+├── 📄 6. OUTPUT EMISSION & CRYPTOGRAPHY (Layer 6)
+│   └── output_generation/
+│       ├── docx_generator.py                 # Official Word .docx generator with SHA-256 hash
+│       └── pdf_generator.py                  # Official Adobe PDF generator with SHA-256 hash
+│
+└── 🔒 7. RUNTIME, ISOLATION & STORAGE (Layer 0)
+    ├── config/settings.py                    # Root anchor, path definitions, and model registry
+    ├── model_pool/ollama/                    # NTFS Junction -> C:\Users\DELL\.ollama\models
+    ├── data/output/                          # Emitted .docx and .pdf deliverables
+    └── scripts/run_ollama_local.bat          # Starts local Ollama daemon on port 11434
+      </div>
+    </div>
+
+    <!-- TAB 3: GOLDEN PATH SEQUENCE -->
+    <div class="tab-content" id="tab-2">
+      <h2>3. Flow 1: Golden Path End-to-End Pipeline (Sequence)</h2>
+      <div class="diagram-desc">
+        Complete operational lifecycle: from field inspector log parsing to ASME Section VIII deterministic verification, DeepSeek-R1 CVC justification synthesis, and tamper-evident Word & PDF delivery.
+      </div>
+      <div class="mermaid-wrapper">
+        <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Engineer as "PSU Inspection Engineer"
+    participant UI as "frontend/app.py (Tab 2)"
+    participant Orchestrator as "agent_orchestrator/orchestrator_mvp.py"
+    participant Ingestion as "ingestion/extract_inspection_data.py"
+    participant MathEngine as "tools/asme_calculator.py"
+    participant ReasoningLLM as "models/reasoning_models/reasoning.py"
+    participant DocEmitter as "output_generation/docx_generator.py"
+    participant FileStorage as "data/output/"
+
+    Engineer->>UI: Selects sample inspection log (.txt)
+    Engineer->>UI: Clicks "Run Sovereign Pipeline"
+    
+    UI->>Orchestrator: run_mvp_pipeline(input_source)
+    
+    Note over Orchestrator,Ingestion: Step 1: Ingestion and Parameter Extraction
+    Orchestrator->>Ingestion: parse_inspection_input(raw_log_path)
+    Ingestion-->>Orchestrator: InspectionInput(equipment_id="11-V-102", t_act=138.20mm)
+    
+    Note over Orchestrator,MathEngine: Step 2: Deterministic ASME UG-27 Verification
+    Orchestrator->>MathEngine: evaluate_vessel_integrity(InspectionInput)
+    MathEngine-->>Orchestrator: CalculationOutput(t_req_mm=138.57, delta_mm=-0.37, breach=True)
+    
+    Note over Orchestrator,ReasoningLLM: Step 3: Sovereign CVC and DOP Justification
+    Orchestrator->>ReasoningLLM: call_local_reasoning_model(Inspection, Calculation)
+    ReasoningLLM-->>Orchestrator: ReasoningOutput(executive_summary, cvc_guideline_clause)
+    
+    Note over Orchestrator,DocEmitter: Step 4: Office Deliverables and SHA-256 Attestation
+    Orchestrator->>DocEmitter: generate_approval_nfa_docx and generate_approval_nfa_pdf
+    DocEmitter->>FileStorage: Writes DOCX and PDF deliverables
+    DocEmitter-->>Orchestrator: Emitted file paths and SHA-256 hashes
+    
+    Orchestrator-->>UI: FinalNFAPayload (Complete Verified State)
+    UI-->>Engineer: Renders Telemetry, Badges, and 1-Click DOCX / PDF Downloads
+        </pre>
+      </div>
+    </div>
+
+    <!-- TAB 4: ROUTER & SANDBOX -->
+    <div class="tab-content" id="tab-3">
+      <h2>4. Flow 2: Dynamic Model Router & Sandbox Engine</h2>
+      <div class="diagram-desc">
+        Classifies incoming tasks into Coding, Reasoning, Summary, or Vision modalities, dispatches inference to the specialized local model, executes code in an isolated sandbox, or auto-compiles official deliverables.
+      </div>
+      <div class="mermaid-wrapper">
+        <pre class="mermaid">
+flowchart TD
+    classDef inputNode fill:#1e3a8a,stroke:#3b82f6,stroke-width:2px,color:#fff;
+    classDef classNode fill:#065f46,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef modelNode fill:#4c1d95,stroke:#8b5cf6,stroke-width:2px,color:#fff;
+    classDef toolNode fill:#7c2d12,stroke:#f97316,stroke-width:2px,color:#fff;
+    classDef outNode fill:#0f172a,stroke:#475569,stroke-width:2px,color:#fff;
+
+    UserPrompt["User Prompt or File Upload (UI Tab 1 or main.py route)"]:::inputNode
+    Classifier{"Task Classifier (model_router.py)"}:::classNode
+
+    UserPrompt --> Classifier
+
+    Classifier -- "Coding Keywords: python, def, script" --> CodingBranch["Qwen2.5-Coder:1.5b (Coding Node)"]:::modelNode
+    Classifier -- "Reasoning Keywords: asme, cvc, breach" --> ReasoningBranch["DeepSeek-R1:1.5b (Reasoning Node)"]:::modelNode
+    Classifier -- "Summary Keywords: summarize, points" --> SummaryBranch["Llama-3.2:3b (Summary Node)"]:::modelNode
+    Classifier -- "Image Uploaded: png, jpg, svg, P&ID" --> VisionBranch["Moondream / EasyOCR (Vision Node)"]:::modelNode
+
+    CodingBranch --> CodeExtract["Extract Python Code Block"]:::toolNode
+    CodeExtract --> SandboxExec["tools/sandbox.py (15s Timeout Subprocess)"]:::toolNode
+    SandboxExec --> SandboxResult["Display stdout / stderr and Return Code"]:::outNode
+
+    ReasoningBranch --> IntentCheck{"Prompt Asks for DOCX / PDF?"}:::classNode
+    IntentCheck -- "Yes: need docx, need pdf" --> DocGen["tools/doc_generator.py (Compiles Word and PDF)"]:::toolNode
+    DocGen --> DownloadBtns["1-Click Native DOCX and PDF Download"]:::outNode
+    IntentCheck -- "No: Pure Text Reasoning" --> TextOutput["Render Markdown Rationale and LaTeX Formula"]:::outNode
+
+    SummaryBranch --> SummaryOutput["Render Structured Executive Deliverable"]:::outNode
+    VisionBranch --> VisionOutput["Render P&ID Tag and Visual Inspection Analysis"]:::outNode
+        </pre>
+      </div>
+    </div>
+
+    <!-- TAB 5: LANGGRAPH -->
+    <div class="tab-content" id="tab-4">
+      <h2>5. Flow 3: LangGraph Multi-Agent State Machine</h2>
+      <div class="diagram-desc">
+        Shows state flow through RouterNode, specialized model worker nodes, sequential pipeline chain transitions, and validator self-correction retry loops.
+      </div>
+      <div class="mermaid-wrapper">
+        <pre class="mermaid">
+stateDiagram-v2
+    [*] --> START
+    START --> RouterNode : initial_state
+
+    state RouterNode {
+        [*] --> ClassifyPrompt
+        ClassifyPrompt --> AssignRoute
+    }
+
+    RouterNode --> CodingNode : route is coding
+    RouterNode --> ReasoningNode : route is reasoning
+    RouterNode --> SummaryNode : route is summary
+    RouterNode --> MultimodalNode : route is multimodal
+    RouterNode --> MultimodalNode : route is pipeline
+
+    state PipelineSeq {
+        MultimodalNode --> CodingNode : sequential transition 1
+        CodingNode --> ReasoningNode : sequential transition 2
+        ReasoningNode --> SummaryNode : sequential transition 3
+    }
+
+    MultimodalNode --> ValidatorNode : direct evaluation
+    CodingNode --> ValidatorNode : direct evaluation
+    ReasoningNode --> ValidatorNode : direct evaluation
+    SummaryNode --> ValidatorNode
+
+    state ValidatorNode {
+        [*] --> CheckQuality
+        CheckQuality --> AssessAttempts
+    }
+
+    ValidatorNode --> CodingNode : retry coding (attempts under 3)
+    ValidatorNode --> ReasoningNode : retry reasoning (attempts under 3)
+    ValidatorNode --> SummaryNode : retry summary (attempts under 3)
+    ValidatorNode --> MultimodalNode : retry multimodal (attempts under 3)
+    ValidatorNode --> END : validation passed or attempts exhausted
+    END --> [*]
+        </pre>
+      </div>
+    </div>
+
+    <!-- TAB 6: STORAGE & JUNCTION -->
+    <div class="tab-content" id="tab-5">
+      <h2>6. Flow 4: Storage & Windows NTFS Junction</h2>
+      <div class="diagram-desc">
+        Zero host pollution storage model: how NTFS Windows Junction links project directory storage directly to native Windows Ollama model store with zero file duplication.
+      </div>
+      <div class="mermaid-wrapper">
+        <pre class="mermaid">
+flowchart TD
+    classDef disk fill:#1e293b,stroke:#475569,stroke-width:2px,color:#fff;
+    classDef project fill:#0f172a,stroke:#3b82f6,stroke-width:2px,color:#fff;
+    classDef proc fill:#065f46,stroke:#10b981,stroke-width:2px,color:#fff;
+
+    subgraph HostSystem["Windows Host Storage"]
+        OllamaDefault["C:\\Users\\DELL\\.ollama\\models (Default Windows Ollama Storage)"]:::disk
+    end
+
+    subgraph ProjectWorkspace["Project Root: c:\\Users\\DELL\\Desktop\\SIH"]
+        ModelPool["model_pool/"]:::project
+        Junction["model_pool/ollama (Windows NTFS Junction Link)"]:::project
+        EasyOCR_Dir["model_pool/easyocr/ (CRAFT and CRNN .pth weights)"]:::project
+        DataDir["data/output/ and data/uploads/"]:::project
+    end
+
+    subgraph RuntimeProcesses["Local Subprocesses (Air-Gapped Localhost)"]
+        OllamaDaemon["Ollama Local Daemon (127.0.0.1:11434)"]:::proc
+        StreamlitUI["Streamlit UI (Port 8501)"]:::proc
+        PythonCLI["Master Gateway CLI (main.py)"]:::proc
+    end
+
+    Junction -. "Zero-Copy NTFS Pointer" .-> OllamaDefault
+    ModelPool --> Junction
+    ModelPool --> EasyOCR_Dir
+
+    OllamaDaemon --> OllamaDefault
+    StreamlitUI --> OllamaDaemon
+    PythonCLI --> OllamaDaemon
+    StreamlitUI --> DataDir
+    PythonCLI --> DataDir
+        </pre>
+      </div>
+    </div>
+
+    <!-- TAB 7: CONTRACT MATRIX -->
+    <div class="tab-content" id="tab-6">
+      <h2>7. File-by-File Technical Directory & Contract Matrix</h2>
+      <div class="diagram-desc">
+        Exact input/output contracts, internal operations, and downstream consumers for every file in the repository.
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>File Path</th>
+            <th>Layer</th>
+            <th>Primary Function / Class</th>
+            <th>Inputs Received</th>
+            <th>Outputs Emitted</th>
+            <th>Downstream Consumers</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>main.py</code></td>
+            <td><strong>L7</strong></td>
+            <td><code>AegisForgeCentralEngine</code>, CLI entry</td>
+            <td>CLI flags, interactive choices</td>
+            <td>Console reports, triggers commands</td>
+            <td>Engineers, Terminal, CI/CD</td>
+          </tr>
+          <tr>
+            <td><code>frontend/app.py</code></td>
+            <td><strong>L7</strong></td>
+            <td>Streamlit Web App (6 Tabs)</td>
+            <td>User text, uploaded logs, sliders</td>
+            <td>Interactive UI, .docx/.pdf download</td>
+            <td>End-users, Refinery Engineers</td>
+          </tr>
+          <tr>
+            <td><code>agent_orchestrator/orchestrator_mvp.py</code></td>
+            <td><strong>L5</strong></td>
+            <td><code>run_mvp_pipeline()</code></td>
+            <td><code>input_source</code> (.txt or string)</td>
+            <td><code>FinalNFAPayload</code> Pydantic model</td>
+            <td><code>main.py</code>, <code>frontend/app.py</code> (Tab 2)</td>
+          </tr>
+          <tr>
+            <td><code>agent_orchestrator/graph.py</code></td>
+            <td><strong>L5</strong></td>
+            <td><code>build_graph()</code></td>
+            <td>LLM handlers (router, coding, etc.)</td>
+            <td>Compiled LangGraph StateMachine</td>
+            <td><code>main.py</code>, test suites</td>
+          </tr>
+          <tr>
+            <td><code>agent_orchestrator/state.py</code></td>
+            <td><strong>L1</strong></td>
+            <td><code>AgentState(TypedDict)</code></td>
+            <td>N/A (Schema definition)</td>
+            <td>Data contract for agent state</td>
+            <td>LangGraph graph, all agent nodes</td>
+          </tr>
+          <tr>
+            <td><code>schemas/mvp_schema.py</code></td>
+            <td><strong>L1</strong></td>
+            <td><code>InspectionInput</code>, <code>CalculationOutput</code></td>
+            <td>Pydantic fields</td>
+            <td>Validated Pydantic objects</td>
+            <td>All pipeline layers (L2-L7)</td>
+          </tr>
+          <tr>
+            <td><code>ingestion/extract_inspection_data.py</code></td>
+            <td><strong>L2</strong></td>
+            <td><code>parse_inspection_input()</code></td>
+            <td>Raw inspection OCR log (.txt)</td>
+            <td><code>InspectionInput</code> instance</td>
+            <td><code>orchestrator_mvp.py</code>, <code>main.py</code></td>
+          </tr>
+          <tr>
+            <td><code>tools/asme_calculator.py</code></td>
+            <td><strong>L3</strong></td>
+            <td><code>evaluate_vessel_integrity()</code></td>
+            <td><code>InspectionInput</code></td>
+            <td><code>CalculationOutput</code> instance</td>
+            <td><code>orchestrator_mvp.py</code>, <code>frontend/app.py</code> (Tab 3)</td>
+          </tr>
+          <tr>
+            <td><code>tools/sandbox.py</code></td>
+            <td><strong>L3</strong></td>
+            <td><code>execute_python_code()</code></td>
+            <td>Python script string, timeout</td>
+            <td>Dict (<code>success</code>, <code>stdout</code>, <code>stderr</code>)</td>
+            <td><code>frontend/app.py</code> (Tab 4), <code>main.py</code></td>
+          </tr>
+          <tr>
+            <td><code>tools/doc_generator.py</code></td>
+            <td><strong>L3</strong></td>
+            <td><code>generate_docx_deliverable()</code></td>
+            <td><code>InspectionInput</code>, <code>CalculationOutput</code></td>
+            <td>Dict with filepath and SHA-256</td>
+            <td><code>frontend/app.py</code>, multi-agent workflows</td>
+          </tr>
+          <tr>
+            <td><code>models/router/model_router.py</code></td>
+            <td><strong>L5/L4</strong></td>
+            <td><code>SovereignModelRouter</code></td>
+            <td>Prompt string, optional image</td>
+            <td>Dict (<code>task_type</code>, <code>model_used</code>, <code>response</code>)</td>
+            <td><code>main.py</code>, <code>frontend/app.py</code> (Tab 1)</td>
+          </tr>
+          <tr>
+            <td><code>output_generation/docx_generator.py</code></td>
+            <td><strong>L6</strong></td>
+            <td><code>generate_approval_nfa_docx()</code></td>
+            <td>Verified pipeline data objects</td>
+            <td>Binary Word .docx file + SHA-256</td>
+            <td><code>orchestrator_mvp.py</code>, <code>tools/doc_generator.py</code></td>
+          </tr>
+          <tr>
+            <td><code>output_generation/pdf_generator.py</code></td>
+            <td><strong>L6</strong></td>
+            <td><code>generate_approval_nfa_pdf()</code></td>
+            <td>Verified pipeline data objects</td>
+            <td>Binary PDF file + SHA-256</td>
+            <td><code>orchestrator_mvp.py</code>, <code>tools/doc_generator.py</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        darkMode: true,
+        background: '#080c14',
+        primaryColor: '#1e3a8a',
+        primaryBorderColor: '#3b82f6',
+        primaryTextColor: '#f3f4f6',
+        lineColor: '#60a5fa',
+        secondaryColor: '#065f46',
+        tertiaryColor: '#1f2937'
+      },
+      flowchart: { curve: 'basis' }
+    });
+
+    function switchTab(index) {
+      document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+        btn.classList.toggle('active', i === index);
+      });
+      document.querySelectorAll('.tab-content').forEach((content, i) => {
+        content.classList.toggle('active', i === index);
+      });
+    }
+  </script>
+</body>
+</html>
