@@ -5,162 +5,170 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AegisForge-AI | Master Architecture & Flow Viewer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
   <style>
     :root {
-      --bg-dark: #0b0f19;
-      --card-bg: #131b2a;
-      --border-color: #1f2d42;
+      --bg-dark: #070b12;
+      --card-bg: #0f172a;
+      --border-color: #1e293b;
       --accent-blue: #3b82f6;
       --accent-cyan: #06b6d4;
-      --text-main: #f3f4f6;
-      --text-muted: #9ca3af;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
       --badge-green: #065f46;
       --badge-green-txt: #6ee7b7;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
     body {
       background-color: var(--bg-dark);
       color: var(--text-main);
-      font-family: 'Inter', sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       line-height: 1.6;
-      padding-bottom: 60px;
+      padding-bottom: 80px;
     }
     header {
-      background: linear-gradient(180deg, #111827 0%, var(--bg-dark) 100%);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(11, 15, 25, 0.95);
+      backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border-color);
-      padding: 30px 40px;
+      padding: 16px 40px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
-      gap: 20px;
+      gap: 15px;
     }
-    .header-left h1 {
-      font-size: 1.8rem;
-      font-weight: 700;
-      color: #fff;
+    .header-title {
       display: flex;
       align-items: center;
       gap: 12px;
     }
-    .header-left p {
-      color: var(--text-muted);
-      font-size: 0.95rem;
-      margin-top: 4px;
+    .header-title h1 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #fff;
     }
     .badge {
-      display: inline-block;
       background: var(--badge-green);
       color: var(--badge-green-txt);
-      padding: 4px 12px;
+      padding: 4px 10px;
       border-radius: 9999px;
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       font-weight: 600;
       letter-spacing: 0.05em;
       text-transform: uppercase;
     }
-    .container {
-      max-width: 1400px;
-      margin: 0 auto;
-      padding: 30px 40px;
-    }
-    .nav-tabs {
+    .nav-bar {
       display: flex;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
-      border-bottom: 1px solid var(--border-color);
-      padding-bottom: 16px;
-      margin-bottom: 30px;
     }
-    .tab-btn {
+    .nav-link {
       background: #1e293b;
       color: var(--text-muted);
       border: 1px solid var(--border-color);
-      padding: 10px 18px;
-      border-radius: 8px;
-      font-size: 0.9rem;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.8rem;
       font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s ease;
+      text-decoration: none;
+      transition: all 0.2s;
     }
-    .tab-btn:hover {
-      background: #273549;
-      color: #fff;
-      border-color: var(--accent-blue);
-    }
-    .tab-btn.active {
+    .nav-link:hover {
       background: var(--accent-blue);
       color: #fff;
       border-color: var(--accent-blue);
-      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.4);
     }
-    .tab-content {
-      display: none;
+    .container {
+      max-width: 1400px;
+      margin: 30px auto;
+      padding: 0 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 40px;
+    }
+    .section-card {
       background: var(--card-bg);
       border: 1px solid var(--border-color);
       border-radius: 12px;
-      padding: 30px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      padding: 28px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     }
-    .tab-content.active {
-      display: block;
-      animation: fadeIn 0.3s ease;
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 12px;
     }
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
+    .section-header h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+    .section-header .tag {
+      font-size: 0.75rem;
+      color: #60a5fa;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-weight: 600;
     }
     .diagram-desc {
-      background: #0f172a;
-      border-left: 4px solid var(--accent-blue);
-      padding: 14px 20px;
-      border-radius: 0 8px 8px 0;
-      margin-bottom: 24px;
-      font-size: 0.95rem;
       color: #cbd5e1;
+      font-size: 0.92rem;
+      margin-bottom: 20px;
+      background: #090d16;
+      border-left: 4px solid var(--accent-blue);
+      padding: 10px 16px;
+      border-radius: 0 6px 6px 0;
     }
-    .mermaid-wrapper {
-      background: #080c14;
-      border: 1px solid #1a2333;
-      border-radius: 10px;
-      padding: 25px;
+    .mermaid-box {
+      background: #05080f;
+      border: 1px solid #161f30;
+      border-radius: 8px;
+      padding: 24px;
       overflow-x: auto;
       text-align: center;
     }
     .tree-box {
-      background: #080c14;
-      border: 1px solid #1a2333;
-      border-radius: 10px;
+      background: #05080f;
+      border: 1px solid #161f30;
+      border-radius: 8px;
       padding: 20px;
       font-family: 'JetBrains Mono', monospace;
-      font-size: 0.88rem;
+      font-size: 0.85rem;
       color: #38bdf8;
       overflow-x: auto;
       white-space: pre;
-      margin-top: 25px;
+      margin-top: 20px;
       line-height: 1.5;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 20px;
+      margin-top: 15px;
       font-size: 0.88rem;
     }
     th, td {
-      padding: 12px 16px;
+      padding: 12px 14px;
       border: 1px solid var(--border-color);
       text-align: left;
     }
     th {
-      background: #1e293b;
+      background: #162032;
       color: #93c5fd;
       font-weight: 600;
     }
     tr:nth-child(even) {
-      background: #0f172a;
+      background: #090e17;
     }
     code {
       font-family: 'JetBrains Mono', monospace;
@@ -168,40 +176,40 @@
       background: #1e293b;
       padding: 2px 6px;
       border-radius: 4px;
+      font-size: 0.82rem;
     }
   </style>
 </head>
 <body>
 
   <header>
-    <div class="header-left">
-      <h1>🛡️ AegisForge-AI Architecture Viewer</h1>
-      <p>100% Air-Gapped Sovereign PSU Engineering & Asset Integrity Platform</p>
+    <div class="header-title">
+      <h1>🛡️ AegisForge-AI</h1>
+      <span class="badge">Air-Gapped Sovereign Architecture</span>
     </div>
-    <div>
-      <span class="badge">🔒 Air-Gapped System</span>
-    </div>
+    <nav class="nav-bar">
+      <a class="nav-link" href="#sec-layers">1. 7-Layer Hierarchy</a>
+      <a class="nav-link" href="#sec-components">2. Component Map</a>
+      <a class="nav-link" href="#sec-golden-path">3. Golden Path Flow</a>
+      <a class="nav-link" href="#sec-router">4. Model Router</a>
+      <a class="nav-link" href="#sec-langgraph">5. LangGraph Machine</a>
+      <a class="nav-link" href="#sec-storage">6. NTFS Storage</a>
+      <a class="nav-link" href="#sec-matrix">7. Contract Matrix</a>
+    </nav>
   </header>
 
   <div class="container">
 
-    <div class="nav-tabs">
-      <button class="tab-btn active" onclick="switchTab(0)">🏗️ 1. 7-Layer Architecture</button>
-      <button class="tab-btn" onclick="switchTab(1)">📁 2. File & Component Map</button>
-      <button class="tab-btn" onclick="switchTab(2)">⚡ 3. Golden Path Flow (Sequence)</button>
-      <button class="tab-btn" onclick="switchTab(3)">💬 4. Model Router & Sandbox</button>
-      <button class="tab-btn" onclick="switchTab(4)">🤖 5. LangGraph State Machine</button>
-      <button class="tab-btn" onclick="switchTab(5)">💾 6. Storage & NTFS Junction</button>
-      <button class="tab-btn" onclick="switchTab(6)">📋 7. Technical Contract Matrix</button>
-    </div>
-
-    <!-- TAB 1: 7-LAYER STACK -->
-    <div class="tab-content active" id="tab-0">
-      <h2>1. End-to-End 7-Layer Structural Hierarchy</h2>
-      <div class="diagram-desc">
-        A high-level blueprint classifying every component from hardware/OS isolation (Layer 0) up to the central gateway and interactive Streamlit workbench (Layer 7).
+    <!-- SECTION 1: 7-LAYER STACK -->
+    <section class="section-card" id="sec-layers">
+      <div class="section-header">
+        <h2>1. End-to-End 7-Layer Structural Hierarchy</h2>
+        <span class="tag">System Blueprint</span>
       </div>
-      <div class="mermaid-wrapper">
+      <div class="diagram-desc">
+        Classifies every component from hardware and OS isolation (Layer 0) through data schemas, perception, deterministic physics math, sovereign LLM pool, orchestration, and official document emission up to the central user gateway (Layer 7).
+      </div>
+      <div class="mermaid-box">
         <pre class="mermaid">
 graph TD
     classDef l7 fill:#1e3a8a,stroke:#3b82f6,stroke-width:2px,color:#fff;
@@ -283,15 +291,18 @@ graph TD
     L1 --> L0
         </pre>
       </div>
-    </div>
+    </section>
 
-    <!-- TAB 2: COMPONENT MAP -->
-    <div class="tab-content" id="tab-1">
-      <h2>2. Complete File & Component Map</h2>
-      <div class="diagram-desc">
-        A top-to-bottom flowchart mapping every module and file into 7 functional clusters with clean, non-overlapping pipelines.
+    <!-- SECTION 2: COMPONENT MAP -->
+    <section class="section-card" id="sec-components">
+      <div class="section-header">
+        <h2>2. Complete File & Component Map</h2>
+        <span class="tag">Modular Flowchart & Hierarchy</span>
       </div>
-      <div class="mermaid-wrapper">
+      <div class="diagram-desc">
+        Top-to-bottom flowchart displaying how data travels between the 7 functional clusters, followed by the complete directory hierarchy tree.
+      </div>
+      <div class="mermaid-box">
         <pre class="mermaid">
 flowchart TD
     classDef uiBox fill:#1e3a8a,stroke:#3b82f6,stroke-width:2px,color:#fff;
@@ -415,15 +426,18 @@ c:\Users\DELL\Desktop\SIH\
     ├── data/output/                          # Emitted .docx and .pdf deliverables
     └── scripts/run_ollama_local.bat          # Starts local Ollama daemon on port 11434
       </div>
-    </div>
+    </section>
 
-    <!-- TAB 3: GOLDEN PATH SEQUENCE -->
-    <div class="tab-content" id="tab-2">
-      <h2>3. Flow 1: Golden Path End-to-End Pipeline (Sequence)</h2>
-      <div class="diagram-desc">
-        Complete operational lifecycle: from field inspector log parsing to ASME Section VIII deterministic verification, DeepSeek-R1 CVC justification synthesis, and tamper-evident Word & PDF delivery.
+    <!-- SECTION 3: GOLDEN PATH SEQUENCE -->
+    <section class="section-card" id="sec-golden-path">
+      <div class="section-header">
+        <h2>3. Flow 1: Golden Path End-to-End Pipeline</h2>
+        <span class="tag">Operational Sequence Flow</span>
       </div>
-      <div class="mermaid-wrapper">
+      <div class="diagram-desc">
+        Complete operational sequence: from field ultrasonic log ingestion to ASME Section VIII deterministic verification, DeepSeek-R1 CVC emergency justification, and tamper-evident Word & PDF delivery.
+      </div>
+      <div class="mermaid-box">
         <pre class="mermaid">
 sequenceDiagram
     autonumber
@@ -462,15 +476,18 @@ sequenceDiagram
     UI-->>Engineer: Renders Telemetry, Badges, and 1-Click DOCX / PDF Downloads
         </pre>
       </div>
-    </div>
+    </section>
 
-    <!-- TAB 4: ROUTER & SANDBOX -->
-    <div class="tab-content" id="tab-3">
-      <h2>4. Flow 2: Dynamic Model Router & Sandbox Engine</h2>
-      <div class="diagram-desc">
-        Classifies incoming tasks into Coding, Reasoning, Summary, or Vision modalities, dispatches inference to the specialized local model, executes code in an isolated sandbox, or auto-compiles official deliverables.
+    <!-- SECTION 4: ROUTER & SANDBOX -->
+    <section class="section-card" id="sec-router">
+      <div class="section-header">
+        <h2>4. Flow 2: Dynamic Model Router & Sandbox Engine</h2>
+        <span class="tag">Inference & Execution Flow</span>
       </div>
-      <div class="mermaid-wrapper">
+      <div class="diagram-desc">
+        Dynamic task dispatcher: classifies incoming queries into Coding, Reasoning, Summary, or Vision tasks, invokes local models via Ollama, runs code in a secure sandbox, or compiles official deliverables.
+      </div>
+      <div class="mermaid-box">
         <pre class="mermaid">
 flowchart TD
     classDef inputNode fill:#1e3a8a,stroke:#3b82f6,stroke-width:2px,color:#fff;
@@ -479,38 +496,41 @@ flowchart TD
     classDef toolNode fill:#7c2d12,stroke:#f97316,stroke-width:2px,color:#fff;
     classDef outNode fill:#0f172a,stroke:#475569,stroke-width:2px,color:#fff;
 
-    UserPrompt["User Prompt or File Upload (UI Tab 1 or main.py route)"]:::inputNode
-    Classifier{"Task Classifier (model_router.py)"}:::classNode
+    UserPrompt["User Prompt or File Upload"]:::inputNode
+    Classifier{"Task Classifier"}:::classNode
 
     UserPrompt --> Classifier
 
-    Classifier -- "Coding Keywords: python, def, script" --> CodingBranch["Qwen2.5-Coder:1.5b (Coding Node)"]:::modelNode
-    Classifier -- "Reasoning Keywords: asme, cvc, breach" --> ReasoningBranch["DeepSeek-R1:1.5b (Reasoning Node)"]:::modelNode
-    Classifier -- "Summary Keywords: summarize, points" --> SummaryBranch["Llama-3.2:3b (Summary Node)"]:::modelNode
-    Classifier -- "Image Uploaded: png, jpg, svg, P&ID" --> VisionBranch["Moondream / EasyOCR (Vision Node)"]:::modelNode
+    Classifier -->|Coding: python, def, script| CodingBranch["Qwen2.5-Coder:1.5b (Coding Node)"]:::modelNode
+    Classifier -->|Reasoning: asme, cvc, breach| ReasoningBranch["DeepSeek-R1:1.5b (Reasoning Node)"]:::modelNode
+    Classifier -->|Summary: summarize, points| SummaryBranch["Llama-3.2:3b (Summary Node)"]:::modelNode
+    Classifier -->|Image: png, jpg, svg, PID| VisionBranch["Moondream / EasyOCR (Vision Node)"]:::modelNode
 
     CodingBranch --> CodeExtract["Extract Python Code Block"]:::toolNode
     CodeExtract --> SandboxExec["tools/sandbox.py (15s Timeout Subprocess)"]:::toolNode
     SandboxExec --> SandboxResult["Display stdout / stderr and Return Code"]:::outNode
 
-    ReasoningBranch --> IntentCheck{"Prompt Asks for DOCX / PDF?"}:::classNode
-    IntentCheck -- "Yes: need docx, need pdf" --> DocGen["tools/doc_generator.py (Compiles Word and PDF)"]:::toolNode
+    ReasoningBranch --> IntentCheck{"Prompt Asks for DOCX or PDF?"}:::classNode
+    IntentCheck -->|Yes: need docx, need pdf| DocGen["tools/doc_generator.py (Compiles Word and PDF)"]:::toolNode
     DocGen --> DownloadBtns["1-Click Native DOCX and PDF Download"]:::outNode
-    IntentCheck -- "No: Pure Text Reasoning" --> TextOutput["Render Markdown Rationale and LaTeX Formula"]:::outNode
+    IntentCheck -->|No: Pure Text Reasoning| TextOutput["Render Markdown Rationale and LaTeX Formula"]:::outNode
 
     SummaryBranch --> SummaryOutput["Render Structured Executive Deliverable"]:::outNode
-    VisionBranch --> VisionOutput["Render P&ID Tag and Visual Inspection Analysis"]:::outNode
+    VisionBranch --> VisionOutput["Render PID Tag and Visual Inspection Analysis"]:::outNode
         </pre>
       </div>
-    </div>
+    </section>
 
-    <!-- TAB 5: LANGGRAPH -->
-    <div class="tab-content" id="tab-4">
-      <h2>5. Flow 3: LangGraph Multi-Agent State Machine</h2>
-      <div class="diagram-desc">
-        Shows state flow through RouterNode, specialized model worker nodes, sequential pipeline chain transitions, and validator self-correction retry loops.
+    <!-- SECTION 5: LANGGRAPH -->
+    <section class="section-card" id="sec-langgraph">
+      <div class="section-header">
+        <h2>5. Flow 3: LangGraph Multi-Agent State Machine</h2>
+        <span class="tag">Agentic State Transitions</span>
       </div>
-      <div class="mermaid-wrapper">
+      <div class="diagram-desc">
+        State machine flow: illustrates router decision nodes, specialized worker nodes, sequential pipeline chain transitions, and validator self-correction retry loops.
+      </div>
+      <div class="mermaid-box">
         <pre class="mermaid">
 stateDiagram-v2
     [*] --> START
@@ -528,14 +548,14 @@ stateDiagram-v2
     RouterNode --> MultimodalNode : route is pipeline
 
     state PipelineSeq {
-        MultimodalNode --> CodingNode : sequential transition 1
-        CodingNode --> ReasoningNode : sequential transition 2
-        ReasoningNode --> SummaryNode : sequential transition 3
+        MultimodalNode --> CodingNode : step 1
+        CodingNode --> ReasoningNode : step 2
+        ReasoningNode --> SummaryNode : step 3
     }
 
-    MultimodalNode --> ValidatorNode : direct evaluation
-    CodingNode --> ValidatorNode : direct evaluation
-    ReasoningNode --> ValidatorNode : direct evaluation
+    MultimodalNode --> ValidatorNode
+    CodingNode --> ValidatorNode
+    ReasoningNode --> ValidatorNode
     SummaryNode --> ValidatorNode
 
     state ValidatorNode {
@@ -543,23 +563,26 @@ stateDiagram-v2
         CheckQuality --> AssessAttempts
     }
 
-    ValidatorNode --> CodingNode : retry coding (attempts under 3)
-    ValidatorNode --> ReasoningNode : retry reasoning (attempts under 3)
-    ValidatorNode --> SummaryNode : retry summary (attempts under 3)
-    ValidatorNode --> MultimodalNode : retry multimodal (attempts under 3)
-    ValidatorNode --> END : validation passed or attempts exhausted
+    ValidatorNode --> CodingNode : retry coding
+    ValidatorNode --> ReasoningNode : retry reasoning
+    ValidatorNode --> SummaryNode : retry summary
+    ValidatorNode --> MultimodalNode : retry multimodal
+    ValidatorNode --> END : validation passed
     END --> [*]
         </pre>
       </div>
-    </div>
+    </section>
 
-    <!-- TAB 6: STORAGE & JUNCTION -->
-    <div class="tab-content" id="tab-5">
-      <h2>6. Flow 4: Storage & Windows NTFS Junction</h2>
-      <div class="diagram-desc">
-        Zero host pollution storage model: how NTFS Windows Junction links project directory storage directly to native Windows Ollama model store with zero file duplication.
+    <!-- SECTION 6: STORAGE & JUNCTION -->
+    <section class="section-card" id="sec-storage">
+      <div class="section-header">
+        <h2>6. Flow 4: Storage & Windows NTFS Junction</h2>
+        <span class="tag">Air-Gapped Encapsulation</span>
       </div>
-      <div class="mermaid-wrapper">
+      <div class="diagram-desc">
+        Zero host pollution storage model: demonstrates how the NTFS junction link connects the project directory directly to the native Windows Ollama model cache without file duplication.
+      </div>
+      <div class="mermaid-box">
         <pre class="mermaid">
 flowchart TD
     classDef disk fill:#1e293b,stroke:#475569,stroke-width:2px,color:#fff;
@@ -594,13 +617,16 @@ flowchart TD
     PythonCLI --> DataDir
         </pre>
       </div>
-    </div>
+    </section>
 
-    <!-- TAB 7: CONTRACT MATRIX -->
-    <div class="tab-content" id="tab-6">
-      <h2>7. File-by-File Technical Directory & Contract Matrix</h2>
+    <!-- SECTION 7: MATRIX -->
+    <section class="section-card" id="sec-matrix">
+      <div class="section-header">
+        <h2>7. File-by-File Technical Directory & Contract Matrix</h2>
+        <span class="tag">Technical Specifications</span>
+      </div>
       <div class="diagram-desc">
-        Exact input/output contracts, internal operations, and downstream consumers for every file in the repository.
+        Complete matrix detailing layer, primary function or class, inputs received, outputs emitted, and downstream consumers for every file in the codebase.
       </div>
       <table>
         <thead>
@@ -720,35 +746,29 @@ flowchart TD
           </tr>
         </tbody>
       </table>
-    </div>
+    </section>
 
   </div>
 
   <script>
-    mermaid.initialize({
-      startOnLoad: true,
-      theme: 'dark',
-      themeVariables: {
-        darkMode: true,
-        background: '#080c14',
-        primaryColor: '#1e3a8a',
-        primaryBorderColor: '#3b82f6',
-        primaryTextColor: '#f3f4f6',
-        lineColor: '#60a5fa',
-        secondaryColor: '#065f46',
-        tertiaryColor: '#1f2937'
-      },
-      flowchart: { curve: 'basis' }
+    document.addEventListener("DOMContentLoaded", function() {
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: 'dark',
+        securityLevel: 'loose',
+        flowchart: { curve: 'basis', htmlLabels: true },
+        themeVariables: {
+          darkMode: true,
+          background: '#05080f',
+          primaryColor: '#1e3a8a',
+          primaryBorderColor: '#3b82f6',
+          primaryTextColor: '#f8fafc',
+          lineColor: '#60a5fa',
+          secondaryColor: '#065f46',
+          tertiaryColor: '#1f2937'
+        }
+      });
     });
-
-    function switchTab(index) {
-      document.querySelectorAll('.tab-btn').forEach((btn, i) => {
-        btn.classList.toggle('active', i === index);
-      });
-      document.querySelectorAll('.tab-content').forEach((content, i) => {
-        content.classList.toggle('active', i === index);
-      });
-    }
   </script>
 </body>
 </html>

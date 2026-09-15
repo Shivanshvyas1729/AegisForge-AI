@@ -308,27 +308,27 @@ flowchart TD
     classDef toolNode fill:#7c2d12,stroke:#f97316,stroke-width:2px,color:#fff;
     classDef outNode fill:#0f172a,stroke:#475569,stroke-width:2px,color:#fff;
 
-    UserPrompt["User Prompt or File Upload (UI Tab 1 or main.py route)"]:::inputNode
-    Classifier{"Task Classifier (model_router.py)"}:::classNode
+    UserPrompt["User Prompt or File Upload"]:::inputNode
+    Classifier{"Task Classifier"}:::classNode
 
     UserPrompt --> Classifier
 
-    Classifier -- "Coding Keywords: python, def, script" --> CodingBranch["Qwen2.5-Coder:1.5b (Coding Node)"]:::modelNode
-    Classifier -- "Reasoning Keywords: asme, cvc, breach" --> ReasoningBranch["DeepSeek-R1:1.5b (Reasoning Node)"]:::modelNode
-    Classifier -- "Summary Keywords: summarize, points" --> SummaryBranch["Llama-3.2:3b (Summary Node)"]:::modelNode
-    Classifier -- "Image Uploaded: png, jpg, svg, P&ID" --> VisionBranch["Moondream / EasyOCR (Vision Node)"]:::modelNode
+    Classifier -->|Coding: python, def, script| CodingBranch["Qwen2.5-Coder:1.5b (Coding Node)"]:::modelNode
+    Classifier -->|Reasoning: asme, cvc, breach| ReasoningBranch["DeepSeek-R1:1.5b (Reasoning Node)"]:::modelNode
+    Classifier -->|Summary: summarize, points| SummaryBranch["Llama-3.2:3b (Summary Node)"]:::modelNode
+    Classifier -->|Image: png, jpg, svg, PID| VisionBranch["Moondream / EasyOCR (Vision Node)"]:::modelNode
 
     CodingBranch --> CodeExtract["Extract Python Code Block"]:::toolNode
     CodeExtract --> SandboxExec["tools/sandbox.py (15s Timeout Subprocess)"]:::toolNode
     SandboxExec --> SandboxResult["Display stdout / stderr and Return Code"]:::outNode
 
-    ReasoningBranch --> IntentCheck{"Prompt Asks for DOCX / PDF?"}:::classNode
-    IntentCheck -- "Yes: need docx, need pdf" --> DocGen["tools/doc_generator.py (Compiles Word and PDF)"]:::toolNode
+    ReasoningBranch --> IntentCheck{"Prompt Asks for DOCX or PDF?"}:::classNode
+    IntentCheck -->|Yes: need docx, need pdf| DocGen["tools/doc_generator.py (Compiles Word and PDF)"]:::toolNode
     DocGen --> DownloadBtns["1-Click Native DOCX and PDF Download"]:::outNode
-    IntentCheck -- "No: Pure Text Reasoning" --> TextOutput["Render Markdown Rationale and LaTeX Formula"]:::outNode
+    IntentCheck -->|No: Pure Text Reasoning| TextOutput["Render Markdown Rationale and LaTeX Formula"]:::outNode
 
     SummaryBranch --> SummaryOutput["Render Structured Executive Deliverable"]:::outNode
-    VisionBranch --> VisionOutput["Render P&ID Tag and Visual Inspection Analysis"]:::outNode
+    VisionBranch --> VisionOutput["Render PID Tag and Visual Inspection Analysis"]:::outNode
 ```
 
 ---
@@ -354,14 +354,14 @@ stateDiagram-v2
     RouterNode --> MultimodalNode : route is pipeline
 
     state PipelineSeq {
-        MultimodalNode --> CodingNode : sequential transition 1
-        CodingNode --> ReasoningNode : sequential transition 2
-        ReasoningNode --> SummaryNode : sequential transition 3
+        MultimodalNode --> CodingNode : step 1
+        CodingNode --> ReasoningNode : step 2
+        ReasoningNode --> SummaryNode : step 3
     }
 
-    MultimodalNode --> ValidatorNode : direct evaluation
-    CodingNode --> ValidatorNode : direct evaluation
-    ReasoningNode --> ValidatorNode : direct evaluation
+    MultimodalNode --> ValidatorNode
+    CodingNode --> ValidatorNode
+    ReasoningNode --> ValidatorNode
     SummaryNode --> ValidatorNode
 
     state ValidatorNode {
@@ -369,11 +369,11 @@ stateDiagram-v2
         CheckQuality --> AssessAttempts
     }
 
-    ValidatorNode --> CodingNode : retry coding (attempts under 3)
-    ValidatorNode --> ReasoningNode : retry reasoning (attempts under 3)
-    ValidatorNode --> SummaryNode : retry summary (attempts under 3)
-    ValidatorNode --> MultimodalNode : retry multimodal (attempts under 3)
-    ValidatorNode --> END : validation passed or attempts exhausted
+    ValidatorNode --> CodingNode : retry coding
+    ValidatorNode --> ReasoningNode : retry reasoning
+    ValidatorNode --> SummaryNode : retry summary
+    ValidatorNode --> MultimodalNode : retry multimodal
+    ValidatorNode --> END : validation passed
     END --> [*]
 ```
 
