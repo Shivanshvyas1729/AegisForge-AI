@@ -522,7 +522,6 @@ with tab_calculator:
             equipment_name="Interactive Test Vessel",
             material=calc_mat.split()[0],
             design_pressure_mpa=calc_p,
-            design_temp_c=340.0,
             inside_radius_mm=calc_r,
             allowable_stress_mpa=calc_s,
             joint_efficiency=calc_e,
