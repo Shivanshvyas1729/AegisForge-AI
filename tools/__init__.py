@@ -1,32 +1,34 @@
 """
-tools package
-Exports Layer 4 engineering tools: ASME math, sandbox execution, safe file I/O, local RAG, and document compilers.
+tools package — Engineering tools for AegisForge-AI.
+ASME calculator, sandbox execution, file I/O, local RAG, and document generators.
+
+Note: Imports are wrapped to prevent cascading failures when optional
+dependencies (python-docx, reportlab) aren't installed.
 """
 
-from .asme_calculator import evaluate_vessel_integrity, asme_calc_tool
-from .file_io import read_or_write_file, file_io_tool
-from .sandbox import execute_python_code, sandbox
-from .rag import search_local_knowledge, rag
-from .doc_generator import (
-    generate_docx_deliverable,
-    generate_pdf_deliverable,
-    generate_both_deliverables,
-    docx_export_tool,
-    pdf_export_tool,
-)
+from .asme_calculator import evaluate_vessel_integrity
+from .sandbox import execute_python_code
+from .file_io import read_or_write_file
+from .rag import search_local_knowledge
+
+# Document generators need python-docx and reportlab — import gracefully
+try:
+    from .doc_generator import (
+        generate_docx_deliverable,
+        generate_pdf_deliverable,
+        generate_both_deliverables,
+    )
+except ImportError:
+    generate_docx_deliverable = None
+    generate_pdf_deliverable = None
+    generate_both_deliverables = None
 
 __all__ = [
     "evaluate_vessel_integrity",
-    "asme_calc_tool",
-    "read_or_write_file",
-    "file_io_tool",
     "execute_python_code",
-    "sandbox",
+    "read_or_write_file",
     "search_local_knowledge",
-    "rag",
     "generate_docx_deliverable",
     "generate_pdf_deliverable",
     "generate_both_deliverables",
-    "docx_export_tool",
-    "pdf_export_tool",
 ]

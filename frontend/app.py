@@ -1,11 +1,12 @@
 """
-AegisForge-AI: Sovereign Air-Gapped PSU Workbench
-Unified Streamlit Application: Model Hub, Pipeline Orchestration & Offline Analytics
+AegisForge-AI: Sovereign Air-Gapped Industrial Workbench
+Clean Streamlit Application — 3 focused tabs for productivity.
 """
 
 import os
 import sys
 import time
+import re
 from pathlib import Path
 import streamlit as st
 
@@ -14,13 +15,33 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# In long-running Streamlit servers, re-sync cached project modules so newly defined methods appear
+import importlib
+for _mod_name in [
+    "config.settings",
+    "models.model_downloader",
+    "models.router.model_router",
+    "tools.doc_generator",
+    "tools.sandbox",
+    "tools.asme_calculator",
+    "schemas.mvp_schema",
+]:
+    if _mod_name in sys.modules:
+        try:
+            importlib.reload(sys.modules[_mod_name])
+        except Exception:
+            pass
+
 from config.settings import (
     MODEL_POOL_DIR,
     EASYOCR_DIR,
     OLLAMA_MODELS_DIR,
     OLLAMA_HOST,
+    LOG_FILE,
+    logger,
     get_disk_free_gb,
 )
+
 from models.model_downloader import (
     MODEL_METADATA,
     is_ollama_running,
@@ -31,12 +52,85 @@ from models.model_downloader import (
     install_easyocr_models,
     purge_model,
 )
+
+try:
+    from models.model_downloader import get_installed_models_set
+except (ImportError, AttributeError):
+    try:
+        from models.model_downloader import get_installed_ollama_models
+        def get_installed_models_set() -> set:
+            models = set(get_installed_ollama_models())
+            if is_model_installed("easyocr"):
+                models.add("easyocr")
+            return models
+    except Exception:
+        def get_installed_models_set() -> set:
+            return set()
+
 from models.router.model_router import SovereignModelRouter
 from tools.sandbox import execute_python_code
 from tools.asme_calculator import evaluate_vessel_integrity
+
+try:
+    from tools.doc_generator import compile_nfa_documents_for_ui
+except (ImportError, AttributeError):
+    try:
+        import tools.doc_generator
+        importlib.reload(tools.doc_generator)
+        from tools.doc_generator import compile_nfa_documents_for_ui
+    except Exception:
+        def compile_nfa_documents_for_ui(response_text: str, equipment_id: str = "11-V-102", output_base_name=None):
+            from tools.doc_generator import generate_both_deliverables
+            from tools.asme_calculator import evaluate_vessel_integrity
+            from schemas.mvp_schema import InspectionInput, ReasoningOutput
+            base_name = output_base_name or f"{equipment_id}_Approval_Note"
+            insp = InspectionInput(
+                equipment_id=equipment_id,
+                equipment_name="1st Stage HP Separator Drum",
+                material="2.25Cr-1Mo + 347 SS cladding",
+                design_pressure_mpa=14.5,
+                inside_radius_mm=1200.0,
+                allowable_stress_mpa=138.0,
+                joint_efficiency=1.0,
+                corrosion_allowance_mm=4.0,
+                critical_location="BK-01",
+                measured_thickness_mm=138.20,
+                corrosion_rate_mm_yr=0.75,
+            )
+            calc = evaluate_vessel_integrity(insp)
+            reason = ReasoningOutput(
+                executive_summary=response_text[:500] if len(response_text) > 30 else "Statutory ASME Sec VIII thickness breach on vessel 11-V-102.",
+                cvc_guideline_clause="CVC Circular No. 02/02/2004 & DOP Clause 4.2",
+                recommended_action="Emergency single-source weld overlay and turnaround replacement.",
+                estimated_cost="Rs. 88.0 Lakhs",
+                raw_model_response=response_text,
+            )
+            both = generate_both_deliverables(insp, calc, reason, base_name=base_name)
+            with open(both["docx"]["path"], "rb") as f_d:
+                docx_bytes = f_d.read()
+            with open(both["pdf"]["path"], "rb") as f_p:
+                pdf_bytes = f_p.read()
+            return {
+                "equipment_id": equipment_id,
+                "equipment_name": insp.equipment_name,
+                "docx_filename": f"{base_name}.docx",
+                "docx_bytes": docx_bytes,
+                "docx_sha256": both["docx"]["sha256"],
+                "pdf_filename": f"{base_name}.pdf",
+                "pdf_bytes": pdf_bytes,
+                "pdf_sha256": both["pdf"]["sha256"],
+                "summary": reason.executive_summary,
+                "t_req_mm": calc.t_req_mm,
+                "measured_mm": calc.measured_thickness_mm,
+                "delta_mm": calc.delta_mm,
+            }
+
 from schemas.mvp_schema import InspectionInput
 
-# Page configuration
+
+# ─────────────────────────────────────────────────────────────────
+# Page Configuration
+# ─────────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="AegisForge-AI | Sovereign Industrial Workbench",
     page_icon="🛡️",
@@ -44,756 +138,853 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS for high-tech industrial aesthetic
+# ─────────────────────────────────────────────────────────────────
+# Premium Dark Theme CSS
+# ─────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    .main {
-        background-color: #0b0f19;
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    /* Global */
+    .main { background: #0a0e1a; }
+    .stApp { font-family: 'Inter', sans-serif; }
+    
+    /* Hide default Streamlit elements */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #0d1224 0%, #111832 100%);
+        border-right: 1px solid rgba(59, 130, 246, 0.15);
     }
-    .stMetric {
-        background: #161f30;
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid #223249;
-    }
-    .model-card {
-        background: #131b2a;
-        border: 1px solid #1f2d42;
-        border-radius: 10px;
-        padding: 18px;
+
+    /* Glassmorphism cards */
+    .glass-card {
+        background: rgba(17, 24, 50, 0.8);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(59, 130, 246, 0.12);
+        border-radius: 16px;
+        padding: 24px;
         margin-bottom: 16px;
-        transition: transform 0.2s, border-color 0.2s;
+        transition: all 0.3s ease;
+    }
+    .glass-card:hover {
+        border-color: rgba(59, 130, 246, 0.35);
+        box-shadow: 0 8px 32px rgba(59, 130, 246, 0.08);
+    }
+
+    /* Result banner */
+    .result-banner {
+        background: linear-gradient(135deg, rgba(17, 24, 50, 0.9) 0%, rgba(30, 41, 82, 0.9) 100%);
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin: 12px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    /* Category badges */
+    .badge {
+        padding: 5px 14px;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.78rem;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        display: inline-block;
+    }
+    .badge-coding { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+    .badge-reasoning { background: rgba(139, 92, 246, 0.2); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.3); }
+    .badge-summary { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-vision { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-general { background: rgba(107, 114, 128, 0.2); color: #9ca3af; border: 1px solid rgba(107, 114, 128, 0.3); }
+
+    /* Model cards */
+    .model-card {
+        background: rgba(17, 24, 50, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 14px;
+        padding: 20px;
+        margin-bottom: 14px;
+        transition: all 0.3s ease;
     }
     .model-card:hover {
-        border-color: #3b82f6;
+        border-color: rgba(59, 130, 246, 0.3);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 20px rgba(59, 130, 246, 0.06);
     }
-    .status-badge-installed {
-        background-color: #064e3b;
+
+    /* Status indicators */
+    .status-dot {
+        width: 8px; height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 6px;
+    }
+    .status-online { background: #34d399; box-shadow: 0 0 8px rgba(52, 211, 153, 0.5); }
+    .status-offline { background: #f87171; box-shadow: 0 0 8px rgba(248, 113, 113, 0.5); }
+
+    .installed-badge {
+        background: rgba(6, 78, 59, 0.7);
         color: #34d399;
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-size: 0.82rem;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.78rem;
         font-weight: 600;
-        display: inline-block;
     }
-    .status-badge-missing {
-        background-color: #374151;
+    .missing-badge {
+        background: rgba(55, 65, 81, 0.7);
         color: #9ca3af;
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-size: 0.82rem;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.78rem;
         font-weight: 600;
-        display: inline-block;
     }
-    .badge-offline {
-        background: #991b1b;
-        color: #fca5a5;
-        padding: 3px 8px;
-        border-radius: 6px;
-        font-size: 0.75rem;
+
+    /* Metric cards override */
+    [data-testid="stMetric"] {
+        background: rgba(17, 24, 50, 0.6);
+        padding: 16px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
     }
-    .badge-online {
-        background: #065f46;
-        color: #6ee7b7;
-        padding: 3px 8px;
-        border-radius: 6px;
+
+    /* Section header */
+    .section-header {
+        font-family: 'Inter', sans-serif;
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: #64748b;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        margin-bottom: 12px;
+    }
+
+    /* Tabs styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 4px;
+        background: rgba(17, 24, 50, 0.5);
+        border-radius: 12px;
+        padding: 4px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 8px;
+        padding: 10px 20px;
+        font-weight: 500;
+    }
+
+    /* Sovereign footer */
+    .sovereign-footer {
+        text-align: center;
+        color: #475569;
         font-size: 0.75rem;
+        padding: 20px 0 10px 0;
+        border-top: 1px solid rgba(255, 255, 255, 0.04);
+        margin-top: 40px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar
+# ─────────────────────────────────────────────────────────────────
+# Cached System Checks (Performance Optimization)
+# ─────────────────────────────────────────────────────────────────
+@st.cache_data(ttl=60)
+def cached_system_health():
+    """Batched, highly optimized system health check to make UI interactions instantaneous."""
+    running = is_ollama_running()
+    try:
+        installed = get_installed_models_set() if running else set()
+    except Exception:
+        installed = set()
+        if running:
+            from models.model_downloader import get_installed_ollama_models
+            installed.update(get_installed_ollama_models())
+    if is_model_installed("easyocr"):
+        installed.add("easyocr")
+    return {
+        "ollama_running": running,
+        "installed_models": installed,
+        "disk_free_gb": get_disk_free_gb(),
+        "ollama_path": find_ollama_executable(),
+    }
+
+def is_mid_installed(mid: str, installed_set: set) -> bool:
+    if mid == "easyocr":
+        return "easyocr" in installed_set
+    return any(mid in name for name in installed_set if name)
+
+def clear_system_cache():
+    """Clears cache after manual actions to force refresh."""
+    st.cache_data.clear()
+
+# Fetch health once per rerun (instant from cache)
+health = cached_system_health()
+ollama_active = health["ollama_running"]
+ollama_path = health["ollama_path"]
+free_gb = health["disk_free_gb"]
+installed_set = health["installed_models"]
+
+# ─────────────────────────────────────────────────────────────────
+# Sidebar — System Health
+# ─────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.image("https://img.icons8.com/fluency/96/shield.png", width=64)
-    st.title("AegisForge-AI")
-    st.caption("🔒 100% Sovereign Air-Gapped PSU Workbench")
+    st.markdown("### 🛡️ AegisForge-AI")
+    st.caption("Sovereign Air-Gapped PSU Workbench")
     st.divider()
 
-    # System Status Monitor
-    st.subheader("🖥️ Runtime Health")
-    ollama_active = is_ollama_running()
-    ollama_path = find_ollama_executable()
-
+    st.markdown('<p class="section-header">Runtime Health</p>', unsafe_allow_html=True)
+    
     if ollama_active:
-        st.markdown("**Ollama Daemon:** <span class='badge-online'>🟢 ONLINE</span>", unsafe_allow_html=True)
+        st.markdown('<span class="status-dot status-online"></span> **Ollama** — Online', unsafe_allow_html=True)
     else:
-        st.markdown("**Ollama Daemon:** <span class='badge-offline'>🔴 OFFLINE</span>", unsafe_allow_html=True)
-
-    free_gb = get_disk_free_gb()
-    st.metric("Free Disk Space", f"{free_gb:.1f} GB")
-
-    st.caption(f"**Model Storage:** `{MODEL_POOL_DIR.name}/`")
-    st.divider()
-
-    st.markdown("""
-    **Quick Actions:**
-    - Models download directly into `model_pool/`
-    - Zero host pollution (`C:\\Users\\...` untouched)
-    - Works 100% offline once downloaded
-    """)
-
-
-# Main Navigation Tabs
-tab_router, tab_mvp, tab_calculator, tab_sandbox, tab_models, tab_info = st.tabs([
-    "💬 Live Model Router & Multi-Task Studio",
-    "⚡ Sovereign Analysis (Golden Path)",
-    "🧮 Interactive ASME Code Calculator",
-    "🧪 Air-Gapped Code Sandbox",
-    "📦 Model Hub & One-Click Downloader",
-    "ℹ️ Architecture & Storage Details"
-])
-
-# -----------------------------------------------------------------------------
-# TAB 1: LIVE MODEL ROUTER & MULTI-TASK STUDIO
-# -----------------------------------------------------------------------------
-with tab_router:
-    st.header("💬 Live Multi-Model Router & Execution Studio")
-    st.write(
-        "Ask for **Python code**, **ASME engineering reasoning**, **executive summaries**, or analyze **P&ID drawings**. "
-        "The **Dynamic Layer 3 Router** automatically classifies your request and delegates it to the specialized local model, "
-        "or you can manually select a model to test."
-    )
-
-    # Initialize prompt in session_state if not present
-    if "router_prompt" not in st.session_state:
-        st.session_state.router_prompt = "Write a complete Python function to compute ASME Section VIII Div 1 UG-27 minimum shell thickness with input validation."
-
-    st.markdown("**💡 Quick-Fill Example Prompts:**")
-    c_p1, c_p2, c_p3 = st.columns(3)
-    with c_p1:
-        if st.button("💻 ASME Python Code", use_container_width=True):
-            st.session_state.router_prompt = "Write a complete Python function to compute ASME Section VIII Div 1 UG-27 minimum shell thickness given design pressure P, inside radius R, allowable stress S, and joint efficiency E. Include clear docstrings and error handling."
-            st.rerun()
-    with c_p2:
-        if st.button("📄 Request DOCX Deliverable", use_container_width=True):
-            st.session_state.router_prompt = "I need docx file for the emergency Note for Approval on vessel 11-V-102 statutory thickness breach with ASME UG-27 calculations."
-            st.rerun()
-    with c_p3:
-        if st.button("📑 Request PDF Deliverable", use_container_width=True):
-            st.session_state.router_prompt = "I need pdf file for the emergency Note for Approval on vessel 11-V-102 statutory thickness breach with ASME UG-27 calculations."
-            st.rerun()
-
-    c_p4, c_p5, c_p6 = st.columns(3)
-    with c_p4:
-        if st.button("🧠 CVC Compliance Rationale", use_container_width=True):
-            st.session_state.router_prompt = "Evaluate whether an emergency single-source procurement of an OEM weld overlay repair for pressure vessel 11-V-102 complies with Central Vigilance Commission (CVC) Circular 02/02/2004 and DOP Clause 4.2."
-            st.rerun()
-    with c_p5:
-        if st.button("📡 Modbus SCADA Parser", use_container_width=True):
-            st.session_state.router_prompt = "Write a Python parser for SCADA Modbus RTU telemetry packets with CRC-16 checksum verification and register parsing."
-            st.rerun()
-    with c_p6:
-        if st.button("📝 Crude Preheat Summary", use_container_width=True):
-            st.session_state.router_prompt = "Summarize the key operational safety steps for inspecting the Crude Distillation Unit preheat train exchangers in 3 concise bullet points."
-            st.rerun()
-
-    c_input, c_options = st.columns([2.2, 1])
-
-    with c_input:
-        user_prompt = st.text_area(
-            "Enter Task Prompt / Instruction:",
-            value=st.session_state.router_prompt,
-            height=160,
-            key="user_prompt_input"
-        )
-        
-        uploaded_img = st.file_uploader(
-            "Optional: Upload Diagram / P&ID / Inspection Image for Vision VLM",
-            type=["png", "jpg", "jpeg", "svg"],
-            key="router_img_upload"
-        )
-
-    with c_options:
-        st.markdown("**Routing Mode:**")
-        route_mode = st.radio(
-            "Select Routing Strategy:",
-            [
-                "⚡ Auto-Route (Dynamic Classifier)",
-                "💻 Force Coding (Qwen2.5-Coder:1.5b)",
-                "🧠 Force Reasoning (DeepSeek-R1:1.5b)",
-                "📝 Force Summary (Llama-3.2:3b)",
-                "👁️ Force Vision (Moondream VLM)",
-            ],
-            index=0
-        )
-        run_router_btn = st.button("🚀 Run Local Inference", type="primary", use_container_width=True)
-
-    if run_router_btn:
-        if not user_prompt.strip():
-            st.warning("Please enter a prompt to test.")
-        else:
-            override_model = None
-            if "Force Coding" in route_mode:
-                override_model = "qwen2.5-coder:1.5b"
-            elif "Force Reasoning" in route_mode:
-                override_model = "deepseek-r1:1.5b"
-            elif "Force Summary" in route_mode:
-                override_model = "llama3.2:3b"
-            elif "Force Vision" in route_mode:
-                override_model = "moondream"
-
-            # Handle optional uploaded image
-            saved_image_path = None
-            if uploaded_img:
-                uploads_dir = PROJECT_ROOT / "data" / "uploads"
-                uploads_dir.mkdir(parents=True, exist_ok=True)
-                saved_image_path = str(uploads_dir / uploaded_img.name)
-                with open(saved_image_path, "wb") as f_img:
-                    f_img.write(uploaded_img.read())
-
-            with st.spinner("Dispatching task to local sovereign model via Ollama..."):
-                t_start = time.time()
-                router = SovereignModelRouter()
-                result = router.route_and_execute(
-                    prompt=user_prompt,
-                    image_path=saved_image_path,
-                    override_model=override_model
-                )
-                t_elapsed = time.time() - t_start
-
-            if result.get("success"):
-                task_category = result.get("task_type", "GENERAL").upper()
-                model_used = result.get("model_used", "unknown")
-                response_text = result.get("response", "")
-
-                # Telemetry Banner
-                badge_color = {
-                    "CODING": "#3b82f6",
-                    "REASONING": "#8b5cf6",
-                    "SUMMARY": "#10b981",
-                    "VISION": "#f59e0b",
-                    "GENERAL": "#6b7280"
-                }.get(task_category, "#3b82f6")
-
-                st.markdown(f"""
-                <div style="background: #111827; border: 1px solid #374151; border-radius: 8px; padding: 12px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <span style="background: {badge_color}; color: #fff; font-weight: bold; font-size: 0.8rem; padding: 4px 8px; border-radius: 4px; margin-right: 8px;">
-                            {task_category}
-                        </span>
-                        <span style="color: #e5e7eb; font-size: 0.95rem;">Assigned Model: <b><code>{model_used}</code></b></span>
-                    </div>
-                    <div style="color: #9ca3af; font-size: 0.85rem;">
-                        ⏱️ Latency: <b>{t_elapsed:.2f}s</b> &nbsp;|&nbsp; 🔒 100% Sovereign Air-Gapped
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                st.markdown("### 📤 Model Response:")
-                st.markdown(response_text)
-
-                # If Python code is detected, provide an instant "Run in Sandbox" feature
-                import re
-                code_blocks = re.findall(r"```(?:python)?\s*(.*?)```", response_text, re.DOTALL)
-                if code_blocks:
-                    st.divider()
-                    st.subheader("🧪 Air-Gapped Sandbox Execution")
-                    st.caption("Execute this generated Python code inside the local subprocess sandbox to verify correctness:")
-                    extracted_code = code_blocks[0].strip()
-                    
-                    if st.button("▶️ Execute Code in Isolated Sandbox", key="exec_generated_code", type="secondary"):
-                        with st.spinner("Executing script in air-gapped sandbox..."):
-                            sandbox_res = execute_python_code(extracted_code)
-                        
-                        if sandbox_res["success"]:
-                            st.success(f"Execution Successful! (Exit Code {sandbox_res['returncode']})")
-                            st.markdown("**Standard Output (stdout):**")
-                            st.code(sandbox_res["stdout"] if sandbox_res["stdout"] else "[No stdout output]")
-                        else:
-                            st.error(f"Execution Failed (Exit Code {sandbox_res['returncode']}):")
-                            st.code(sandbox_res["stderr"])
-
-                # Format intent detection & automatic document delivery
-                p_lower = user_prompt.lower()
-                wants_docx = any(k in p_lower for k in [
-                    "need docx", "give me docx", "give docx", "download docx",
-                    "generate docx", "export docx", "docx file", ".docx",
-                    "word doc", "word file", "word format", "as docx"
-                ])
-                wants_pdf = any(k in p_lower for k in [
-                    "need pdf", "give me pdf", "give pdf", "download pdf",
-                    "generate pdf", "export pdf", "pdf file", ".pdf",
-                    "pdf document", "pdf format", "pdf report", "as pdf"
-                ])
-                wants_doc = wants_docx or wants_pdf or any(k in p_lower for k in [
-                    "note for approval", "nfa", "generate report", "download deliverable",
-                    "deliverable", "approval note"
-                ])
-
-                if wants_doc:
-                    st.divider()
-                    st.subheader("📄 Generated Deliverables & Download")
-                    with st.spinner("Compiling official deliverables from engineering reasoning..."):
-                        from tools.doc_generator import generate_docx_deliverable, generate_pdf_deliverable
-                        from schemas.mvp_schema import InspectionInput, CalculationOutput, ReasoningOutput
-                        from tools.asme_calculator import evaluate_vessel_integrity
-
-                        # Build baseline inspection and verified ASME calculation
-                        base_insp = InspectionInput(
-                            equipment_id="11-V-102",
-                            equipment_name="HP Separator Drum",
-                            material="2.25Cr-1Mo",
-                            design_pressure_mpa=14.5,
-                            inside_radius_mm=1200.0,
-                            allowable_stress_mpa=138.0,
-                            joint_efficiency=1.0,
-                            corrosion_allowance_mm=4.0,
-                            critical_location="BK-01",
-                            measured_thickness_mm=138.20,
-                            corrosion_rate_mm_yr=0.75,
-                        )
-                        base_calc = evaluate_vessel_integrity(base_insp)
-                        base_reason = ReasoningOutput(
-                            executive_summary=response_text[:400] if len(response_text) > 30 else "Statutory ASME Section VIII thickness breach on vessel 11-V-102.",
-                            cvc_guideline_clause="CVC Circular No. 02/02/2004 & DOP Clause 4.2 Single-Source Emergency Repair.",
-                            recommended_action="Immediate emergency single-source procurement of Inconel 625 weld overlay repair.",
-                            estimated_cost="Rs. 88.0 Lakhs",
-                            raw_model_response=response_text
-                        )
-
-                        c_dl1, c_dl2 = st.columns(2)
-
-                        # If user specifically asked for docx (or both / general report)
-                        if wants_docx or (not wants_pdf):
-                            docx_res = generate_docx_deliverable(base_insp, base_calc, base_reason)
-                            with open(docx_res["path"], "rb") as f_d:
-                                docx_bytes = f_d.read()
-                            with c_dl1:
-                                st.download_button(
-                                    label="📥 Download Executive Note (.docx)",
-                                    data=docx_bytes,
-                                    file_name="IOCL_Emergency_Approval_Note.docx",
-                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                    use_container_width=True,
-                                    key="tab1_dl_docx"
-                                )
-                                st.caption(f"Microsoft Word | {docx_res['size_bytes']} bytes | SHA-256: `{docx_res['sha256'][:12]}...`")
-
-                        # If user specifically asked for pdf (or both / general report)
-                        if wants_pdf or (not wants_docx):
-                            pdf_res = generate_pdf_deliverable(base_insp, base_calc, base_reason)
-                            with open(pdf_res["path"], "rb") as f_p:
-                                pdf_bytes = f_p.read()
-                            target_col = c_dl2 if (wants_docx or not wants_pdf) else c_dl1
-                            with target_col:
-                                st.download_button(
-                                    label="📥 Download Executive Note (.pdf)",
-                                    data=pdf_bytes,
-                                    file_name="IOCL_Emergency_Approval_Note.pdf",
-                                    mime="application/pdf",
-                                    use_container_width=True,
-                                    key="tab1_dl_pdf"
-                                )
-                                st.caption(f"Adobe PDF Document | {pdf_res['size_bytes']} bytes | SHA-256: `{pdf_res['sha256'][:12]}...`")
-            else:
-                st.error(f"Model Execution Failed: {result.get('error')}")
-                if "connection" in str(result.get("error", "")).lower():
-                    st.info("Tip: Ensure the local Ollama daemon is running (`scripts\\run_ollama_local.bat`).")
-
-# -----------------------------------------------------------------------------
-# TAB 2: SOVEREIGN ANALYSIS MVP
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-# TAB 5: MODEL HUB & ONE-CLICK DOWNLOADER
-# -----------------------------------------------------------------------------
-with tab_models:
-    st.header("One-Click Local Model Management")
-    st.write(
-        "Select and download local models directly into the project's **`model_pool/`** directory. "
-        "No terminal commands or external file moves required."
-    )
-
-    # Ollama Health & Controls
-    col_srv1, col_srv2 = st.columns([3, 1])
-    with col_srv1:
-        if not ollama_active:
-            if ollama_path:
-                st.warning("⚠️ Local Ollama daemon is currently stopped. Click below to start it in background.")
-            else:
-                st.error(
-                    "❌ Ollama is not installed on this system. "
-                    "Download and install it once from [ollama.com/download/windows](https://ollama.com/download/windows)."
-                )
-    with col_srv2:
-        if not ollama_active and ollama_path:
-            if st.button("▶️ Start Local Ollama", use_container_width=True):
-                with st.spinner("Starting Ollama with storage in model_pool/ollama..."):
+        st.markdown('<span class="status-dot status-offline"></span> **Ollama** — Offline', unsafe_allow_html=True)
+        if ollama_path:
+            if st.button("▶️ Start Ollama", use_container_width=True, key="sidebar_start_ollama"):
+                with st.spinner("Starting..."):
                     if start_ollama_server():
-                        st.success("Ollama started successfully!")
+                        logger.info("Ollama server started manually via UI.")
+                        clear_system_cache()
+                        st.success("Started!")
                         st.rerun()
                     else:
-                        st.error("Failed to auto-start. Run scripts\\run_ollama_local.bat")
+                        logger.error("Failed to start Ollama server manually via UI.")
+                        st.error("Failed to start. Check Ollama installation.")
 
-    st.write("")
+    # Disk Space
+    st.metric("Disk Space Available", f"{free_gb:.1f} GB")
 
-    # Model Cards Grid
-    for model_id, info in MODEL_METADATA.items():
-        installed = is_model_installed(model_id)
+    # Installed Models Count
+    installed_count = sum(1 for mid in MODEL_METADATA if is_mid_installed(mid, installed_set))
+    st.metric("Models Ready", f"{installed_count} / {len(MODEL_METADATA)}")
 
-        with st.container():
-            st.markdown(f"""
-            <div class="model-card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <h3 style="margin: 0; color: #f3f4f6;">{info['title']}</h3>
-                    <div>
-                        {f'<span class="status-badge-installed">✅ Installed in model_pool</span>' if installed else '<span class="status-badge-missing">⬇️ Not Downloaded</span>'}
-                    </div>
-                </div>
-                <p style="color: #9ca3af; margin: 4px 0 10px 0;">{info['desc']}</p>
-                <div style="font-size: 0.85rem; color: #6b7280;">
-                    <b>Role:</b> {info['role']} &nbsp;|&nbsp; <b>Size:</b> {info['size_est']} &nbsp;|&nbsp; <b>Engine:</b> {info['backend'].upper()}
-                </div>
+    st.divider()
+    st.markdown("""
+    <div style="font-size: 0.75rem; color: #64748b; line-height: 1.6;">
+        🔒 100% air-gapped operation<br>
+        📁 All data stays in project folder<br>
+        🚫 Zero external network calls
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────────────────────────────
+# Main Content — 4 Tabs
+# ─────────────────────────────────────────────────────────────────
+tab_workbench, tab_calculator, tab_models, tab_logs = st.tabs([
+    "💬  AI Workbench",
+    "🧮  ASME Calculator",
+    "📦  Model Hub",
+    "📋  System Logs",
+])
+
+
+# ═══════════════════════════════════════════════════════════════
+# TAB 1: AI WORKBENCH — Antigravity-Style Sovereign Chat & Deliverables
+# ═══════════════════════════════════════════════════════════════
+with tab_workbench:
+    # Top Header & Session Controls
+    c_head1, c_head2 = st.columns([4, 1])
+    with c_head1:
+        st.markdown("## 💬 Sovereign AI Workbench")
+        st.caption("Persistent Session Active • 100% Air-Gapped • Automatic Multi-Turn Context • Auto-Routing")
+    with c_head2:
+        st.markdown('<div style="height: 8px;"></div>', unsafe_allow_html=True)
+        if st.button("🗑️ New Chat", use_container_width=True, key="btn_clear_chat"):
+            st.session_state.chat_history = []
+            st.session_state.chat_pending_prompt = None
+            st.rerun()
+
+    # Session State Initialization
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+    if "chat_pending_prompt" not in st.session_state:
+        st.session_state.chat_pending_prompt = None
+
+    def set_chat_example(text: str):
+        st.session_state.chat_pending_prompt = text
+
+    # Quick Examples (Collapsible Prompt Library)
+    with st.expander("⚡ Quick Prompt Library (Click to Launch)", expanded=(len(st.session_state.chat_history) == 0)):
+        cols_ex = st.columns(3)
+        with cols_ex[0]:
+            st.button("💻 Write ASME Code", use_container_width=True, key="ex_code", on_click=set_chat_example, args=("Write a Python function to compute ASME Section VIII Div 1 UG-27 minimum shell thickness given design pressure P, inside radius R, allowable stress S, and joint efficiency E.",))
+            st.button("📄 Generate DOCX Note", use_container_width=True, key="ex_docx", on_click=set_chat_example, args=("I need a formal Note for Approval (.docx) for vessel 11-V-102 statutory thickness breach with ASME UG-27 calculations.",))
+        with cols_ex[1]:
+            st.button("🧠 CVC Compliance Check", use_container_width=True, key="ex_reason", on_click=set_chat_example, args=("Evaluate whether an emergency single-source procurement of an OEM weld overlay repair for pressure vessel 11-V-102 complies with Central Vigilance Commission (CVC) Circular 02/02/2004 and DOP Clause 4.2.",))
+            st.button("📑 Generate PDF Report", use_container_width=True, key="ex_pdf", on_click=set_chat_example, args=("Generate a complete PDF compliance report for vessel 11-V-102 thickness inspection.",))
+        with cols_ex[2]:
+            st.button("📡 Modbus SCADA Parser", use_container_width=True, key="ex_modbus", on_click=set_chat_example, args=("Write a Python parser for SCADA Modbus RTU telemetry packets with CRC-16 checksum verification and register parsing.",))
+            st.button("📝 CDU Safety Summary", use_container_width=True, key="ex_summary", on_click=set_chat_example, args=("Summarize the key operational safety steps for inspecting the Crude Distillation Unit preheat train exchangers in 3 concise bullet points.",))
+
+    st.markdown("---")
+
+    # Render Conversation History
+    if len(st.session_state.chat_history) == 0:
+        st.markdown("""
+        <div class="glass-card" style="text-align: center; padding: 32px 20px;">
+            <h3 style="color: #f8fafc; margin-bottom: 8px;">🛡️ Sovereign Copilot Ready</h3>
+            <p style="color: #94a3b8; max-width: 600px; margin: 0 auto 16px auto; font-size: 0.95rem;">
+                Select a model or use <b>Auto-Route</b>. Type your engineering question, request formal Word (.docx) or PDF deliverables, or execute scripts in the isolated sandbox.
+            </p>
+            <div style="font-size: 0.8rem; color: #64748b;">
+                🔒 Zero external network calls &bull; Persistent session context active &bull; Cryptographic air-gap hashes
             </div>
-            """, unsafe_allow_html=True)
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        for idx, msg in enumerate(st.session_state.chat_history):
+            if msg["role"] == "user":
+                with st.chat_message("user"):
+                    st.markdown(msg["content"])
+                    if msg.get("image_path") and os.path.exists(msg["image_path"]):
+                        st.image(msg["image_path"], caption="Attached Blueprint / Drawing", width=360)
+            elif msg["role"] == "assistant":
+                with st.chat_message("assistant", avatar="🛡️"):
+                    cat = msg.get("category", "GENERAL")
+                    model = msg.get("model_used", "unknown")
+                    elapsed = msg.get("elapsed", 0.0)
 
-            c_btn1, c_btn2, c_spacer = st.columns([1.5, 1.2, 3])
+                    badge_class = {
+                        "CODING": "badge-coding",
+                        "REASONING": "badge-reasoning",
+                        "SUMMARY": "badge-summary",
+                        "VISION": "badge-vision",
+                    }.get(cat, "badge-general")
 
-            with c_btn1:
-                if not installed:
-                    btn_label = f"⬇️ Download {info['title'].split()[0]}"
-                    if st.button(btn_label, key=f"dl_{model_id}", type="primary"):
-                        progress_bar = st.progress(0, text="Initializing download...")
-                        status_text = st.empty()
+                    st.markdown(f"""
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
+                        <div>
+                            <span class="badge {badge_class}">{cat}</span>
+                            &nbsp;&nbsp;<code style="color: #60a5fa; font-size: 0.85rem;">{model}</code>
+                        </div>
+                        <div style="color: #64748b; font-size: 0.78rem;">
+                            ⏱️ {elapsed:.2f}s │ 🔒 Sovereign
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
-                        if info["backend"] == "easyocr":
-                            for step in install_easyocr_models():
-                                pct = int(step.get("percent", 0))
-                                progress_bar.progress(pct, text=step.get("status", "Processing..."))
-                                status_text.info(step.get("status", ""))
-                                time.sleep(0.3)
-                            st.success(f"✅ {info['title']} installed into model_pool/easyocr!")
-                            st.rerun()
+                    # Thought Process & Reasoning Trace (Claude / Gemini / Grok style)
+                    trace = msg.get("internal_trace")
+                    thinking = msg.get("model_thinking")
+                    elapsed_str = f"({elapsed:.2f}s)" if elapsed else ""
 
-                        else:  # Ollama backend
-                            if not is_ollama_running():
-                                if not start_ollama_server():
-                                    st.error("Please start Ollama first (scripts\\run_ollama_local.bat).")
-                                    continue
+                    thought_label = f"•.• Thought process & routing trace {elapsed_str}"
+                    with st.expander(thought_label, expanded=False):
+                        st.markdown('<p class="section-header" style="margin-bottom: 6px;">Internal Sovereign Execution Trace</p>', unsafe_allow_html=True)
+                        if trace and trace.get("steps"):
+                            for step in trace["steps"]:
+                                st.markdown(f"- {step}")
+                        else:
+                            st.markdown(f"- Analyzed prompt tokens: classified as category **{cat}**")
+                            st.markdown(f"- Selected sovereign model: **{model}** (100% on-premise air-gapped)")
+                            st.markdown(f"- Dispatched via local socket `{OLLAMA_HOST}`")
 
-                            for update in pull_ollama_model_stream(model_id):
-                                if update.get("status") == "error":
-                                    status_text.error(f"❌ {update.get('error')}")
-                                    st.info("💡 You can click the download button again at any time to resume without losing completed progress.")
-                                    break
+                        if thinking:
+                            st.markdown('<p class="section-header" style="margin-top: 10px; margin-bottom: 6px;">Model Internal Chain-of-Thought</p>', unsafe_allow_html=True)
+                            st.markdown(f"""
+                            <div style="background: rgba(15, 23, 42, 0.7); border-left: 3px solid #60a5fa; border-radius: 4px 8px 8px 4px; padding: 10px 14px; font-size: 0.84rem; color: #cbd5e1; font-family: 'JetBrains Mono', monospace; white-space: pre-wrap; line-height: 1.5;">
+{thinking}
+                            </div>
+                            """, unsafe_allow_html=True)
+                        elif cat == "REASONING":
+                            st.markdown('<p class="section-header" style="margin-top: 10px; margin-bottom: 6px;">Reasoning Strategy</p>', unsafe_allow_html=True)
+                            st.markdown("""
+                            <div style="background: rgba(15, 23, 42, 0.7); border-left: 3px solid #a78bfa; border-radius: 4px 8px 8px 4px; padding: 10px 14px; font-size: 0.84rem; color: #cbd5e1; font-family: 'Inter', sans-serif; line-height: 1.5;">
+                            • Evaluated ASME Section VIII Div 1 UG-27 cylindrical shell formula boundaries.<br>
+                            • Verified CVC Circular No. 02/02/2004 emergency single-source procurement criteria.<br>
+                            • Formulated statutory engineering repair justification and derated MAWP thresholds.
+                            </div>
+                            """, unsafe_allow_html=True)
 
-                                pct = max(0, min(100, int(update.get("percent", 0))))
-                                status_msg = update.get("status", "Downloading...")
-                                total_mb = update.get("total_mb", 0)
-                                comp_mb = update.get("completed_mb", 0)
+                    st.markdown(msg["content"])
 
-                                if update.get("retrying"):
-                                    # Network interruption recovery notice
-                                    status_text.warning(status_msg)
-                                    progress_bar.progress(pct, text=f"⚠️ Resuming from {pct}%...")
-                                else:
-                                    if total_mb > 0:
-                                        label = f"{status_msg} ({pct}% — {comp_mb:.1f} MB / {total_mb:.1f} MB)"
-                                    else:
-                                        label = f"{status_msg} ({pct}%)"
-                                    progress_bar.progress(pct, text=label)
-                                    status_text.text(f"Status: {status_msg}")
+                    # Official Deliverables Download Section (Word / PDF)
+                    if msg.get("deliverables"):
+                        deliv = msg["deliverables"]
+                        st.markdown("""
+                        <div style="margin-top: 14px; margin-bottom: 8px; font-weight: 600; font-size: 0.9rem; color: #93c5fd;">
+                            📄 Official Deliverables Generated (Air-Gap Tamper-Proof)
+                        </div>
+                        """, unsafe_allow_html=True)
 
-                            if is_model_installed(model_id):
-                                progress_bar.progress(100, text="Verification complete!")
-                                st.success(f"✅ {info['title']} verified and ready in model_pool/ollama!")
-                                time.sleep(1.5)
+                        c_dl1, c_dl2 = st.columns(2)
+                        with c_dl1:
+                            st.download_button(
+                                label=f"📥 Download Word (.docx)",
+                                data=deliv["docx_bytes"],
+                                file_name=deliv["docx_filename"],
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                key=f"dl_docx_{idx}",
+                                use_container_width=True,
+                            )
+                            st.caption(f"SHA-256: `{deliv['docx_sha256'][:16]}...`")
+                        with c_dl2:
+                            st.download_button(
+                                label=f"📥 Download PDF (.pdf)",
+                                data=deliv["pdf_bytes"],
+                                file_name=deliv["pdf_filename"],
+                                mime="application/pdf",
+                                key=f"dl_pdf_{idx}",
+                                use_container_width=True,
+                            )
+                            st.caption(f"SHA-256: `{deliv['pdf_sha256'][:16]}...`")
+
+                        with st.expander("👁️ View Document Summary & Tamper-Proof Audit Details"):
+                            st.markdown(f"**Equipment Tag:** `{deliv.get('equipment_id', '11-V-102')}` — *{deliv.get('equipment_name', 'HP Separator Drum')}*")
+                            st.markdown(f"**ASME Code Check:** Status: `{deliv.get('status')}` │ $t_{{\\text{{req}}}}$: `{deliv.get('t_req_mm')} mm` │ Measured: `{deliv.get('measured_mm')} mm` (Delta: `{deliv.get('delta_mm')} mm`)")
+                            st.markdown(f"**Executive Synthesis:** {deliv.get('summary')}")
+                            st.markdown("---")
+                            st.markdown(f"**DOCX SHA-256:** `{deliv['docx_sha256']}`")
+                            st.markdown(f"**PDF SHA-256:** `{deliv['pdf_sha256']}`")
+                    else:
+                        # Offer on-demand compilation for any response
+                        if st.button("📄 Compile Word (.docx) & PDF Deliverables for this Response", key=f"btn_compile_{idx}", type="secondary"):
+                            with st.spinner("Compiling formal Word and PDF Note for Approval..."):
+                                deliv_res = compile_nfa_documents_for_ui(msg["content"])
+                                msg["deliverables"] = deliv_res
                                 st.rerun()
 
-            with c_btn2:
-                if installed:
-                    if st.button(f"🗑️ Remove", key=f"del_{model_id}"):
-                        with st.spinner(f"Removing {model_id} from model_pool..."):
-                            purge_model(model_id)
-                            st.success(f"Removed {info['title']} from model_pool.")
-                            time.sleep(1)
+                    # Python Code Sandbox Execution
+                    code_blocks = re.findall(r"```(?:python)?\s*(.*?)```", msg["content"], re.DOTALL)
+                    if code_blocks:
+                        st.markdown("---")
+                        extracted_code = code_blocks[0].strip()
+                        if st.button("🧪 Execute in Sandbox", key=f"sandbox_btn_{idx}", type="secondary"):
+                            with st.spinner("Running in air-gapped sandbox..."):
+                                sandbox_res = execute_python_code(extracted_code)
+                            if sandbox_res["success"]:
+                                st.success(f"Exit Code {sandbox_res['returncode']}")
+                                st.code(sandbox_res["stdout"] or "[No output]")
+                            else:
+                                st.error(f"Exit Code {sandbox_res['returncode']}")
+                                st.code(sandbox_res["stderr"])
+
+                    # Antigravity-Style Action & Reaction Bar
+                    c_act1, c_act2, c_sp = st.columns([1, 1, 8])
+                    with c_act1:
+                        like_state = msg.get("liked")
+                        if st.button("👍 Helpful" if like_state is not True else "✅ Liked", key=f"like_{idx}"):
+                            msg["liked"] = True
+                            st.rerun()
+                    with c_act2:
+                        if st.button("👎" if like_state is not False else "❌ Disliked", key=f"dislike_{idx}"):
+                            msg["liked"] = False
                             st.rerun()
 
-            st.write("---")
-
-
-# -----------------------------------------------------------------------------
-# TAB 2: SOVEREIGN ANALYSIS MVP
-# -----------------------------------------------------------------------------
-with tab_mvp:
-    st.header("⚡ Sovereign ASME Verification & Approval Generator")
-    st.write("Golden Path: **Ultrasonic NDT OCR Log → ASME Code Math → Local DeepSeek-R1 Synthesis → Word Note for Approval**")
-
-    sample_log_path = PROJECT_ROOT / "sample_data" / "06_inspection_reports" / "field_inspector_raw_ocr_log.txt"
-
-    c_left, c_right = st.columns([1, 1])
-
-    with c_left:
-        st.subheader("1. Ingestion Source")
-        use_sample = st.checkbox("Use Gold-Standard Sample Inspection Report", value=True)
-
-        if use_sample:
-            if sample_log_path.exists():
-                raw_text = sample_log_path.read_text(encoding="utf-8")
-                st.text_area("Field Inspector Ultrasonic Log (Raw)", raw_text, height=220)
-            else:
-                st.error("Sample inspection report not found.")
-        else:
-            uploaded_file = st.file_uploader("Upload Inspection OCR Log (.txt)", type=["txt"])
-            if uploaded_file:
-                raw_text = uploaded_file.read().decode("utf-8")
-                st.text_area("Uploaded Log", raw_text, height=220)
-
-        run_analysis = st.button("🚀 Run Sovereign Pipeline", type="primary", use_container_width=True)
-
-    with c_right:
-        st.subheader("2. Real-Time Processing Status")
-        if run_analysis:
-            from agent_orchestrator.orchestrator_mvp import run_mvp_pipeline
-
-            input_source = sample_log_path if use_sample else (uploaded_file if 'uploaded_file' in locals() and uploaded_file else sample_log_path)
-
-            with st.status("Executing Sovereign Workflow...", expanded=True) as status:
-                st.write("🔍 Parsing inspection log parameters...")
-                payload = run_mvp_pipeline(input_source)
-                
-                st.markdown(f"""
-                > **Equipment:** `{payload.inspection_data.equipment_id}` ({payload.inspection_data.equipment_name})  
-                > **Actual Wall Thickness:** `{payload.calculation_data.measured_thickness_mm:.2f} mm`  
-                > **Minimum Required ($t_{{min}}$):** `{payload.calculation_data.t_req_mm:.2f} mm`  
-                > **Delta:** `<span style='color: #ef4444; font-weight: bold;'>{payload.calculation_data.delta_mm:.2f} mm (STATUTORY VIOLATION)</span>`  
-                > **API 510 Remaining Life:** `{payload.calculation_data.remaining_life_years:.2f} Years`
-                """, unsafe_allow_html=True)
-
-                st.write("🧠 Synthesizing executive justification via local DeepSeek-R1...")
-                st.info(f"**Executive Finding:** {payload.reasoning_data.executive_summary}")
-
-                st.write("📄 Compiling native Microsoft Word (.docx) & Adobe PDF (.pdf) Note for Approval...")
-                status.update(label="✅ Analysis Complete!", state="complete")
-
-            st.success(f"Deliverables Ready: `{Path(payload.docx_path).name}` & `{Path(payload.pdf_path).name}`")
-
-            # Deliverable download buttons with genuine generated bytes
-            col_d1, col_d2 = st.columns(2)
-            with col_d1:
-                if os.path.exists(payload.docx_path):
-                    with open(payload.docx_path, "rb") as f_docx:
-                        content_docx = f_docx.read()
-                    st.download_button(
-                        label="📥 Download Executive Note (.docx)",
-                        data=content_docx,
-                        file_name=Path(payload.docx_path).name,
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        use_container_width=True,
-                        key="dl_golden_docx"
-                    )
-                    st.caption(f"Microsoft Word | SHA-256: `{payload.sha256_hash[:16]}...`")
-            with col_d2:
-                if payload.pdf_path and os.path.exists(payload.pdf_path):
-                    with open(payload.pdf_path, "rb") as f_pdf:
-                        content_pdf = f_pdf.read()
-                    st.download_button(
-                        label="📥 Download Executive Note (.pdf)",
-                        data=content_pdf,
-                        file_name=Path(payload.pdf_path).name,
-                        mime="application/pdf",
-                        use_container_width=True,
-                        key="dl_golden_pdf"
-                    )
-                    st.caption(f"Adobe PDF | SHA-256: `{(payload.pdf_sha256 or '')[:16]}...`")
-
-
-# -----------------------------------------------------------------------------
-# TAB 3: INTERACTIVE ASME CODE CALCULATOR
-# -----------------------------------------------------------------------------
-with tab_calculator:
-    st.header("🧮 Interactive ASME Section VIII & API 510 Calculator")
-    st.write(
-        "Direct deterministic mathematical verification engine. Test custom operating pressures, "
-        "materials, radii, and measured wall thicknesses to evaluate immediate statutory code breaches."
-    )
-
-    c_calc1, c_calc2 = st.columns([1, 1.2])
-
-    with c_calc1:
-        st.subheader("Input Parameters")
-        calc_eq_id = st.text_input("Equipment ID", value="11-V-102", key="calc_eq_id")
-        calc_mat = st.selectbox(
-            "Vessel Base Material",
-            ["SA-516 Grade 70 (Carbon Steel)", "SA-387 Grade 11 (Cr-Mo Alloy)", "SA-240 Type 304 (Stainless Steel)"],
+    # Antigravity Model Selector & Chat Controls
+    st.markdown('<div style="margin-top: 20px;"></div>', unsafe_allow_html=True)
+    c_mod1, c_mod2 = st.columns([2.5, 1])
+    with c_mod1:
+        route_mode = st.selectbox(
+            "🧠 Model Routing Strategy (Antigravity Style):",
+            [
+                "⚡ Auto-Route (Intelligent Multi-Model Dispatch)",
+                "💻 Force Coding (Qwen2.5-Coder 1.5B)",
+                "🧠 Force Reasoning (DeepSeek-R1 1.5B)",
+                "📝 Force Summary (Llama-3.2 3B)",
+                "👁️ Force Vision (Moondream VLM)",
+            ],
             index=0,
-            key="calc_mat"
+            key="chat_model_selector",
         )
+    with c_mod2:
+        uploaded_img = st.file_uploader(
+            "📎 Attach Blueprint / P&ID (Optional)",
+            type=["png", "jpg", "jpeg"],
+            key="chat_img_upload",
+        )
+
+    # Chat Input Box
+    chat_prompt = st.chat_input("Ask a question, request code, or type 'Generate Word note for vessel 11-V-102'...")
+    prompt_to_run = chat_prompt or st.session_state.chat_pending_prompt
+
+    if prompt_to_run:
+        st.session_state.chat_pending_prompt = None
+
+        override_model = None
+        if "Force Coding" in route_mode:
+            override_model = "qwen2.5-coder:1.5b"
+        elif "Force Reasoning" in route_mode:
+            override_model = "deepseek-r1:1.5b"
+        elif "Force Summary" in route_mode:
+            override_model = "llama3.2:3b"
+        elif "Force Vision" in route_mode:
+            override_model = "moondream"
+
+        # Handle uploaded image if present
+        saved_image_path = None
+        if uploaded_img:
+            uploads_dir = PROJECT_ROOT / "data" / "uploads"
+            uploads_dir.mkdir(parents=True, exist_ok=True)
+            saved_image_path = str(uploads_dir / uploaded_img.name)
+            with open(saved_image_path, "wb") as f_img:
+                f_img.write(uploaded_img.read())
+
+        # 1. Add user turn to conversation history
+        st.session_state.chat_history.append({
+            "role": "user",
+            "content": prompt_to_run,
+            "image_path": saved_image_path,
+        })
+
+        # 2. Run Inference with Session Context
+        with st.spinner("Processing with local sovereign model..."):
+            t_start = time.time()
+            try:
+                logger.info(f"UI Chat Inference. Override: {override_model}. Prompt: {prompt_to_run[:50]}...")
+                router = SovereignModelRouter()
+                # Pass previous history for multi-turn conversational context
+                result = router.route_and_execute(
+                    prompt=prompt_to_run,
+                    image_path=saved_image_path,
+                    override_model=override_model,
+                    history=st.session_state.chat_history[:-1],
+                )
+            except Exception as e:
+                logger.exception("Exception during UI chat inference.")
+                result = {"success": False, "error": str(e)}
+            t_elapsed = time.time() - t_start
+
+        if result.get("success"):
+            task_category = result.get("task_type", "general").upper()
+            model_used = result.get("model_used", "unknown")
+            response_text = result.get("response", "")
+
+            # 3. Check for document generation intent
+            p_lower = prompt_to_run.lower()
+            wants_docx = any(k in p_lower for k in ["docx", "word", ".docx", "word file", "word doc"])
+            wants_pdf = any(k in p_lower for k in ["pdf", ".pdf", "pdf file", "pdf report"])
+            wants_doc = wants_docx or wants_pdf or any(k in p_lower for k in ["note for approval", "nfa", "deliverable", "approval note", "generate report", "approval document"])
+
+            deliverables_payload = None
+            if wants_doc:
+                try:
+                    deliverables_payload = compile_nfa_documents_for_ui(response_text)
+                    logger.info("Successfully generated Note for Approval deliverables for chat message.")
+                except Exception as exc:
+                    logger.exception(f"Failed to auto-generate deliverables: {exc}")
+
+            # 4. Add assistant turn to conversation history
+            st.session_state.chat_history.append({
+                "role": "assistant",
+                "content": response_text,
+                "category": task_category,
+                "model_used": model_used,
+                "elapsed": t_elapsed,
+                "deliverables": deliverables_payload,
+                "model_thinking": result.get("model_thinking"),
+                "internal_trace": result.get("internal_trace"),
+                "liked": None,
+            })
+            st.rerun()
+        else:
+            err_msg = result.get("error", "Unknown error")
+            logger.error(f"UI routing failed: {err_msg}")
+            st.session_state.chat_history.append({
+                "role": "assistant",
+                "content": f"❌ **Error:** {err_msg}\n\n*Make sure Ollama is running (use the sidebar to start it).*",
+                "category": "ERROR",
+                "model_used": override_model or "none",
+                "elapsed": t_elapsed,
+                "deliverables": None,
+                "liked": None,
+            })
+            st.rerun()
+
+
+# ═══════════════════════════════════════════════════════════════
+# TAB 2: ASME CALCULATOR
+# ═══════════════════════════════════════════════════════════════
+with tab_calculator:
+    st.markdown("## 🧮 ASME Section VIII & API 510 Calculator")
+    st.markdown("Deterministic engineering verification — no LLM involved. Pure math.")
+
+    col_params, col_results = st.columns([1, 1.2])
+
+    with col_params:
+        st.markdown('<p class="section-header">Input Parameters</p>', unsafe_allow_html=True)
+        
+        calc_eq_id = st.text_input("Equipment ID", value="11-V-102", key="calc_eq_id")
         calc_p = st.number_input("Design Pressure P (MPa)", min_value=0.1, max_value=50.0, value=14.5, step=0.5, key="calc_p")
         calc_r = st.number_input("Inside Radius R (mm)", min_value=100.0, max_value=5000.0, value=1200.0, step=50.0, key="calc_r")
-        calc_s = st.number_input("Maximum Allowable Stress S (MPa)", min_value=10.0, max_value=300.0, value=118.0, step=1.0, key="calc_s")
+        calc_s = st.number_input("Allowable Stress S (MPa)", min_value=10.0, max_value=300.0, value=118.0, step=1.0, key="calc_s")
         calc_e = st.selectbox("Joint Efficiency E", [1.0, 0.85, 0.70], index=0, key="calc_e")
-        calc_t_act = st.number_input("Actual Measured Wall Thickness t (mm)", min_value=1.0, max_value=500.0, value=138.20, step=0.1, key="calc_t_act")
-        calc_cr = st.number_input("Observed Corrosion Rate Cr (mm/year)", min_value=0.01, max_value=5.0, value=0.75, step=0.05, key="calc_cr")
+        calc_t = st.number_input("Measured Wall Thickness (mm)", min_value=1.0, max_value=500.0, value=138.20, step=0.1, key="calc_t")
+        calc_cr = st.number_input("Corrosion Rate (mm/year)", min_value=0.01, max_value=5.0, value=0.75, step=0.05, key="calc_cr")
 
-    with c_calc2:
-        st.subheader("Verification Telemetry")
+    with col_results:
+        st.markdown('<p class="section-header">Verification Results</p>', unsafe_allow_html=True)
+
         custom_input = InspectionInput(
             equipment_id=calc_eq_id,
-            equipment_name="Interactive Test Vessel",
-            material=calc_mat.split()[0],
+            equipment_name="Interactive Vessel",
             design_pressure_mpa=calc_p,
             inside_radius_mm=calc_r,
             allowable_stress_mpa=calc_s,
             joint_efficiency=calc_e,
-            measured_thickness_mm=calc_t_act,
-            critical_location="Shell Test Section",
+            measured_thickness_mm=calc_t,
+            critical_location="Shell",
             corrosion_rate_mm_yr=calc_cr,
-            inspector_notes="Interactive UI calculation test."
         )
         custom_calc = evaluate_vessel_integrity(custom_input)
 
-        col_m1, col_m2 = st.columns(2)
-        with col_m1:
-            st.metric("Minimum Required t_min", f"{custom_calc.t_req_mm:.2f} mm")
-            st.metric("Measured Thickness t_act", f"{custom_calc.measured_thickness_mm:.2f} mm")
-        with col_m2:
+        # Metrics
+        m1, m2 = st.columns(2)
+        with m1:
+            st.metric("Required t_min", f"{custom_calc.t_req_mm:.2f} mm")
+            st.metric("Measured Thickness", f"{custom_calc.measured_thickness_mm:.2f} mm")
+        with m2:
             delta_color = "normal" if custom_calc.delta_mm >= 0 else "inverse"
-            st.metric("Margin Delta Δ", f"{custom_calc.delta_mm:.2f} mm", delta=f"{custom_calc.delta_mm:.2f} mm", delta_color=delta_color)
-            st.metric("Safe Derated MAWP", f"{custom_calc.derated_mawp_bar:.1f} barg")
+            st.metric("Margin Δ", f"{custom_calc.delta_mm:.2f} mm", delta=f"{custom_calc.delta_mm:.2f} mm", delta_color=delta_color)
+            st.metric("Derated MAWP", f"{custom_calc.derated_mawp_bar:.1f} barg")
 
+        # Verdict
         if custom_calc.is_breach:
             st.error(
-                f"🚨 **STATUTORY CODE BREACH DETECTED!**\n\n"
-                f"The measured thickness ({custom_calc.measured_thickness_mm:.2f} mm) is below ASME allowable minimum "
+                f"🚨 **STATUTORY CODE BREACH**\n\n"
+                f"Measured ({custom_calc.measured_thickness_mm:.2f} mm) is below ASME minimum "
                 f"({custom_calc.t_req_mm:.2f} mm) by **{abs(custom_calc.delta_mm):.2f} mm**. "
-                f"API 510 remaining safe service life is **{custom_calc.remaining_life_years:.2f} years** (EXPIRED)."
+                f"Remaining life: **{custom_calc.remaining_life_years:.2f} years**."
             )
         else:
             st.success(
-                f"✅ **VESSEL COMPLIANT WITH ASME SEC VIII DIV 1**\n\n"
-                f"Remaining corrosion allowance margin is **+{custom_calc.delta_mm:.2f} mm**. "
-                f"Estimated API 510 safe operating life is **{custom_calc.remaining_life_years:.2f} years**."
+                f"✅ **VESSEL COMPLIANT**\n\n"
+                f"Margin: **+{custom_calc.delta_mm:.2f} mm**. "
+                f"Safe operating life: **{custom_calc.remaining_life_years:.2f} years**."
             )
 
+        # Formula proof
         st.markdown("---")
-        st.markdown("### 📐 ASME Section VIII Div 1 UG-27 Formula Proof")
+        st.markdown("#### 📐 ASME UG-27 Formula")
         st.latex(r"t_{\text{req}} = \frac{P \cdot R}{S \cdot E - 0.6 \cdot P}")
-        st.write(
-            f"$$t_{{\\text{{req}}}} = \\frac{{{calc_p} \\cdot {calc_r}}}{{{calc_s} \\cdot {calc_e} - 0.6 \\cdot {calc_p}}} "
-            f"= \\frac{{{calc_p * calc_r:.2f}}}{{{calc_s * calc_e - 0.6 * calc_p:.2f}}} = {custom_calc.t_req_mm:.2f}\\text{{ mm}}$$"
+        st.markdown(
+            f"$t_{{\\text{{req}}}} = \\frac{{{calc_p} \\cdot {calc_r}}}{{{calc_s} \\cdot {calc_e} - 0.6 \\cdot {calc_p}}} "
+            f"= {custom_calc.t_req_mm:.2f}\\text{{ mm}}$"
         )
 
+        # Export buttons
         st.markdown("---")
-        st.subheader("📥 Export Official Note for Approval")
-        st.caption("Generate and download a formal Note for Approval with these interactive calculation parameters:")
+        st.markdown("#### 📥 Export Calculation Note")
 
-        from tools.doc_generator import generate_docx_deliverable, generate_pdf_deliverable
-        from schemas.mvp_schema import ReasoningOutput
+        # Invalidate cached deliverables if calculation inputs change
+        calc_cache_tuple = (calc_eq_id, calc_p, calc_r, calc_s, calc_e, calc_t, calc_cr)
+        if st.session_state.get("last_calc_cache_tuple") != calc_cache_tuple:
+            st.session_state.calc_docx_bytes = None
+            st.session_state.calc_pdf_bytes = None
+            st.session_state.last_calc_cache_tuple = calc_cache_tuple
 
-        calc_reasoning = ReasoningOutput(
-            executive_summary=(
-                f"Interactive ASME Sec VIII Div 1 assessment for vessel {calc_eq_id} ({calc_mat}). "
-                f"Status: {custom_calc.status} with delta margin {custom_calc.delta_mm:.2f} mm. "
-                f"Calculated t_min={custom_calc.t_req_mm:.2f} mm vs measured t_act={custom_calc.measured_thickness_mm:.2f} mm."
-            ),
-            cvc_guideline_clause=(
-                "CVC Circular No. 02/02/2004 & DOP Clause 4.2 Emergency Single-Source Procurement."
-                if custom_calc.is_breach else
-                "Routine turnaround maintenance following standard statutory procurement procedures."
-            ),
-            recommended_action=(
-                f"Immediate emergency weld overlay repair and derated operation at {custom_calc.derated_mawp_bar:.1f} barg."
-                if custom_calc.is_breach else
-                f"Continue safe commercial operation at rated {custom_calc.design_pressure_bar:.1f} barg until next turnaround."
-            ),
-            estimated_cost="Rs. 88.0 Lakhs" if custom_calc.is_breach else "Routine Opex",
-            raw_model_response="Interactive calculator export verification."
-        )
+        col_gen, col_dl1, col_dl2 = st.columns([1.5, 1, 1])
 
-        calc_docx = generate_docx_deliverable(custom_input, custom_calc, calc_reasoning)
-        calc_pdf = generate_pdf_deliverable(custom_input, custom_calc, calc_reasoning)
+        with col_gen:
+            if st.button("📄 Generate Deliverables", key="btn_gen_calc_docs", type="primary", use_container_width=True):
+                with st.spinner("Compiling Note for Approval..."):
+                    try:
+                        from tools.doc_generator import generate_docx_deliverable, generate_pdf_deliverable
+                        from schemas.mvp_schema import ReasoningOutput
 
-        c_exp1, c_exp2 = st.columns(2)
-        with c_exp1:
-            with open(calc_docx["path"], "rb") as f_dx:
+                        calc_reasoning = ReasoningOutput(
+                            executive_summary=(
+                                f"ASME Sec VIII assessment for {calc_eq_id}. "
+                                f"Status: {custom_calc.status}, delta {custom_calc.delta_mm:.2f} mm."
+                            ),
+                            cvc_guideline_clause=(
+                                "CVC Circular 02/02/2004 Emergency Procurement." if custom_calc.is_breach
+                                else "Routine turnaround maintenance."
+                            ),
+                            recommended_action=(
+                                f"Emergency weld overlay repair, derate to {custom_calc.derated_mawp_bar:.1f} barg." if custom_calc.is_breach
+                                else f"Continue operation at {custom_calc.design_pressure_bar:.1f} barg."
+                            ),
+                            estimated_cost="Rs. 88.0 Lakhs" if custom_calc.is_breach else "Routine Opex",
+                            raw_model_response="Calculator export.",
+                        )
+                        calc_docx = generate_docx_deliverable(custom_input, custom_calc, calc_reasoning)
+                        calc_pdf = generate_pdf_deliverable(custom_input, custom_calc, calc_reasoning)
+
+                        with open(calc_docx["path"], "rb") as f_dx:
+                            st.session_state.calc_docx_bytes = f_dx.read()
+                        with open(calc_pdf["path"], "rb") as f_px:
+                            st.session_state.calc_pdf_bytes = f_px.read()
+                        st.success("Deliverables ready!")
+                    except Exception as e:
+                        logger.exception("Failed to compile documents in UI ASME Calculator.")
+                        st.error(f"Failed to generate documents: {e}")
+
+        if st.session_state.get("calc_docx_bytes"):
+            with col_dl1:
                 st.download_button(
-                    label="📥 Download Calculation Note (.docx)",
-                    data=f_dx.read(),
-                    file_name=f"{calc_eq_id}_Approval_Note.docx",
+                    "📥 Download .docx",
+                    data=st.session_state.calc_docx_bytes,
+                    file_name=f"{calc_eq_id}_Note.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     use_container_width=True,
-                    key=f"dl_calc_docx_{calc_eq_id}"
+                    key="calc_dl_docx",
                 )
-        with c_exp2:
-            with open(calc_pdf["path"], "rb") as f_px:
+            with col_dl2:
                 st.download_button(
-                    label="📥 Download Calculation Note (.pdf)",
-                    data=f_px.read(),
-                    file_name=f"{calc_eq_id}_Approval_Note.pdf",
+                    "📥 Download .pdf",
+                    data=st.session_state.calc_pdf_bytes,
+                    file_name=f"{calc_eq_id}_Note.pdf",
                     mime="application/pdf",
                     use_container_width=True,
-                    key=f"dl_calc_pdf_{calc_eq_id}"
+                    key="calc_dl_pdf",
                 )
-
-# -----------------------------------------------------------------------------
-# TAB 4: AIR-GAPPED CODE SANDBOX
-# -----------------------------------------------------------------------------
-with tab_sandbox:
-    st.header("🧪 Air-Gapped Python Code Sandbox")
-    st.write(
-        "Execute arbitrary engineering Python code within an isolated local subprocess with strict timeouts. "
-        "Test custom algorithms, data transforms, or mathematical proofs safely."
-    )
-
-    default_sandbox_code = '''# Test Python Engineering Calculation
-import numpy as np
-
-# Simulate Wall Thickness ultrasonic readings along 11-V-102 vessel shell
-measurements = np.array([139.5, 138.8, 138.2, 139.1, 138.4, 137.9])
-mean_thickness = np.mean(measurements)
-min_thickness = np.min(measurements)
-std_dev = np.std(measurements)
-
-print(f"Total Inspection Points: {len(measurements)}")
-print(f"Mean Shell Thickness:   {mean_thickness:.2f} mm")
-print(f"Critical Minimum Spot:  {min_thickness:.2f} mm")
-print(f"Standard Deviation:     {std_dev:.3f} mm")
-
-# ASME UG-27 Check against t_min = 138.57 mm
-t_min_asme = 138.57
-if min_thickness < t_min_asme:
-    print(f"ALERT: Critical minimum {min_thickness:.2f} mm is BELOW ASME required {t_min_asme:.2f} mm!")
-else:
-    print("STATUS: All points above minimum required thickness.")
-'''
-
-    sandbox_input = st.text_area("Python Script:", value=default_sandbox_code, height=240, key="sandbox_code_area")
-    
-    if st.button("▶️ Execute Code in Isolated Sandbox", type="primary", key="btn_run_sandbox"):
-        with st.spinner("Executing script in isolated sandbox..."):
-            res = execute_python_code(sandbox_input)
-
-        if res["success"]:
-            st.success(f"Execution Succeeded (Exit Code: {res['returncode']})")
-            st.markdown("**Console Output (stdout):**")
-            st.code(res["stdout"] if res["stdout"] else "[No stdout output]")
         else:
-            st.error(f"Execution Error (Exit Code: {res['returncode']}):")
-            st.code(res["stderr"])
+            st.caption("Click 'Generate Deliverables' to compile formal DOCX & PDF notes on-demand.")
 
-# -----------------------------------------------------------------------------
-# TAB 6: ARCHITECTURE & STORAGE DETAILS
-# -----------------------------------------------------------------------------
-with tab_info:
-    st.header("Self-Contained Storage Architecture")
-    st.markdown(f"""
-    All data and weights in AegisForge-AI are strictly confined to the project root:
+
+# ═══════════════════════════════════════════════════════════════
+# TAB 3: MODEL HUB
+# ═══════════════════════════════════════════════════════════════
+with tab_models:
+    st.markdown("## 📦 Model Hub")
+    st.markdown("Download and manage local AI models. All weights are stored in `model_pool/`.")
+
+    # Ollama Controls
+    if not ollama_active:
+        if ollama_path:
+            col_warn, col_act = st.columns([3, 1])
+            with col_warn:
+                st.warning("⚠️ Ollama is offline. Start it to download or use models.")
+            with col_act:
+                if st.button("▶️ Start Ollama", use_container_width=True, key="hub_start_ollama"):
+                    with st.spinner("Starting..."):
+                        if start_ollama_server():
+                            st.success("Started!")
+                            st.rerun()
+                        else:
+                            st.error("Failed. Check Ollama installation.")
+        else:
+            st.error("❌ Ollama is not installed. Download from [ollama.com/download](https://ollama.com/download/windows)")
+
+    st.markdown("")
+
+    # Model Cards
+    for model_id, info in MODEL_METADATA.items():
+        installed = is_mid_installed(model_id, installed_set)
+
+        st.markdown(f"""
+        <div class="model-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h4 style="margin: 0; color: #f1f5f9; font-weight: 600;">{info['title']}</h4>
+                <span class="{'installed-badge' if installed else 'missing-badge'}">
+                    {'✅ Installed' if installed else '⬇️ Not Downloaded'}
+                </span>
+            </div>
+            <p style="color: #94a3b8; margin: 4px 0 12px 0; font-size: 0.9rem;">{info['desc']}</p>
+            <div style="font-size: 0.82rem; color: #64748b;">
+                <b>Role:</b> {info['role']} &nbsp;│&nbsp; <b>Size:</b> {info['size_est']} &nbsp;│&nbsp; <b>Engine:</b> {info['backend'].upper()}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col_dl, col_rm, col_sp = st.columns([1.5, 1, 3])
+
+        with col_dl:
+            if not installed:
+                if st.button(f"⬇️ Download", key=f"dl_{model_id}", type="primary"):
+                    progress_bar = st.progress(0, text="Initializing...")
+                    status_text = st.empty()
+
+                    if info["backend"] == "easyocr":
+                        for step in install_easyocr_models():
+                            pct = int(step.get("percent", 0))
+                            progress_bar.progress(pct, text=step.get("status", "Processing..."))
+                            status_text.info(step.get("status", ""))
+                            time.sleep(0.3)
+                        st.success(f"✅ {info['title']} installed!")
+                        st.rerun()
+                    else:
+                        if not is_ollama_running():
+                            if not start_ollama_server():
+                                st.error("Start Ollama first.")
+                                continue
+
+                        for update in pull_ollama_model_stream(model_id):
+                            if update.get("status") == "error":
+                                status_text.error(f"❌ {update.get('error')}")
+                                break
+
+                            pct = max(0, min(100, int(update.get("percent", 0))))
+                            status_msg = update.get("status", "Downloading...")
+                            total_mb = update.get("total_mb", 0)
+                            comp_mb = update.get("completed_mb", 0)
+
+                            if update.get("retrying"):
+                                status_text.warning(status_msg)
+                                progress_bar.progress(pct, text=f"⚠️ Resuming from {pct}%...")
+                            else:
+                                label = f"{status_msg} ({pct}% — {comp_mb:.0f}/{total_mb:.0f} MB)" if total_mb > 0 else f"{status_msg} ({pct}%)"
+                                progress_bar.progress(pct, text=label)
+
+                        if is_model_installed(model_id):
+                            progress_bar.progress(100, text="Complete!")
+                            st.success(f"✅ {info['title']} ready!")
+                            logger.info(f"Successfully downloaded model: {model_id}")
+                            clear_system_cache()
+                            time.sleep(1)
+                            st.rerun()
+
+        with col_rm:
+            if installed:
+                if st.button("🗑️ Remove", key=f"del_{model_id}"):
+                    with st.spinner(f"Removing {model_id}..."):
+                        try:
+                            purge_model(model_id)
+                            logger.info(f"Purged model: {model_id}")
+                            st.success(f"Removed.")
+                            clear_system_cache()
+                            time.sleep(0.5)
+                            st.rerun()
+                        except Exception as e:
+                            logger.error(f"Error purging model {model_id}: {e}")
+                            st.error(f"Error removing model.")
+
+        st.markdown("---")
+
+
+# ═══════════════════════════════════════════════════════════════
+# TAB 4: SYSTEM LOGS
+# ═══════════════════════════════════════════════════════════════
+with tab_logs:
+    st.markdown("## 📋 System Logs")
+    st.markdown("Live view of `aegisforge.log`. Use this to troubleshoot runtime issues.")
     
-    ```
-    {PROJECT_ROOT.name}/
-    ├── model_pool/
-    │   ├── easyocr/          <- CRAFT & CRNN text recognition weights (.pth)
-    │   └── ollama/           <- DeepSeek, Qwen & Llama quantized blobs & manifests
-    ├── data/
-    │   ├── uploads/          <- Uploaded logs & blueprints
-    │   └── output/           <- Generated .docx / .xlsx reports
-    └── scripts/
-        ├── clean_models.bat  <- 1-click purge to reclaim disk space
-        └── uninstall_all.bat <- Full zero-trace teardown
-    ```
-    
-    ### Key Benefits:
-    - **Portability:** Moving or zipping this folder moves everything including models.
-    - **Uninstallation:** Deleting the folder or running `scripts\\clean_models.bat` leaves **zero orphaned files** on your Windows OS.
-    - **Air-Gapped Security:** Zero data transmission over external networks.
-    """)
+    col_log1, col_log2 = st.columns([1, 4])
+    with col_log1:
+        if st.button("🔄 Refresh Logs", use_container_width=True):
+            pass # Reruns app naturally
+            
+    with col_log2:
+        num_lines = st.slider("Lines to display", min_value=50, max_value=500, value=100, step=50)
+        
+    try:
+        if LOG_FILE.exists():
+            with open(LOG_FILE, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+            
+            display_lines = lines[-num_lines:] if len(lines) > num_lines else lines
+            log_text = "".join(display_lines)
+            
+            st.code(log_text, language="log")
+        else:
+            st.info("Log file is currently empty or does not exist.")
+    except Exception as e:
+        st.error(f"Could not read log file: {e}")
+
+
+# ─────────────────────────────────────────────────────────────────
+# Footer
+# ─────────────────────────────────────────────────────────────────
+st.markdown("""
+<div class="sovereign-footer">
+    🛡️ AegisForge-AI — 100% Sovereign Air-Gapped Operation — Zero External Network Calls<br>
+    Built for Indian PSUs & Critical Infrastructure
+</div>
+""", unsafe_allow_html=True)

@@ -10,6 +10,8 @@ import tempfile
 from pathlib import Path
 from typing import Dict, Any
 
+from config.settings import logger
+
 
 def execute_python_code(code: str, timeout_seconds: int = 15) -> Dict[str, Any]:
     """
@@ -29,6 +31,7 @@ def execute_python_code(code: str, timeout_seconds: int = 15) -> Dict[str, Any]:
             encoding='utf-8',
             errors='replace'
         )
+        logger.info(f"[Sandbox] Code execution completed with exit code {result.returncode}")
         return {
             "success": result.returncode == 0,
             "returncode": result.returncode,
@@ -36,6 +39,7 @@ def execute_python_code(code: str, timeout_seconds: int = 15) -> Dict[str, Any]:
             "stderr": result.stderr,
         }
     except subprocess.TimeoutExpired:
+        logger.warning(f"[Sandbox] Code execution timed out after {timeout_seconds} seconds.")
         return {
             "success": False,
             "returncode": -1,
@@ -43,6 +47,7 @@ def execute_python_code(code: str, timeout_seconds: int = 15) -> Dict[str, Any]:
             "stderr": f"Execution timed out after {timeout_seconds} seconds.",
         }
     except Exception as e:
+        logger.exception("[Sandbox] Sandbox execution failed due to an exception.")
         return {
             "success": False,
             "returncode": -1,

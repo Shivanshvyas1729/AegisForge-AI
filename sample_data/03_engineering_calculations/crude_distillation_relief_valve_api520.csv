@@ -1,6 +1,0 @@
-Tag_Number,Protected_Equipment,Relieving_Scenario,Design_Pressure_barg,Set_Pressure_barg,Overpressure_Percent,Relieving_Pressure_barg,Relieving_Temperature_C,Fluid_Service,Relieving_Rate_kghr,Molecular_Weight,Compressibility_Z,Specific_Heat_Ratio_k,Required_Area_mm2,Selected_API_Letter,Selected_Area_mm2,Discharge_Backpressure_barg,Body_Material,Nozzle_Material
-PSV-0101A,CDU Atmospheric Column Overhead Accumulator,Blocked Vapor Outlet,4.5,4.0,10,4.4,142.5,Naphtha/LPG Vapor,24500,68.4,0.92,1.14,1248.5,J,1840.0,0.45,SA-216 WCB,SA-351 CF8M
-PSV-0102B,Crude Pre-heat Exchanger Train (11-E-102),Tube Rupture,28.0,25.0,10,27.5,215.0,Reduced Crude,18200,142.0,0.88,1.08,864.2,H,506.4,1.20,SA-217 WC6,Monel 400
-PSV-0103,Desalter Effluent Water Stripper (11-C-104),External Fire Case (API 521),8.0,7.2,21,8.7,165.0,Steam/Sour Water Vapor,8900,18.8,0.96,1.28,412.0,G,324.5,0.30,SA-516 Gr 70,316L SS
-PSV-0104,Kerosene Run-Down Coalescer (11-V-108),Thermal Liquid Relief,16.0,14.5,10,15.95,65.0,Kerosene Liquid,1250,170.0,1.00,1.05,48.2,D,71.0,0.15,SA-216 WCB,316 SS
-PSV-0201A,Vacuum Column Ejector Condenser (12-E-101),Cooling Water Failure,3.2,2.8,10,3.08,95.0,Hydrocarbon Vapor + Steam,31200,42.5,0.94,1.18,2410.8,L,2853.0,0.20,Carbon Steel,316L SS

@@ -27,6 +27,7 @@ from config.settings import (
     OLLAMA_MODELS_DIR,
     OLLAMA_HOST,
     MODEL_REGISTRY,
+    logger,
     get_disk_free_gb,
 )
 
@@ -101,7 +102,7 @@ def is_ollama_running() -> bool:
     try:
         url = f"{OLLAMA_HOST}/api/tags"
         req = urllib.request.Request(url, method="GET")
-        with urllib.request.urlopen(req, timeout=2.0) as resp:
+        with urllib.request.urlopen(req, timeout=0.5) as resp:
             return resp.status == 200
     except Exception:
         return False
@@ -137,17 +138,17 @@ def start_ollama_server() -> bool:
 
 
 def get_installed_ollama_models() -> list:
-    """Fetches the list of currently installed model names from local Ollama."""
-    if not is_ollama_running():
-        return []
+    """Fetches the list of currently installed model names from local Ollama in a single fast call."""
     try:
         url = f"{OLLAMA_HOST}/api/tags"
         req = urllib.request.Request(url, method="GET")
-        with urllib.request.urlopen(req, timeout=2.0) as resp:
-            data = json.loads(resp.read().decode())
-            return [m.get("name") or m.get("model") for m in data.get("models", [])]
+        with urllib.request.urlopen(req, timeout=0.6) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode())
+                return [m.get("name") or m.get("model") for m in data.get("models", [])]
     except Exception:
-        return []
+        pass
+    return []
 
 
 def is_model_installed(model_id: str) -> bool:
@@ -163,6 +164,14 @@ def is_model_installed(model_id: str) -> bool:
 
     installed = get_installed_ollama_models()
     return any(model_id in name for name in installed if name)
+
+
+def get_installed_models_set() -> set:
+    """Returns set of all installed model IDs across Ollama and EasyOCR in a single check."""
+    models = set(get_installed_ollama_models())
+    if is_model_installed("easyocr"):
+        models.add("easyocr")
+    return models
 
 
 def pull_ollama_model_stream(
@@ -181,12 +190,15 @@ def pull_ollama_model_stream(
     if not is_ollama_running():
         started = start_ollama_server()
         if not started:
+            err_msg = "Ollama server is not running and could not be started automatically. Run scripts\\run_ollama_local.bat"
+            logger.error(f"[Downloader] {err_msg}")
             yield {
                 "status": "error",
-                "error": "Ollama server is not running and could not be started automatically. Run scripts\\run_ollama_local.bat"
+                "error": err_msg
             }
             return
 
+    logger.info(f"[Downloader] Starting stream pull for model: {model_name}")
     url = f"{OLLAMA_HOST}/api/pull"
     payload = json.dumps({"name": model_name, "stream": True}).encode("utf-8")
 
@@ -244,6 +256,7 @@ def pull_ollama_model_stream(
 
             # If response stream finished without explicit error, verify model presence
             if is_model_installed(model_name):
+                logger.info(f"[Downloader] Pull complete and verified for model: {model_name}")
                 yield {
                     "status": "success",
                     "percent": 100.0,
@@ -251,10 +264,14 @@ def pull_ollama_model_stream(
                     "retrying": False
                 }
                 return
+            else:
+                logger.error(f"[Downloader] Stream ended but model {model_name} not found locally.")
 
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
             retry_count += 1
+            logger.warning(f"[Downloader] Network interrupt during {model_name} download. Attempt {retry_count}/{max_retries}. Error: {exc}")
             if retry_count >= max_retries:
+                logger.error(f"[Downloader] Max retries reached for {model_name}.")
                 yield {
                     "status": "error",
                     "error": (
@@ -299,10 +316,12 @@ def install_easyocr_models() -> Generator[Dict[str, Any], None, None]:
     # Integrity verification
     if craft.exists() and crnn.exists():
         if craft.stat().st_size >= 80 * 1024 * 1024 and crnn.stat().st_size >= 14 * 1024 * 1024:
+            logger.info("[Downloader] EasyOCR weights verified via sizes.")
             yield {"status": "EasyOCR is already installed and verified in model_pool!", "percent": 100.0, "done": True}
             return
         else:
             # File is corrupt or partial, remove bad file
+            logger.warning("[Downloader] EasyOCR weights corrupt. Removing partial files.")
             yield {"status": "Found partial/corrupted weights. Cleaning bad files before resume...", "percent": 15.0}
             for bad_file in [craft, crnn]:
                 if bad_file.exists() and bad_file.stat().st_size < 14 * 1024 * 1024:
@@ -325,9 +344,11 @@ def install_easyocr_models() -> Generator[Dict[str, Any], None, None]:
     yield {"status": "Downloading EasyOCR weights via PyTorch...", "percent": 50.0}
     try:
         import easyocr
+        logger.info("[Downloader] Launching EasyOCR torch download process.")
         easyocr.Reader(['en'], gpu=False, model_storage_directory=str(EASYOCR_DIR), download_enabled=True)
         yield {"status": "EasyOCR downloaded and verified successfully!", "percent": 100.0, "done": True}
     except Exception as e:
+        logger.exception("[Downloader] EasyOCR download failed.")
         yield {"status": "error", "error": f"Failed to download EasyOCR: {e}"}
 
 

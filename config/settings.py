@@ -6,11 +6,48 @@ any user or clone location works out-of-the-box without hardcoded paths.
 
 import os
 import shutil
+import logging
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Dict
 
 # Dynamic Project Root: parent directory of 'config/'
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# Data & Output Directories (declare early for logs)
+DATA_DIR = PROJECT_ROOT / "data"
+LOGS_DIR = DATA_DIR / "logs"
+LOG_FILE = LOGS_DIR / "aegisforge.log"
+
+# Ensure log directory exists
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
+def setup_logging():
+    """Configures project-wide logging with file and console handlers."""
+    logger = logging.getLogger("aegisforge")
+    logger.setLevel(logging.INFO)
+    
+    # Avoid duplicate handlers if setup_logging is called multiple times
+    if not logger.handlers:
+        formatter = logging.Formatter(
+            '%(asctime)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        
+        # File handler (10MB max, keep 5 backups)
+        file_handler = RotatingFileHandler(LOG_FILE, maxBytes=10*1024*1024, backupCount=5)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        
+        # Console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+        
+    return logger
+
+# Initialize the root logger immediately
+logger = setup_logging()
 
 # Self-Contained Model Pool Storage
 MODEL_POOL_DIR = PROJECT_ROOT / "model_pool"
@@ -18,7 +55,6 @@ EASYOCR_DIR = MODEL_POOL_DIR / "easyocr"
 OLLAMA_MODELS_DIR = MODEL_POOL_DIR / "ollama"
 
 # Data & Output Directories
-DATA_DIR = PROJECT_ROOT / "data"
 UPLOADS_DIR = DATA_DIR / "uploads"
 OUTPUT_DIR = DATA_DIR / "output"
 SAMPLE_DATA_DIR = PROJECT_ROOT / "sample_data"
@@ -31,8 +67,9 @@ for directory in [MODEL_POOL_DIR, EASYOCR_DIR, OLLAMA_MODELS_DIR, UPLOADS_DIR, O
 os.environ.setdefault("OLLAMA_MODELS", str(OLLAMA_MODELS_DIR))
 os.environ.setdefault("EASYOCR_MODULE_PATH", str(EASYOCR_DIR))
 
-# Ollama Endpoint Configuration
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+# Ollama Endpoint Configuration (Always use 127.0.0.1 to avoid Windows IPv6 localhost connection delays)
+_raw_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+OLLAMA_HOST = _raw_host.replace("://localhost", "://127.0.0.1")
 
 # Model Registry designations (quantized for edge / 4GB VRAM / CPU execution)
 MODEL_REGISTRY: Dict[str, str] = {
