@@ -159,20 +159,30 @@ with tab_router:
         st.session_state.router_prompt = "Write a complete Python function to compute ASME Section VIII Div 1 UG-27 minimum shell thickness with input validation."
 
     st.markdown("**💡 Quick-Fill Example Prompts:**")
-    c_p1, c_p2, c_p3, c_p4 = st.columns(4)
+    c_p1, c_p2, c_p3 = st.columns(3)
     with c_p1:
         if st.button("💻 ASME Python Code", use_container_width=True):
             st.session_state.router_prompt = "Write a complete Python function to compute ASME Section VIII Div 1 UG-27 minimum shell thickness given design pressure P, inside radius R, allowable stress S, and joint efficiency E. Include clear docstrings and error handling."
             st.rerun()
     with c_p2:
-        if st.button("📡 Modbus SCADA Parser", use_container_width=True):
-            st.session_state.router_prompt = "Write a Python parser for SCADA Modbus RTU telemetry packets with CRC-16 checksum verification and register parsing."
+        if st.button("📄 Request DOCX Deliverable", use_container_width=True):
+            st.session_state.router_prompt = "I need docx file for the emergency Note for Approval on vessel 11-V-102 statutory thickness breach with ASME UG-27 calculations."
             st.rerun()
     with c_p3:
+        if st.button("📑 Request PDF Deliverable", use_container_width=True):
+            st.session_state.router_prompt = "I need pdf file for the emergency Note for Approval on vessel 11-V-102 statutory thickness breach with ASME UG-27 calculations."
+            st.rerun()
+
+    c_p4, c_p5, c_p6 = st.columns(3)
+    with c_p4:
         if st.button("🧠 CVC Compliance Rationale", use_container_width=True):
             st.session_state.router_prompt = "Evaluate whether an emergency single-source procurement of an OEM weld overlay repair for pressure vessel 11-V-102 complies with Central Vigilance Commission (CVC) Circular 02/02/2004 and DOP Clause 4.2."
             st.rerun()
-    with c_p4:
+    with c_p5:
+        if st.button("📡 Modbus SCADA Parser", use_container_width=True):
+            st.session_state.router_prompt = "Write a Python parser for SCADA Modbus RTU telemetry packets with CRC-16 checksum verification and register parsing."
+            st.rerun()
+    with c_p6:
         if st.button("📝 Crude Preheat Summary", use_container_width=True):
             st.session_state.router_prompt = "Summarize the key operational safety steps for inspecting the Crude Distillation Unit preheat train exchangers in 3 concise bullet points."
             st.rerun()
@@ -292,6 +302,89 @@ with tab_router:
                         else:
                             st.error(f"Execution Failed (Exit Code {sandbox_res['returncode']}):")
                             st.code(sandbox_res["stderr"])
+
+                # Format intent detection & automatic document delivery
+                p_lower = user_prompt.lower()
+                wants_docx = any(k in p_lower for k in [
+                    "need docx", "give me docx", "give docx", "download docx",
+                    "generate docx", "export docx", "docx file", ".docx",
+                    "word doc", "word file", "word format", "as docx"
+                ])
+                wants_pdf = any(k in p_lower for k in [
+                    "need pdf", "give me pdf", "give pdf", "download pdf",
+                    "generate pdf", "export pdf", "pdf file", ".pdf",
+                    "pdf document", "pdf format", "pdf report", "as pdf"
+                ])
+                wants_doc = wants_docx or wants_pdf or any(k in p_lower for k in [
+                    "note for approval", "nfa", "generate report", "download deliverable",
+                    "deliverable", "approval note"
+                ])
+
+                if wants_doc:
+                    st.divider()
+                    st.subheader("📄 Generated Deliverables & Download")
+                    with st.spinner("Compiling official deliverables from engineering reasoning..."):
+                        from tools.doc_generator import generate_docx_deliverable, generate_pdf_deliverable
+                        from schemas.mvp_schema import InspectionInput, CalculationOutput, ReasoningOutput
+                        from tools.asme_calculator import evaluate_vessel_integrity
+
+                        # Build baseline inspection and verified ASME calculation
+                        base_insp = InspectionInput(
+                            equipment_id="11-V-102",
+                            equipment_name="HP Separator Drum",
+                            material="2.25Cr-1Mo",
+                            design_pressure_mpa=14.5,
+                            inside_radius_mm=1200.0,
+                            allowable_stress_mpa=138.0,
+                            joint_efficiency=1.0,
+                            corrosion_allowance_mm=4.0,
+                            critical_location="BK-01",
+                            measured_thickness_mm=138.20,
+                            corrosion_rate_mm_yr=0.75,
+                        )
+                        base_calc = evaluate_vessel_integrity(base_insp)
+                        base_reason = ReasoningOutput(
+                            executive_summary=response_text[:400] if len(response_text) > 30 else "Statutory ASME Section VIII thickness breach on vessel 11-V-102.",
+                            cvc_guideline_clause="CVC Circular No. 02/02/2004 & DOP Clause 4.2 Single-Source Emergency Repair.",
+                            recommended_action="Immediate emergency single-source procurement of Inconel 625 weld overlay repair.",
+                            estimated_cost="Rs. 88.0 Lakhs",
+                            raw_model_response=response_text
+                        )
+
+                        c_dl1, c_dl2 = st.columns(2)
+
+                        # If user specifically asked for docx (or both / general report)
+                        if wants_docx or (not wants_pdf):
+                            docx_res = generate_docx_deliverable(base_insp, base_calc, base_reason)
+                            with open(docx_res["path"], "rb") as f_d:
+                                docx_bytes = f_d.read()
+                            with c_dl1:
+                                st.download_button(
+                                    label="📥 Download Executive Note (.docx)",
+                                    data=docx_bytes,
+                                    file_name="IOCL_Emergency_Approval_Note.docx",
+                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                    use_container_width=True,
+                                    key="tab1_dl_docx"
+                                )
+                                st.caption(f"Microsoft Word | {docx_res['size_bytes']} bytes | SHA-256: `{docx_res['sha256'][:12]}...`")
+
+                        # If user specifically asked for pdf (or both / general report)
+                        if wants_pdf or (not wants_docx):
+                            pdf_res = generate_pdf_deliverable(base_insp, base_calc, base_reason)
+                            with open(pdf_res["path"], "rb") as f_p:
+                                pdf_bytes = f_p.read()
+                            target_col = c_dl2 if (wants_docx or not wants_pdf) else c_dl1
+                            with target_col:
+                                st.download_button(
+                                    label="📥 Download Executive Note (.pdf)",
+                                    data=pdf_bytes,
+                                    file_name="IOCL_Emergency_Approval_Note.pdf",
+                                    mime="application/pdf",
+                                    use_container_width=True,
+                                    key="tab1_dl_pdf"
+                                )
+                                st.caption(f"Adobe PDF Document | {pdf_res['size_bytes']} bytes | SHA-256: `{pdf_res['sha256'][:12]}...`")
             else:
                 st.error(f"Model Execution Failed: {result.get('error')}")
                 if "connection" in str(result.get("error", "")).lower():
@@ -469,22 +562,39 @@ with tab_mvp:
                 st.write("🧠 Synthesizing executive justification via local DeepSeek-R1...")
                 st.info(f"**Executive Finding:** {payload.reasoning_data.executive_summary}")
 
-                st.write("📄 Compiling native Microsoft Word (.docx) Note for Approval...")
+                st.write("📄 Compiling native Microsoft Word (.docx) & Adobe PDF (.pdf) Note for Approval...")
                 status.update(label="✅ Analysis Complete!", state="complete")
 
-            st.success(f"Deliverable Ready: `{Path(payload.docx_path).name}` (SHA-256: `{payload.sha256_hash[:12]}...`)")
+            st.success(f"Deliverables Ready: `{Path(payload.docx_path).name}` & `{Path(payload.pdf_path).name}`")
 
-            # Deliverable download button with genuine generated .docx bytes
-            if os.path.exists(payload.docx_path):
-                with open(payload.docx_path, "rb") as f_docx:
-                    content = f_docx.read()
-                st.download_button(
-                    label="📥 Download Executive Note for Approval (.docx)",
-                    data=content,
-                    file_name="IOCL_Emergency_Approval_Note.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    use_container_width=True
-                )
+            # Deliverable download buttons with genuine generated bytes
+            col_d1, col_d2 = st.columns(2)
+            with col_d1:
+                if os.path.exists(payload.docx_path):
+                    with open(payload.docx_path, "rb") as f_docx:
+                        content_docx = f_docx.read()
+                    st.download_button(
+                        label="📥 Download Executive Note (.docx)",
+                        data=content_docx,
+                        file_name=Path(payload.docx_path).name,
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        use_container_width=True,
+                        key="dl_golden_docx"
+                    )
+                    st.caption(f"Microsoft Word | SHA-256: `{payload.sha256_hash[:16]}...`")
+            with col_d2:
+                if payload.pdf_path and os.path.exists(payload.pdf_path):
+                    with open(payload.pdf_path, "rb") as f_pdf:
+                        content_pdf = f_pdf.read()
+                    st.download_button(
+                        label="📥 Download Executive Note (.pdf)",
+                        data=content_pdf,
+                        file_name=Path(payload.pdf_path).name,
+                        mime="application/pdf",
+                        use_container_width=True,
+                        key="dl_golden_pdf"
+                    )
+                    st.caption(f"Adobe PDF | SHA-256: `{(payload.pdf_sha256 or '')[:16]}...`")
 
 
 # -----------------------------------------------------------------------------
@@ -562,6 +672,58 @@ with tab_calculator:
             f"$$t_{{\\text{{req}}}} = \\frac{{{calc_p} \\cdot {calc_r}}}{{{calc_s} \\cdot {calc_e} - 0.6 \\cdot {calc_p}}} "
             f"= \\frac{{{calc_p * calc_r:.2f}}}{{{calc_s * calc_e - 0.6 * calc_p:.2f}}} = {custom_calc.t_req_mm:.2f}\\text{{ mm}}$$"
         )
+
+        st.markdown("---")
+        st.subheader("📥 Export Official Note for Approval")
+        st.caption("Generate and download a formal Note for Approval with these interactive calculation parameters:")
+
+        from tools.doc_generator import generate_docx_deliverable, generate_pdf_deliverable
+        from schemas.mvp_schema import ReasoningOutput
+
+        calc_reasoning = ReasoningOutput(
+            executive_summary=(
+                f"Interactive ASME Sec VIII Div 1 assessment for vessel {calc_eq_id} ({calc_mat}). "
+                f"Status: {custom_calc.status} with delta margin {custom_calc.delta_mm:.2f} mm. "
+                f"Calculated t_min={custom_calc.t_req_mm:.2f} mm vs measured t_act={custom_calc.measured_thickness_mm:.2f} mm."
+            ),
+            cvc_guideline_clause=(
+                "CVC Circular No. 02/02/2004 & DOP Clause 4.2 Emergency Single-Source Procurement."
+                if custom_calc.is_breach else
+                "Routine turnaround maintenance following standard statutory procurement procedures."
+            ),
+            recommended_action=(
+                f"Immediate emergency weld overlay repair and derated operation at {custom_calc.derated_mawp_bar:.1f} barg."
+                if custom_calc.is_breach else
+                f"Continue safe commercial operation at rated {custom_calc.design_pressure_bar:.1f} barg until next turnaround."
+            ),
+            estimated_cost="Rs. 88.0 Lakhs" if custom_calc.is_breach else "Routine Opex",
+            raw_model_response="Interactive calculator export verification."
+        )
+
+        calc_docx = generate_docx_deliverable(custom_input, custom_calc, calc_reasoning)
+        calc_pdf = generate_pdf_deliverable(custom_input, custom_calc, calc_reasoning)
+
+        c_exp1, c_exp2 = st.columns(2)
+        with c_exp1:
+            with open(calc_docx["path"], "rb") as f_dx:
+                st.download_button(
+                    label="📥 Download Calculation Note (.docx)",
+                    data=f_dx.read(),
+                    file_name=f"{calc_eq_id}_Approval_Note.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True,
+                    key=f"dl_calc_docx_{calc_eq_id}"
+                )
+        with c_exp2:
+            with open(calc_pdf["path"], "rb") as f_px:
+                st.download_button(
+                    label="📥 Download Calculation Note (.pdf)",
+                    data=f_px.read(),
+                    file_name=f"{calc_eq_id}_Approval_Note.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    key=f"dl_calc_pdf_{calc_eq_id}"
+                )
 
 # -----------------------------------------------------------------------------
 # TAB 4: AIR-GAPPED CODE SANDBOX

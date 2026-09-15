@@ -72,3 +72,25 @@ def read_or_write_file(file_path: str, mode: str = 'r', data: any = None, file_t
             return None
     else:
         raise ValueError("Invalid mode. Use 'r', 'w', or 'a'.")
+
+
+try:
+    from langchain_core.tools import tool
+
+    @tool
+    def file_io_tool(file_path: str, mode: str = "r", data: str = "") -> str:
+        """
+        Reads from or writes text/json data to a file safely.
+        Modes: 'r' to read, 'w' to write, 'a' to append.
+        """
+        try:
+            if mode in ["w", "a"]:
+                success = read_or_write_file(file_path, mode=mode, data=data)
+                return f"Successfully wrote to {file_path}" if success else f"Failed to write to {file_path}"
+            else:
+                content = read_or_write_file(file_path, mode="r")
+                return str(content) if content is not None else f"Could not read {file_path}"
+        except Exception as e:
+            return f"File I/O error: {str(e)}"
+except ImportError:
+    file_io_tool = None

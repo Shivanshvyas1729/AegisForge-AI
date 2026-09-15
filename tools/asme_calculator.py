@@ -76,6 +76,48 @@ def evaluate_vessel_integrity(inp: InspectionInput) -> CalculationOutput:
     )
 
 
+try:
+    from langchain_core.tools import tool
+
+    @tool
+    def asme_calc_tool(
+        equipment_id: str = "11-V-102",
+        design_pressure_mpa: float = 14.5,
+        inside_radius_mm: float = 1200.0,
+        allowable_stress_mpa: float = 138.0,
+        joint_efficiency: float = 1.0,
+        corrosion_allowance_mm: float = 4.0,
+        measured_thickness_mm: float = 138.20,
+        corrosion_rate_mm_yr: float = 0.75,
+    ) -> str:
+        """
+        Calculates ASME Section VIII Div 1 UG-27 minimum shell thickness,
+        delta margin, and API 510 remaining safe life for pressure vessels.
+        """
+        inp = InspectionInput(
+            equipment_id=equipment_id,
+            design_pressure_mpa=design_pressure_mpa,
+            inside_radius_mm=inside_radius_mm,
+            allowable_stress_mpa=allowable_stress_mpa,
+            joint_efficiency=joint_efficiency,
+            corrosion_allowance_mm=corrosion_allowance_mm,
+            measured_thickness_mm=measured_thickness_mm,
+            corrosion_rate_mm_yr=corrosion_rate_mm_yr,
+        )
+        res = evaluate_vessel_integrity(inp)
+        return (
+            f"ASME Section VIII Div 1 UG-27 Evaluation for {equipment_id}:\n"
+            f"- Required t_min: {res.t_req_mm} mm\n"
+            f"- Actual measured thickness: {res.measured_thickness_mm} mm\n"
+            f"- Delta margin: {res.delta_mm} mm\n"
+            f"- Breach status: {'BREACH DETECTED' if res.is_breach else 'SAFE'}\n"
+            f"- API 510 Remaining safe life: {res.remaining_life_years} years\n"
+            f"- Derated MAWP: {res.derated_mawp_bar} barg"
+        )
+except ImportError:
+    asme_calc_tool = None
+
+
 if __name__ == "__main__":
     test_input = InspectionInput(
         equipment_id="11-V-102",

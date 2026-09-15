@@ -181,6 +181,8 @@ class AegisForgeCentralEngine:
             "executive_summary": payload.reasoning_data.executive_summary,
             "docx_path": payload.docx_path,
             "sha256_hash": payload.sha256_hash,
+            "pdf_path": payload.pdf_path,
+            "pdf_sha256": payload.pdf_sha256,
             "generated_at": payload.generated_at,
         }
 
@@ -588,8 +590,11 @@ def _interactive_menu(engine: AegisForgeCentralEngine):
                 print(f"     Measured:    {result['measured_mm']} mm")
                 print(f"     Delta:       {result['delta_mm']} mm")
                 print(f"     Breach:      {result['is_breach']}")
-                print(f"     Document:    {result['docx_path']}")
-                print(f"     SHA-256:     {result['sha256_hash'][:24]}...")
+                print(f"     DOCX Note:   {result['docx_path']}")
+                print(f"     DOCX SHA256: {result['sha256_hash'][:24]}...")
+                if result.get('pdf_path'):
+                    print(f"     PDF Note:    {result['pdf_path']}")
+                    print(f"     PDF SHA256:  {(result.get('pdf_sha256') or '')[:24]}...")
             except Exception as exc:
                 print(f"  ❌ Pipeline Error: {exc}")
 
@@ -794,8 +799,11 @@ def main():
                 model_name=args.model,
             )
             print(f"\n✅ Golden Path Complete!")
-            print(f"   Document: {result['docx_path']}")
-            print(f"   SHA-256:  {result['sha256_hash']}")
+            print(f"   DOCX Note:   {result['docx_path']}")
+            print(f"   DOCX SHA256: {result['sha256_hash']}")
+            if result.get('pdf_path'):
+                print(f"   PDF Note:    {result['pdf_path']}")
+                print(f"   PDF SHA256:  {result['pdf_sha256']}")
         except Exception as exc:
             print(f"❌ Pipeline Error: {exc}")
             sys.exit(1)

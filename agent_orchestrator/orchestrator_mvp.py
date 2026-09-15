@@ -27,7 +27,8 @@ from schemas.mvp_schema import (
 )
 from ingestion.extract_inspection_data import parse_inspection_input
 from tools.asme_calculator import evaluate_vessel_integrity
-from output_generation.docx_generator import generate_approval_nfa_docx, compute_file_sha256
+from output_generation.docx_generator import generate_approval_nfa_docx, compute_file_sha256 as compute_docx_sha256
+from output_generation.pdf_generator import generate_approval_nfa_pdf, compute_file_sha256 as compute_pdf_sha256
 
 
 def call_local_reasoning_model(
@@ -131,12 +132,20 @@ def run_mvp_pipeline(
     reasoning = call_local_reasoning_model(inspection, calculation, model_name=model_name)
     print(f"  -> Executive Finding: {reasoning.executive_summary[:80]}...")
 
-    # Step 4: Word Deliverable (.docx) Emission (Member 4)
+    # Step 4: Deliverable Emission (.docx and .pdf)
     target_docx = OUTPUT_DIR / output_filename
-    print(f"\n[Step 4/4] Compiling native Microsoft Word Note for Approval -> {target_docx}")
+    target_pdf = OUTPUT_DIR / Path(output_filename).with_suffix(".pdf").name
+    
+    print(f"\n[Step 4/4] Compiling native Microsoft Word & PDF Deliverables:")
+    print(f"  -> Generating Word Document: {target_docx.name}")
     docx_path = generate_approval_nfa_docx(inspection, calculation, reasoning, str(target_docx))
-    sha256_hash = compute_file_sha256(docx_path)
-    print(f"  -> Document Saved! Size: {os.path.getsize(docx_path)} bytes | SHA-256: {sha256_hash[:16]}...")
+    docx_sha256 = compute_docx_sha256(docx_path)
+    print(f"     Saved! Size: {os.path.getsize(docx_path)} bytes | SHA-256: {docx_sha256[:16]}...")
+
+    print(f"  -> Generating Adobe PDF Document: {target_pdf.name}")
+    pdf_path = generate_approval_nfa_pdf(inspection, calculation, reasoning, str(target_pdf))
+    pdf_sha256 = compute_pdf_sha256(pdf_path)
+    print(f"     Saved! Size: {os.path.getsize(pdf_path)} bytes | SHA-256: {pdf_sha256[:16]}...")
 
     print("\n" + "=" * 70)
     print("✅ GOLDEN PATH MVP PIPELINE COMPLETED SUCCESSFULLY!")
@@ -147,14 +156,18 @@ def run_mvp_pipeline(
         calculation_data=calculation,
         reasoning_data=reasoning,
         docx_path=str(docx_path),
-        sha256_hash=sha256_hash,
-        generated_at=datetime.utcnow().isoformat() + "Z",
+        sha256_hash=docx_sha256,
+        pdf_path=str(pdf_path),
+        pdf_sha256=pdf_sha256,
+        generated_at=datetime.now().isoformat() + "Z",
     )
 
 
 if __name__ == "__main__":
     sample_log = PROJECT_ROOT / "sample_data" / "06_inspection_reports" / "field_inspector_raw_ocr_log.txt"
     payload = run_mvp_pipeline(sample_log)
-    assert os.path.exists(payload.docx_path), "Deliverable was not generated"
+    assert os.path.exists(payload.docx_path), "DOCX deliverable was not generated"
+    assert payload.pdf_path and os.path.exists(payload.pdf_path), "PDF deliverable was not generated"
     assert payload.calculation_data.is_breach is True, "Breach should be True"
-    print(f"\nVerified Deliverable: {payload.docx_path}")
+    print(f"\nVerified DOCX Deliverable: {payload.docx_path}")
+    print(f"Verified PDF Deliverable:  {payload.pdf_path}")

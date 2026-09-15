@@ -49,10 +49,12 @@ class ReasoningOutput(BaseModel):
 
 
 class FinalNFAPayload(BaseModel):
-    """Consolidated payload ready for Word (.docx) emission and Streamlit UI display."""
+    """Consolidated payload ready for Word (.docx) and PDF (.pdf) emission and Streamlit UI display."""
     inspection_data: InspectionInput
     calculation_data: CalculationOutput
     reasoning_data: ReasoningOutput
     docx_path: str = Field(..., description="Path to generated native .docx file")
-    sha256_hash: str = Field(..., description="SHA-256 integrity hash of the emitted deliverable")
+    sha256_hash: str = Field(..., description="SHA-256 integrity hash of the emitted docx deliverable")
+    pdf_path: Optional[str] = Field(default=None, description="Path to generated native .pdf file")
+    pdf_sha256: Optional[str] = Field(default=None, description="SHA-256 integrity hash of the emitted pdf deliverable")
     generated_at: str = Field(..., description="Timestamp of document compilation")
