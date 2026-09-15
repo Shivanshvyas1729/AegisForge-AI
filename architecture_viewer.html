@@ -1175,43 +1175,90 @@ flowchart TD
       </div>
       <div class="mermaid-box">
         <pre class="mermaid">
-stateDiagram-v2
-    [*] --> START
-    START --> RouterNode : initial_state
+flowchart TD
+    %% Styling Classes
+    classDef startEnd fill:#0f172a,stroke:#38bdf8,stroke-width:2.5px,color:#38bdf8,font-weight:bold;
+    classDef routerNode fill:#1e3a8a,stroke:#3b82f6,stroke-width:2px,color:#ffffff,font-weight:bold;
+    classDef condNode fill:#047857,stroke:#10b981,stroke-width:2px,color:#ecfdf5,font-weight:bold;
+    classDef agentNode fill:#4c1d95,stroke:#8b5cf6,stroke-width:2px,color:#ffffff,font-weight:bold;
+    classDef toolNode fill:#831843,stroke:#ec4899,stroke-width:2px,color:#ffffff,font-weight:bold;
+    classDef valNode fill:#b45309,stroke:#f59e0b,stroke-width:2px,color:#ffffff,font-weight:bold;
+    classDef emitNode fill:#065f46,stroke:#10b981,stroke-width:2px,color:#ffffff,font-weight:bold;
 
-    state RouterNode {
-        [*] --> ClassifyPrompt
-        ClassifyPrompt --> AssignRoute
-    }
+    %% Entry Point
+    START(["__start__<br/>User Prompt & Input Files"]):::startEnd
+    
+    %% Router Node
+    Router["Router Node<br/><i>(router_node)</i><br/>Heuristic & Model Classifier"]:::routerNode
+    
+    %% Router Conditional Decision
+    CondRouter{"Conditional Edge:<br/>route_decision(state)"}:::condNode
+    
+    %% Worker Agent Nodes
+    AgentVision["Multimodal Agent<br/><i>(multimodal_node)</i><br/>Moondream VLM + EasyOCR"]:::agentNode
+    AgentCoding["Coding Agent<br/><i>(coding_node)</i><br/>Qwen2.5-Coder:1.5b"]:::agentNode
+    AgentReasoning["Reasoning Agent<br/><i>(reasoning_node)</i><br/>DeepSeek-R1:1.5b"]:::agentNode
+    AgentSummary["Summary Agent<br/><i>(summary_node)</i><br/>Llama-3.2:3b"]:::agentNode
 
-    RouterNode --> CodingNode : route is coding
-    RouterNode --> ReasoningNode : route is reasoning
-    RouterNode --> SummaryNode : route is summary
-    RouterNode --> MultimodalNode : route is multimodal
-    RouterNode --> MultimodalNode : route is pipeline
+    %% Transition Conditional Nodes
+    CondMulti{"Conditional Edge:<br/>next_after_multimodal"}:::condNode
+    CondCoding{"Conditional Edge:<br/>next_after_coding"}:::condNode
+    CondReasoning{"Conditional Edge:<br/>next_after_reasoning"}:::condNode
 
-    state PipelineSeq {
-        MultimodalNode --> CodingNode : step 1
-        CodingNode --> ReasoningNode : step 2
-        ReasoningNode --> SummaryNode : step 3
-    }
+    %% Validator Node & Decision
+    Validator["Validator Node<br/><i>(validator_node)</i><br/>Schema & Integrity Check"]:::valNode
+    CondVal{"Conditional Edge:<br/>validation_decision(state)"}:::condNode
 
-    MultimodalNode --> ValidatorNode
-    CodingNode --> ValidatorNode
-    ReasoningNode --> ValidatorNode
-    SummaryNode --> ValidatorNode
+    %% Tool Calling Nodes
+    ToolSandbox["Air-Gapped Sandbox<br/><i>tools/sandbox.py</i><br/>Subprocess Python Runner"]:::toolNode
+    ToolASME["Deterministic Physics<br/><i>tools/asme_calculator.py</i><br/>ASME UG-27 Math Engine"]:::toolNode
 
-    state ValidatorNode {
-        [*] --> CheckQuality
-        CheckQuality --> AssessAttempts
-    }
+    %% Deliverable Emitter & End
+    Emitter["Document Emitter Node<br/><i>output_generation/</i><br/>Word & PDF + SHA-256 Seal"]:::emitNode
+    END(["__end__<br/>Verified Deliverables & Telemetry"]):::startEnd
 
-    ValidatorNode --> CodingNode : retry coding
-    ValidatorNode --> ReasoningNode : retry reasoning
-    ValidatorNode --> SummaryNode : retry summary
-    ValidatorNode --> MultimodalNode : retry multimodal
-    ValidatorNode --> END : validation passed
-    END --> [*]
+    %% Graph Connectivity & Edges
+    START -->|Initialize AgentState| Router
+    Router --> CondRouter
+
+    %% Conditional Branches from Router
+    CondRouter -->|route == 'multimodal'| AgentVision
+    CondRouter -->|route == 'coding'| AgentCoding
+    CondRouter -->|route == 'reasoning'| AgentReasoning
+    CondRouter -->|route == 'summary'| AgentSummary
+    CondRouter -->|route == 'pipeline'| AgentVision
+
+    %% Multimodal Transitions
+    AgentVision --> CondMulti
+    CondMulti -->|route == 'pipeline'<br/>Step 1: Extracted OCR/P&ID| AgentCoding
+    CondMulti -->|route == 'multimodal'<br/>Standalone Task Done| Validator
+
+    %% Coding Transitions & Tools
+    AgentCoding --> CondCoding
+    AgentCoding <-->|Air-Gapped Execution| ToolSandbox
+    CondCoding -->|route == 'pipeline'<br/>Step 2: Parser/Code Ready| AgentReasoning
+    CondCoding -->|route == 'coding'<br/>Standalone Task Done| Validator
+
+    %% Reasoning Transitions & Tools
+    AgentReasoning --> CondReasoning
+    AgentReasoning <-->|Deterministic Physics Verification| ToolASME
+    CondReasoning -->|route == 'pipeline'<br/>Step 3: ASME Math & CVC Justification| AgentSummary
+    CondReasoning -->|route == 'reasoning'<br/>Standalone Task Done| Validator
+
+    %% Summary Transitions
+    AgentSummary -->|route == 'pipeline' or 'summary'<br/>Executive Takeaways Ready| Validator
+
+    %% Validator Evaluation & Self-Correction Loops
+    Validator --> CondVal
+    CondVal -->|is_valid == True OR attempts >= 2| Emitter
+    Emitter -->|Deliverables Compiled & Signed| END
+
+    %% Self-Correction Feedback Loops (Attempts < 2)
+    CondVal -.->|is_valid == False & route == 'coding'| AgentCoding
+    CondVal -.->|is_valid == False & route == 'reasoning'| AgentReasoning
+    CondVal -.->|is_valid == False & route == 'summary'| AgentSummary
+    CondVal -.->|is_valid == False & route == 'multimodal'| AgentVision
+    CondVal -.->|is_valid == False & route == 'pipeline'| AgentVision
         </pre>
       </div>
 
