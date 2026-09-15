@@ -66,7 +66,20 @@ class SovereignModelRouter:
         return "general"
 
     def get_model(self, task_type: str) -> str:
-        return self.registry.get(task_type, self.registry["general"])
+        preferred = self.registry.get(task_type, self.registry["general"])
+        try:
+            from models.model_downloader import is_model_installed, get_installed_models_set
+            if not is_model_installed(preferred):
+                installed = [m for m in get_installed_models_set() if m != "easyocr"]
+                if installed:
+                    for candidate in ["deepseek-r1:1.5b", "qwen2.5-coder:1.5b", "llama3.2:3b"]:
+                        if candidate in installed:
+                            logger.info(f"[Router] Preferred model '{preferred}' not installed. Falling back to '{candidate}'.")
+                            return candidate
+                    return installed[0]
+        except Exception:
+            pass
+        return preferred
 
     def route_and_execute(
         self,
@@ -80,6 +93,7 @@ class SovereignModelRouter:
         Extracts internal thinking/reasoning (<think> tags) and constructs a transparent step trace.
         """
         task_type = self.classify_task(prompt, has_image=bool(image_path))
+        preferred_model = self.registry.get(task_type, self.registry["general"])
         target_model = override_model or self.get_model(task_type)
 
         logger.info(f"[Router] Category: '{task_type.upper()}' -> Assigned Model: '{target_model}' (History turns: {len(history) if history else 0})")
@@ -114,17 +128,21 @@ class SovereignModelRouter:
                 clean_response = raw_content
 
             # Construct transparent internal reasoning & routing trace
+            steps = [f"Analyzed prompt tokens: classified as category **{task_type.upper()}**"]
+            if not override_model and target_model != preferred_model:
+                steps.append(f"Auto-fallback: target model `{preferred_model}` not in local pool; routed to available sovereign model **{target_model}**")
+            else:
+                steps.append(f"Selected sovereign model: **{target_model}** (100% on-premise air-gapped)")
+            steps.append(f"Session context: preserved {len(messages) - 1} prior conversation turn(s)")
+            steps.append(f"Dispatched via local socket `{OLLAMA_HOST}`")
+
             internal_trace = {
                 "task_type": task_type,
                 "model_used": target_model,
+                "preferred_model": preferred_model,
                 "history_turns": len(messages) - 1,
                 "model_thinking": model_thinking,
-                "steps": [
-                    f"Analyzed prompt tokens: classified as category **{task_type.upper()}**",
-                    f"Selected sovereign model: **{target_model}** (100% on-premise air-gapped)",
-                    f"Session context: injected {len(messages) - 1} prior conversation turn(s)",
-                    f"Dispatched via local socket `{OLLAMA_HOST}`",
-                ]
+                "steps": steps,
             }
 
             return {
