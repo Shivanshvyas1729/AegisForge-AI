@@ -1,124 +1,195 @@
-# AegisForge-AI: Sovereign Air-Gapped AI Workbench for PSUs & Critical Infrastructure
+# AegisForge-AI: Sovereign Air-Gapped Multi-Agent AI Workbench for PSUs & Critical Infrastructure
 
-> **Self-hosted, air-gapped agentic AI workbench running entirely on on-premises GPU infrastructure with zero data leakage.**
+> **Self-hosted, air-gapped agentic AI workbench running entirely on on-premises infrastructure with zero data leakage, deterministic engineering math, and statutory CVC/DoP compliance.**
 
-[![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-blue.svg)](https://www.python.org/)
-[![CUDA](https://img.shields.io/badge/CUDA-12.4%20(RTX%203050)-green.svg)](https://developer.nvidia.com/cuda-toolkit)
-[![Ollama](https://img.shields.io/badge/Local%20Serving-Ollama-black.svg)](https://ollama.com/)
-[![Deliverables](https://img.shields.io/badge/Deliverables-.DOCX%20%7C%20.PDF-orange.svg)](#)
+[![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
+[![LangGraph](https://img.shields.io/badge/Orchestration-LangGraph%20Multi--Agent-purple.svg)](https://github.com/langchain-ai/langgraph)
+[![ASME Section VIII](https://img.shields.io/badge/Engineering%20Code-ASME%20UG--27%20Verified-red.svg)](#)
+[![Compliance](https://img.shields.io/badge/Procurement-CVC%20%26%20IOCL%20DoP%204.2-darkgreen.svg)](#)
+[![Ollama](https://img.shields.io/badge/Local%20Serving-Ollama%20Air--Gapped-black.svg)](https://ollama.com/)
+[![Tests](https://img.shields.io/badge/Tests-18%2F18%20Passing%20(100%25)-brightgreen.svg)](#)
+[![Cryptographic Ledger](https://img.shields.io/badge/Audit%20Trail-SHA--256%20Hash--Chained-gold.svg)](#)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
 
 ## Executive Summary
 
-Public Sector Undertakings (PSUs), defence manufacturing units, refineries (IOCL, ONGC, BPCL, HPCL), power utilities (NTPC), and government institutions handle mission-critical, highly confidential knowledge work daily. None of this sensitive IP can ever be transmitted to public cloud LLMs due to strict national data residency regulations and air-gap network mandates.
+Public Sector Undertakings (PSUs) such as **IOCL, ONGC, BPCL, HPCL, GAIL, NTPC**, defense manufacturing units (**DRDO, HAL, BEL**), and statutory safety directorates (**PESO, OISD, CVC**) handle confidential operational data, ultrasonic thickness survey grids, and high-value procurement notes. None of this sensitive IP can ever be transmitted to public cloud LLMs due to national data sovereignty laws, corporate air-gap mandates, and life-safety liabilities.
 
-**AegisForge-AI** provides an industrial-grade, self-hosted, multi-model AI workbench that dynamically routes requests across specialized open-weight models and executes engineering workflows (like ASME Section VIII code compliance and statutory Note for Approval generation) with complete on-premises data residency, hardware-level air-gap isolation, and direct compilation of native Microsoft Office deliverables.
-
----
-
-## Complete Architecture & File Catalog
-
-The project is structured around a streamlined Input → Math Verification → Document Generation pipeline. Below is the exhaustive catalog of every file and folder, including their purpose, expected inputs, and generated outputs.
-
-### Root Level Files
-| File | Purpose | Inputs | Outputs |
-| :--- | :--- | :--- | :--- |
-| `main.py` | Central CLI Operating Gateway. | CLI arguments/flags | Routes to sub-commands, launches UI, executes pipeline |
-| `requirements.txt` | Python dependencies. | `pip install` command | Python environment setup |
-| `FUTURE_ROADMAP.md` | Tracks planned features and removed components. | N/A | N/A |
-| `README.md` | Primary project documentation. | N/A | N/A |
-| `.gitignore` | Defines files ignored by Git. | Git commands | Cleaner repository |
+**AegisForge-AI** provides an industrial-grade, fully sovereign, multi-agent AI workbench that:
+1. **Never Hallucinates Engineering Math**: Engineering arithmetic (ASME Section VIII Div 1 UG-27 minimum wall thickness, derated MAWP, corrosion rates) is strictly calculated by deterministic Python engines. LLMs **never** calculate numbers.
+2. **Enforces Causal Regulatory Governance**: Statutory CVC Circular 02/02/2004 emergency single-source procurement justifications are causally locked to verified structural breach calculations ($\Delta < 0.0\text{ mm}$). Structurally safe vessels ($\Delta \ge 0.0\text{ mm}$) strictly block emergency single-source procurement.
+3. **Mandates a 3-Way Human Approval Gate**: Anomalies or unphysical readings ($CR > 3.0\text{ mm/yr}$, $t > 300\text{ mm}$) trigger an immediate pipeline halt (`GATE_WAITING_HUMAN`) supporting `CONFIRM_UNEDITED`, `CORRECT_AND_RERUN`, or `REJECT_AND_HALT`. Every human intervention is cryptographically chained into an unbroken SHA-256 audit ledger.
+4. **Guarantees Fail-Fast Model Outage Resilience**: If the local Ollama daemon crashes or becomes unreachable, the pipeline halts immediately (`HALTED_OLLAMA_SERVICE_UNAVAILABLE`) with zero deliverables generated—completely eliminating unsafe pseudo-heuristic fallbacks.
+5. **Compiles Signed Executive Deliverables**: Emits native, cryptographically sealed Microsoft Word (`.docx`) and Adobe PDF (`.pdf`) Notes for Approval, anchored to a tamper-evident `deliverable_manifest.json`.
 
 ---
 
-### Configuration & Schemas
-| File/Folder | Purpose | Inputs | Outputs |
-| :--- | :--- | :--- | :--- |
-| **`config/`** | **Configuration directory.** | | |
-| └ `settings.py` | Centralizes project paths and model registry. | Environment variables | Constant variables for imports |
-| **`schemas/`** | **Data contracts directory.** | | |
-| └ `mvp_schema.py` | Pydantic schemas validating data between pipeline stages. | Raw data dictionaries | Validated Pydantic objects (`InspectionInput`, etc.) |
+## 4-Stage Multi-Agent Architecture (LangGraph)
+
+AegisForge-AI uses LangGraph to coordinate specialized local models (`deepseek-r1:1.5b`, `llama3.2:3b`, `qwen2.5-coder:1.5b`) with deterministic industrial tools:
+
+```mermaid
+graph TD
+    User([Operator Mission Query / File]) --> Supervisor[Supervisor Agent<br/>deepseek-r1:1.5b]
+    Supervisor --> InspectionWorker[Inspection Worker<br/>Multimodal Extractor]
+    InspectionWorker --> CheckAnomaly{Requires Human<br/>Confirmation?}
+    
+    CheckAnomaly -- Yes: Anomaly Detected --> HumanGate[Human Approval Gate<br/>3-Way Intervention]
+    HumanGate -- REJECT_AND_HALT --> HaltNode[Halted Pipeline]
+    HumanGate -- CONFIRM_UNEDITED --> MathWorker
+    HumanGate -- CORRECT_AND_RERUN --> MathWorker
+    
+    CheckAnomaly -- No: Verified Clean --> MathWorker[Math Worker<br/>Deterministic ASME UG-27]
+    MathWorker --> ComplianceWorker[Compliance Worker<br/>CVC & DoP Procurement Audit]
+    ComplianceWorker --> ChiefReviewer[Chief Technical Reviewer<br/>llama3.2:3b Gatekeeper]
+    
+    ChiefReviewer --> ReviewPassed{Audit Decision<br/>Approved?}
+    ReviewPassed -- REJECTED --> HaltNode
+    ReviewPassed -- APPROVED --> PublisherAgent[Deliverable Publisher<br/>DOCX + PDF + SHA-256 Seal]
+    PublisherAgent --> PublishedDeliverables([Signed Deliverables<br/>& Manifest Record])
+```
+
+### Architectural & Governance Guarantees
+
+| Guarantee | Enforcement Mechanism | Failure / Violation Behavior |
+| :--- | :--- | :--- |
+| **Zero Math Hallucination** | Small local models are strictly restricted to parsing and synthesis. All calculations pass through `tools/ug27_core.py`. | LLMs are not permitted to compute or alter numerical values. |
+| **Causal Compliance** | `ComplianceWorker` consumes validated `calculation_data`. | Emergency single-source is rejected with `NON_COMPLIANT_CVC_VIOLATION` if $\Delta \ge 0.0\text{ mm}$. |
+| **PAC Registry Verification** | PAC certificates cited in procurement claims are checked against `VERIFIED_PAC_REGISTRY`. | Hallucinated or expired PACs trigger `EXPIRED_PAC_VIOLATION` and halt the review gate. |
+| **Conservative Parameter Guard** | Joint efficiency ($E$) and corrosion allowance ($CA$) are mandatory `required_keys` in `routing_guard.py`. | Dispatch is blocked if non-conservative defaults ($E=1.0, CA=0.0$) are assumed without verification. |
+| **3-Way Human Gate Recovery** | Operator can confirm original data, inject corrected values, or reject. Corrected values are protected from re-extraction overwrite. | Halted pipeline (`GATE_WAITING_HUMAN`) recovers cleanly into `MathWorker` with audit trail block hash. |
+| **Process-Tree Air Gap** | `network_verifier.py` inspects active Python process sockets. | Throws `ALERT_HOST_EXTERNAL_CONNECTIONS_DETECTED` or passes `PASS_PROCESS_AIR_GAP_VERIFIED`. |
+| **Cryptographic Audit Ledger** | Every tool execution and human override is hash-chained via $\text{SHA256}(\text{prev\_hash} + \text{canonical\_payload})$. | Any tampering, deletion, or modification is flagged with exact entry index identification. |
 
 ---
 
-### Data Ingestion
-| File/Folder | Purpose | Inputs | Outputs |
-| :--- | :--- | :--- | :--- |
-| **`ingestion/`** | **Input parsing directory.** | | |
-| └ `extract_inspection_data.py` | Extracts structured equipment parameters from messy OCR logs. | Raw `.txt` files or strings | Populated `InspectionInput` schema |
+## Exhaustive Workspace Catalog
+
+```
+c:/Users/rahul/SIH-antigravity-offline/
+├── agent_orchestrator/                # LangGraph 4-Stage Multi-Agent System
+│   ├── base_agent.py                  # Ollama caller with timeout, <think> stripper, & fail-fast outage exception
+│   ├── multi_agent_graph.py           # Compiled LangGraph state graph with conditional edges & recovery paths
+│   ├── supervisor_agent.py            # Mission planner (DeepSeek-R1) decomposing goals into industrial stages
+│   ├── reviewer_agent.py              # Chief Technical Reviewer gatekeeper (Llama-3.2) auditing math & compliance
+│   ├── publisher_agent.py             # Emits signed DOCX/PDF deliverables, computes SHA-256, & updates manifest
+│   ├── state.py                       # MultiAgentSystemState TypedDict data contracts
+│   └── workers/
+│       ├── inspection_worker.py       # Multimodal extraction worker with parameter preservation guard
+│       ├── math_worker.py             # Strict deterministic ASME Section VIII calculation worker
+│       └── compliance_worker.py       # CVC 02/02/2004 & IOCL DoP 4.2 statutory compliance auditor
+│
+├── tools/                             # 12 Verified Sovereign Industrial Tools
+│   ├── asme_calculator.py             # ASME UG-27 calculation facade
+│   ├── ug27_core.py                   # Pure deterministic math engine ($t_{req}$, $\Delta$, $P_{MAWP}$, remaining life)
+│   ├── thickness_grid_analyzer.py     # Multi-point ultrasonic thickness survey grid analyzer (UT grid scans)
+│   ├── compliance_auditor.py          # Statutory CVC & DoP procurement delegation matrix auditor
+│   ├── routing_guard.py               # Human confirmation routing guard & 3-way override state machine
+│   ├── audit_trail.py                 # Tamper-evident SHA-256 hash-chained JSONL audit ledger
+│   ├── network_verifier.py            # Dual-scope (process-tree vs. host) passive air-gap telemetry probe
+│   ├── inspection_extractor_tool.py   # Deterministic inspection parameter parser & anomaly sanity gate
+│   ├── sandbox.py                     # Subprocess-isolated, AST-allowlisted Python computational sandbox
+│   ├── rag.py                         # Sovereign local retrieval augmented generation (Qdrant vector + keyword)
+│   ├── file_io.py                     # Path-traversal defended workspace file read/write tool
+│   └── doc_generator.py               # Unified document compiler and cryptographic hashing wrapper
+│
+├── database/                          # Embedded Sovereign Vector Database
+│   ├── qdrant_manager.py              # Pure local disk-embedded Qdrant vector & hybrid retrieval client
+│   └── __init__.py                    # Client export facade
+│
+├── ingestion/                         # Multimodal & Inspection Report Ingestion
+│   └── multimodal_parser.py           # EasyOCR + PDF/DOCX structured table & text parser
+│
+├── output_generation/                 # Native Document Compilers
+│   ├── docx_generator.py              # Native Microsoft Word (.docx) Note for Approval compiler
+│   └── pdf_generator.py               # Native Adobe PDF (.pdf) Note for Approval compiler (ReportLab)
+│
+├── models/                            # Sovereign Model Management & Routing
+│   ├── model_downloader.py            # Local Ollama & EasyOCR model weight manager and health checker
+│   └── router/
+│       └── model_router.py            # Dynamic task classifier routing between coding, reasoning, & summary
+│
+├── config/                            # Environment & Architecture Settings
+│   └── settings.py                    # Root paths, model registries, thresholds, and logging setup
+│
+├── schemas/                           # Pydantic Data Contracts
+│   └── mvp_schema.py                  # InspectionInput, CalculationOutput, ReasoningOutput, FinalNFAPayload
+│
+├── tests/                             # Comprehensive Automated Verification Suites
+│   ├── test_sovereign_toolset.py      # 11 Unit & Boundary Test Suites for all tools (100% Pass)
+│   └── test_multi_agent_system.py     # 7 End-to-End Multi-Agent Integration Tests (100% Pass)
+│
+├── data/                              # Sovereign Data & Runtime Assets
+│   ├── logs/                          # sovereign_audit_ledger.jsonl (hash-chained) & runtime logs
+│   ├── output/                        # Signed deliverables (.docx, .pdf) & deliverable_manifest.json
+│   ├── vector_storage/                # Embedded local Qdrant SQLite database
+│   └── scratch/                       # Isolated ephemeral scratch storage
+│
+├── frontend/                          # Web UI Dashboard
+│   └── app.py                         # Streamlit application (Workbench, ASME Calculator, Model Hub)
+│
+└── main.py                            # Central CLI Operating Gateway
+```
 
 ---
 
-### Engineering & Utility Tools
-| File/Folder | Purpose | Inputs | Outputs |
-| :--- | :--- | :--- | :--- |
-| **`tools/`** | **Deterministic tools directory.** | | |
-| ├ `asme_calculator.py` | Deterministic ASME UG-27 pressure vessel math engine. | `InspectionInput` | `CalculationOutput` (t_min, delta, breach status) |
-| ├ `sandbox.py` | Isolated Python code execution environment. | Raw Python code string | Execution stdout, stderr, and exit code |
-| ├ `file_io.py` | Local text and JSON file reader/writer. | File paths, content strings | Read content or boolean success |
-| ├ `rag.py` | Local knowledge search across PSU manuals. | Query string | Context string matching keywords |
-| └ `doc_generator.py` | Unified wrapper for Word and PDF generation. | `InspectionInput`, `CalculationOutput`, `ReasoningOutput` | File paths and SHA-256 hashes |
+## Comprehensive Verification & Test Suite
+
+Both automated test suites pass with **100% success (18 / 18 Tests Passing)**:
+
+### 1. Sovereign Toolset Verification (`tests/test_sovereign_toolset.py`)
+
+```text
+  [PASS] Test 01: All 9 tools exported cleanly without import errors.
+  [PASS] Test 02: ASME UG-27 baseline math, breach detection, zero-margin alert, & boundary failure modes.
+  [PASS] Test 03: AST allowlist sandbox blocks OS, socket, subprocess, urllib, & infinite loops.
+  [PASS] Test 04: File I/O strictly blocks relative path traversal attacks (../../escape).
+  [PASS] Test 05: Multi-point thickness grid analyzer audits 6 points, pinpoints worst breach location.
+  [PASS] Test 06: CVC compliance engine rejects unsubstantiated PAC and hallucinated PAC identifiers.
+  [PASS] Test 07: Inspection extractor triggers ACTION_REQUIRED_UNVERIFIED_DATA on unphysical readings.
+  [PASS] Test 08: Cryptographic audit ledger maintains unbroken SHA-256 chain and catches byte tampering.
+  [PASS] Test 09: Network verifier confirms 0 open non-loopback external sockets on process tree.
+  [PASS] Test 10: Deliverables generated in DOCX & PDF format with SHA-256 manifest registration.
+  [PASS] Test 11: Routing guard halts dispatch awaiting human confirmation on flagged anomalies.
+```
+
+### 2. Multi-Agent Orchestration Integration (`tests/test_multi_agent_system.py`)
+
+```text
+  [PASS] Test 01: Golden Path End-to-End (Supervisor → Inspection → Math → Compliance → Reviewer → Publisher).
+  [PASS] Test 02: Anomaly Gating & Halting (Pipeline halts cleanly with status=GATE_WAITING_HUMAN).
+  [PASS] Test 03: Human Approval Recovery (CORRECT_AND_RERUN injects values, anchors SHA-256 ledger block).
+  [PASS] Test 04: Human Approval Recovery (CONFIRM_UNEDITED authorizes calculation on original values).
+  [PASS] Test 05: Compliance Causal Dependency (Safe vessel delta=+16.43 mm rejects emergency single-source).
+  [PASS] Test 06: PAC Expiry Rejection (Chief Reviewer gatekeeper halts on expired PAC certificate).
+  [PASS] Test 07: Local Ollama Outage Fail-Fast Check (Halts with HALTED_OLLAMA_SERVICE_UNAVAILABLE).
+```
 
 ---
 
-### Document Generation
-| File/Folder | Purpose | Inputs | Outputs |
-| :--- | :--- | :--- | :--- |
-| **`output_generation/`** | **Native document compilers.** | | |
-| ├ `docx_generator.py` | Compiles native Microsoft Word `.docx` Approval Notes. | Pipeline data objects | Binary `.docx` file |
-| └ `pdf_generator.py` | Compiles native Adobe `.pdf` Approval Notes using ReportLab. | Pipeline data objects | Binary `.pdf` file |
+## Deterministic Engineering Math (ASME Section VIII Div 1 UG-27)
 
----
+Wall thickness calculations follow the ASME Boiler and Pressure Vessel Code (BPVC) standard:
 
-### Artificial Intelligence Models
-| File/Folder | Purpose | Inputs | Outputs |
-| :--- | :--- | :--- | :--- |
-| **`models/`** | **AI engines and routers.** | | |
-| ├ `model_downloader.py` | Download manager for Ollama and EasyOCR models. | Model identifiers | Model weights saved to disk |
-| └ **`router/`** | | | |
-| &nbsp;&nbsp;└ `model_router.py` | Heuristic task classifier and Ollama client dispatcher. | Text prompts, images | Text responses from AI |
+$$t_{req} = \frac{P \times R}{S \times E - 0.6 \times P} + CA$$
 
----
+Where:
+- $P$ = Internal Design Pressure ($\text{MPa}$)
+- $R$ = Inside Radius of Shell ($\text{mm}$)
+- $S$ = Maximum Allowable Stress ($\text{MPa}$)
+- $E$ = Joint Efficiency ($0.0 < E \le 1.0$)
+- $CA$ = Specified Corrosion Allowance ($\text{mm}$)
 
-### Pipeline Orchestration
-| File/Folder | Purpose | Inputs | Outputs |
-| :--- | :--- | :--- | :--- |
-| **`agent_orchestrator/`** | **Pipeline controllers.** | | |
-| └ `orchestrator_mvp.py` | Ties all stages together: Ingestion → Math → AI → Output | Target file path | Final generated document paths |
+**Derated Maximum Allowable Working Pressure (MAWP):**
+$$P_{MAWP} = \frac{S \times E \times t_{actual}}{R + 0.6 \times t_{actual}}$$
 
----
-
-### Frontend
-| File/Folder | Purpose | Inputs | Outputs |
-| :--- | :--- | :--- | :--- |
-| **`frontend/`** | **Web UI directory.** | | |
-| └ `app.py` | Clean Streamlit Dashboard with 3 tabs (Workbench, Math, Models). | User UI interactions | Web interface |
-
----
-
-### Data Storage & Assets
-| File/Folder | Purpose | Inputs | Outputs |
-| :--- | :--- | :--- | :--- |
-| **`sample_data/`** | **Test fixtures.** | | |
-| └ `06_inspection_reports/` | Contains raw noisy OCR logs for the MVP pipeline. | N/A | Mock inspection data |
-| **`model_pool/`** | **Local weight storage.** | | |
-| └ `easyocr/` | Contains downloaded `.pth` weights for EasyOCR models. | Download streams | `.pth` weight files |
-| **`data/`** | **Runtime data directory.** | | |
-| ├ `uploads/` | Stores files and images uploaded by the user via the UI. | User uploads | Saved files |
-| └ `output/` | Destination folder for all generated reports and deliverables. | Generators | Final `.docx` / `.pdf` |
-
----
-
-## The Golden Path Workflow
-
-AegisForge-AI orchestrates an end-to-end "Golden Path" to automate statutory processes:
-
-1. **Ingestion**: Parses a noisy field inspector's ultrasonic thickness reading log.
-2. **Deterministic Math Verification**: Uses the `asme_calculator` to execute the ASME Section VIII Div 1 UG-27 formula to calculate the absolute minimum safe wall thickness ($t_{min}$) required for the vessel, entirely bypassing probabilistic LLM math hallucination.
-3. **AI Synthesis**: Routes the breach data to `deepseek-r1:1.5b` (or another model) to synthesize the CVC procurement justification, DOP compliance, and executive summary.
-4. **Document Generation**: Compiles the inspection data, math results, and AI reasoning into a native, cryptographically hashed Microsoft Word `.docx` and Adobe `.pdf` Note for Approval.
+**Margin Analysis & Boundary Decisions:**
+- $\Delta = t_{actual} - t_{req}$
+- If $\Delta < 0.0$: **`CRITICAL_BREACH`** (Mandatory statutory code violation).
+- If $\Delta == 0.0$: **`MARGINAL_ALERT (ZERO SAFETY MARGIN)`** (Flagged for operational review).
+- If $\Delta > 0.0$: **`SAFE`** (Vessel meets code minimum).
 
 ---
 
@@ -126,64 +197,57 @@ AegisForge-AI orchestrates an end-to-end "Golden Path" to automate statutory pro
 
 ### 1. Environment Setup
 
-Clone the repository and set up a Python environment (3.11+):
-
 ```bash
+# Clone the repository
 git clone https://github.com/Shivanshvyas1729/AegisForge-AI.git
 cd AegisForge-AI
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
 ### 2. Configure Local Models with Ollama
 
-Ensure [Ollama](https://ollama.com/) is installed and running. You can manage models directly from the UI, or pull them via CLI:
+Ensure [Ollama](https://ollama.com/) is installed and running on `http://127.0.0.1:11434`:
 
 ```bash
 ollama pull deepseek-r1:1.5b
-ollama pull qwen2.5-coder:1.5b
 ollama pull llama3.2:3b
+ollama pull qwen2.5-coder:1.5b
 ```
 
-### 3. Launch the Application
+### 3. Run Automated Verification Suites
 
-AegisForge-AI features a centralized CLI via `main.py`. 
-
-**To launch the modern Streamlit Web Dashboard:**
 ```bash
+# Verify all sovereign tools & security hardening
+python tests/test_sovereign_toolset.py
+
+# Verify the full 4-stage multi-agent orchestration pipeline
+python tests/test_multi_agent_system.py
+```
+
+### 4. Launch the Application
+
+```bash
+# Launch the Streamlit Web Dashboard
 python main.py ui
-```
-*This opens a 3-tab workbench featuring the AI chat, the ASME calculator, and the Model Hub.*
 
-**To run the Golden Path pipeline directly via CLI:**
-```bash
-python main.py run-golden-path
-```
-
-**To view the interactive CLI menu and system health:**
-```bash
+# Run the central CLI operating menu
 python main.py
 ```
 
 ---
 
-## Dynamic Model Routing
-
-The `SovereignModelRouter` dynamically evaluates tasks and routes them to the optimal local model:
-
-| Task Modality | Local Model | Primary Hardware | VRAM / RAM Required | Key Capabilities |
-| :--- | :--- | :--- | :--- | :--- |
-| **Coding & SCADA** | `qwen2.5-coder:1.5b` | Local GPU (RTX 3050) | ~1.8 GB VRAM | Python automation, Modbus CRC-16 parsers. |
-| **Deep Reasoning** | `deepseek-r1:1.5b` | Local GPU (RTX 3050) | ~1.8 GB VRAM | ASME calculations, CVC compliance, math reasoning. |
-| **Generalist Tasks** | `llama3.2:3b` | Local GPU (RTX 3050) | ~2.2 GB VRAM | Executive summaries, report drafting. |
-
----
-
-## Target Industry Sectors
+## Target Industry Sectors & Regulatory Compliance
 
 - **Oil & Gas Refineries**: Indian Oil Corporation Ltd (IOCL), ONGC, BPCL, HPCL, GAIL
-- **Defence & Aerospace**: DRDO, Bharat Electronics Ltd (BEL), Hindustan Aeronautics Ltd (HAL)
 - **Power & Heavy Engineering**: NTPC, BHEL, Power Grid Corporation of India
-- **Statutory & Regulatory Bodies**: Petroleum and Explosives Safety Organization (PESO), Oil Industry Safety Directorate (OISD), Central Vigilance Commission (CVC)
+- **Defence & Strategic Infrastructure**: DRDO, Bharat Electronics Ltd (BEL), Hindustan Aeronautics Ltd (HAL)
+- **Governing Regulatory Standards**:
+  - **ASME BPVC Section VIII Div 1 (UG-27)**: Rules for Construction of Pressure Vessels.
+  - **API 510**: Pressure Vessel Inspection Code: In-service Inspection, Rating, Repair, and Alteration.
+  - **CVC Circular No. 02/02/2004**: Guidelines on Tendering & Single-Source Procurement in PSUs.
+  - **IOCL Delegation of Powers (DoP) Clause 4.2**: Emergency Procurement Authorities.
 
 ---
 

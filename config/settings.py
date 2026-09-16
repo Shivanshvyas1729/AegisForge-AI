@@ -58,9 +58,21 @@ OLLAMA_MODELS_DIR = MODEL_POOL_DIR / "ollama"
 UPLOADS_DIR = DATA_DIR / "uploads"
 OUTPUT_DIR = DATA_DIR / "output"
 SAMPLE_DATA_DIR = PROJECT_ROOT / "sample_data"
+VECTOR_STORAGE_DIR = DATA_DIR / "vector_storage"
+QDRANT_STORAGE_DIR = VECTOR_STORAGE_DIR / "qdrant_db"
+EXTRACTED_IMAGES_DIR = VECTOR_STORAGE_DIR / "extracted_images"
 
 # Ensure all essential internal directories exist
-for directory in [MODEL_POOL_DIR, EASYOCR_DIR, OLLAMA_MODELS_DIR, UPLOADS_DIR, OUTPUT_DIR]:
+for directory in [
+    MODEL_POOL_DIR,
+    EASYOCR_DIR,
+    OLLAMA_MODELS_DIR,
+    UPLOADS_DIR,
+    OUTPUT_DIR,
+    VECTOR_STORAGE_DIR,
+    QDRANT_STORAGE_DIR,
+    EXTRACTED_IMAGES_DIR,
+]:
     directory.mkdir(parents=True, exist_ok=True)
 
 # Enforce project-contained model locations via environment variables

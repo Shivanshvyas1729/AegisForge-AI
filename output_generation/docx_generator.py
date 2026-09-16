@@ -101,12 +101,19 @@ def generate_approval_nfa_docx(
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
     table.style = "Table Grid"
 
+    if calculation.remaining_life_years is None:
+        life_str = "N/A (Zero corrosion rate - no degradation)"
+    elif calculation.remaining_life_years < 0:
+        life_str = f"{calculation.remaining_life_years:.2f} Years (BELOW ZERO)"
+    else:
+        life_str = f"{calculation.remaining_life_years:.2f} Years"
+
     rows_data = [
         ("Design Pressure (P)", f"{inspection.design_pressure_mpa} MPa ({calculation.design_pressure_bar} barg)"),
         ("Minimum Required Thickness (t_min)", f"{calculation.t_req_mm:.2f} mm (ASME UG-27)"),
         ("Actual Measured Thickness (t_actual)", f"{calculation.measured_thickness_mm:.2f} mm at Point {inspection.critical_location}"),
-        ("Safety Margin Delta (t_actual - t_min)", f"{calculation.delta_mm:.2f} mm [STATUTORY CODE BREACH]"),
-        ("API 510 Remaining Safe Service Life", f"{calculation.remaining_life_years:.2f} Years (BELOW ZERO)"),
+        ("Safety Margin Delta (t_actual - t_min)", f"{calculation.delta_mm:.2f} mm [STATUTORY CODE BREACH]" if calculation.is_breach else f"{calculation.delta_mm:.2f} mm [SAFE]"),
+        ("API 510 Remaining Safe Service Life", life_str),
         ("Recommended Derated MAWP", f"{calculation.derated_mawp_bar:.1f} barg (Immediate operational limit)"),
     ]
 

@@ -29,7 +29,7 @@ class CalculationOutput(BaseModel):
     measured_thickness_mm: float = Field(..., description="Actual measured thickness in mm")
     delta_mm: float = Field(..., description="Thickness margin delta (t_actual - t_req) in mm")
     is_breach: bool = Field(..., description="True if actual thickness < required minimum thickness")
-    remaining_life_years: float = Field(..., description="API 510 remaining safe operating life in years")
+    remaining_life_years: Optional[float] = Field(default=None, description="API 510 remaining safe operating life in years")
     derated_mawp_bar: float = Field(..., description="Derated Maximum Allowable Working Pressure in barg")
     design_pressure_bar: float = Field(default=145.0, description="Original design pressure in barg")
     status: str = Field(..., description="Safety status: CRITICAL_BREACH or SAFE")

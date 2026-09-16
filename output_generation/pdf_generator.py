@@ -217,14 +217,27 @@ def generate_approval_nfa_pdf(
     ))
     story.append(Spacer(1, 4))
 
+    if calculation.remaining_life_years is None:
+        life_str = "N/A (Zero corrosion rate - no degradation)"
+        life_style = style_table_cell
+    elif calculation.remaining_life_years < 0:
+        life_str = f"{calculation.remaining_life_years:.2f} Years (BELOW ZERO)"
+        life_style = style_table_breach
+    else:
+        life_str = f"{calculation.remaining_life_years:.2f} Years"
+        life_style = style_table_cell
+
+    delta_str = f"{calculation.delta_mm:.2f} mm [STATUTORY CODE BREACH]" if calculation.is_breach else f"{calculation.delta_mm:.2f} mm [SAFE]"
+    delta_style = style_table_breach if calculation.is_breach else style_table_cell
+
     # Table data
     t_rows = [
         [Paragraph("Parameter / Statutory Metric", style_table_header), Paragraph("Engineering Finding & Status", style_table_header)],
         [Paragraph("Design Pressure (P)", style_table_cell), Paragraph(f"{inspection.design_pressure_mpa} MPa ({calculation.design_pressure_bar} barg)", style_table_cell)],
         [Paragraph("Minimum Required Thickness (t_min)", style_table_cell), Paragraph(f"{calculation.t_req_mm:.2f} mm (ASME UG-27)", style_table_cell)],
         [Paragraph("Actual Measured Thickness (t_actual)", style_table_cell), Paragraph(f"{calculation.measured_thickness_mm:.2f} mm at Point {inspection.critical_location}", style_table_cell)],
-        [Paragraph("Safety Margin Delta (t_actual - t_min)", style_table_cell), Paragraph(f"{calculation.delta_mm:.2f} mm [STATUTORY CODE BREACH]", style_table_breach)],
-        [Paragraph("API 510 Remaining Safe Service Life", style_table_cell), Paragraph(f"{calculation.remaining_life_years:.2f} Years (BELOW ZERO)", style_table_breach)],
+        [Paragraph("Safety Margin Delta (t_actual - t_min)", style_table_cell), Paragraph(delta_str, delta_style)],
+        [Paragraph("API 510 Remaining Safe Service Life", style_table_cell), Paragraph(life_str, life_style)],
         [Paragraph("Recommended Derated MAWP", style_table_cell), Paragraph(f"{calculation.derated_mawp_bar:.1f} barg (Immediate operational limit)", style_table_cell)],
     ]
 
