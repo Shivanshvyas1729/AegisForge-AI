@@ -1,9 +1,0 @@
-{
-  "python.defaultInterpreterPath": "C:/Users/rahul/anaconda3/envs/SIH/python.exe",
-  "python.venvFolders": [
-    "backend",
-    "backend/.venv"
-  ],
-  "python-envs.defaultEnvManager": "ms-python.python:conda",
-  "python-envs.defaultPackageManager": "ms-python.python:conda"
-}
