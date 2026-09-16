@@ -1,12 +1,21 @@
 # AegisForge-AI Dependencies (Python 3.11+)
-# PyTorch with CUDA 12.4 for GPU:
-# pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+#
+# IMPORTANT: Install PyTorch FIRST (before this file) based on your system:
+#
+#   GPU (NVIDIA CUDA 12.4):
+#     pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+#
+#   CPU Only (no NVIDIA GPU):
+#     pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
 # Core UI & API
 streamlit>=1.38.0
 
 # LLM Serving
 ollama>=0.5.0
+
+# Multi-Agent Orchestration
+langgraph>=0.2.0
 
 # Data Validation
 pydantic>=2.0.0
@@ -21,8 +30,9 @@ reportlab>=4.0.0
 pymupdf>=1.23.0
 openpyxl>=3.1.0
 
-
 # Local Vector Database & Multimodal Embeddings
 qdrant-client>=1.9.0
 fastembed>=0.2.0
 
+# System Monitoring & Sandbox
+psutil>=5.9.0

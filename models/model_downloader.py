@@ -65,6 +65,15 @@ MODEL_METADATA = {
         "backend": "ollama",
         "desc": "Lightweight vision-language model for reading tags, equipment bubbles, and P&ID diagrams."
     },
+    "qwen2.5:0.5b": {
+        "title": "Qwen2.5 (0.5B) - Semantic Router",
+        "role": "Instant Task Classification",
+        "category": "routing",
+        "size_est": "~398 MB",
+        "backend": "ollama",
+        "mandatory": True,
+        "desc": "MANDATORY: Ultra-lightweight AI router. Classifies user intent behind the scenes instantly (0.2s) without simple keyword guessing. Must be downloaded to use the workbench."
+    },
     "easyocr": {
         "title": "EasyOCR (CRAFT + CRNN)",
         "role": "Offline P&ID OCR Engine",
