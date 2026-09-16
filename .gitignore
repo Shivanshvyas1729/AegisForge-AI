@@ -7,10 +7,20 @@ __pycache__/
 data/output/*.docx
 data/output/*.xlsx
 data/output/*.pptx
+data/output/*.pdf
+data/output/*.lock
+data/output/deliverable_manifest.json
 data/audit.db
+data/scratch/*
+!data/scratch/.gitkeep
+data/logs/*
+!data/logs/.gitkeep
 data/uploads/*
 !data/uploads/.gitkeep
 !data/output/.gitkeep
+data/vector_storage/qdrant_db/
+data/vector_storage/extracted_images/
+!data/vector_storage/.gitkeep
 
 # C extensions
 *.so
@@ -284,10 +294,20 @@ OllamaSetup.exe
 !*.bat
 !*.ps1
 !*.sh
-!*.json
-!*.txt
-!*.svg
-!*.png
+
+# Explicitly ignore runtime generated data regardless of file extension
+data/output/*
+!data/output/.gitkeep
+data/logs/*
+!data/logs/.gitkeep
+data/scratch/*
+!data/scratch/.gitkeep
+data/uploads/*
+!data/uploads/.gitkeep
+data/vector_storage/qdrant_db/
+data/vector_storage/extracted_images/
+!data/vector_storage/.gitkeep
+
 
 
 
