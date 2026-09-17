@@ -72,8 +72,11 @@ def get_text_embedder():
     with _embedder_lock:
         if _text_embedder is None:
             from fastembed import TextEmbedding
-            logger.info("Loading FastEmbed CLIP Text embedder (Qdrant/clip-ViT-B-32-text)...")
-            _text_embedder = TextEmbedding(model_name="Qdrant/clip-ViT-B-32-text")
+            logger.info("Loading FastEmbed CLIP Text embedder (Qdrant/clip-ViT-B-32-text) with GPU support...")
+            _text_embedder = TextEmbedding(
+                model_name="Qdrant/clip-ViT-B-32-text",
+                providers=["CUDAExecutionProvider", "CPUExecutionProvider"]
+            )
         return _text_embedder
 
 
@@ -83,8 +86,11 @@ def get_image_embedder():
     with _embedder_lock:
         if _image_embedder is None:
             from fastembed import ImageEmbedding
-            logger.info("Loading FastEmbed CLIP Vision embedder (Qdrant/clip-ViT-B-32-vision)...")
-            _image_embedder = ImageEmbedding(model_name="Qdrant/clip-ViT-B-32-vision")
+            logger.info("Loading FastEmbed CLIP Vision embedder (Qdrant/clip-ViT-B-32-vision) with GPU support...")
+            _image_embedder = ImageEmbedding(
+                model_name="Qdrant/clip-ViT-B-32-vision",
+                providers=["CUDAExecutionProvider", "CPUExecutionProvider"]
+            )
         return _image_embedder
 
 

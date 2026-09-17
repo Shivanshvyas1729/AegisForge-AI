@@ -251,16 +251,26 @@ class AegisForgeCentralEngine:
     def launch_ui(self, port: int = 8501) -> None:
         """Launches the Streamlit web dashboard."""
         import subprocess as _sp
+        import socket
 
         app_path = self._project_root / "frontend" / "app.py"
         if not app_path.exists():
             print(f"❌ Streamlit app not found at: {app_path}")
             return
 
-        print(f"🚀 Launching AegisForge-AI Dashboard on http://localhost:{port}")
+        def find_free_port(start_port: int) -> int:
+            for p in range(start_port, start_port + 100):
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    if s.connect_ex(('127.0.0.1', p)) != 0:
+                        return p
+            return start_port
+
+        actual_port = find_free_port(port)
+
+        print(f"🚀 Launching AegisForge-AI Dashboard on http://localhost:{actual_port}")
         print("   Press Ctrl+C to stop.\n")
         _sp.run(
-            [sys.executable, "-m", "streamlit", "run", str(app_path), "--server.port", str(port)],
+            [sys.executable, "-m", "streamlit", "run", str(app_path), "--server.port", str(actual_port)],
             cwd=str(self._project_root),
         )
 

@@ -34,11 +34,16 @@ class SovereignModelRouter:
         
         # Check if the routing model is installed
         try:
-            from models.model_downloader import is_model_installed
+            from models.model_downloader import is_model_installed, pull_ollama_model_stream
             if not is_model_installed(router_model):
-                logger.warning(f"[Router] Mandatory semantic router '{router_model}' missing. Falling back to general.")
-                return "general"
-        except Exception:
+                logger.warning(f"[Router] Mandatory semantic router '{router_model}' missing. Auto-downloading...")
+                for update in pull_ollama_model_stream(router_model):
+                    if update.get("status") == "error":
+                        logger.error(f"[Router] Failed to auto-download router model: {update.get('error')}. Falling back to general.")
+                        return "general"
+                logger.info(f"[Router] Successfully auto-downloaded mandatory router '{router_model}'.")
+        except Exception as e:
+            logger.error(f"[Router] Exception during auto-download check: {e}. Falling back to general.")
             return "general"
 
         system_prompt = (

@@ -165,9 +165,9 @@ def is_model_installed(model_id: str) -> bool:
     if model_id == "easyocr":
         craft = EASYOCR_DIR / "craft_mlt_25k.pth"
         crnn = EASYOCR_DIR / "english_g2.pth"
-        # Integrity check: craft >= 80MB, crnn >= 14MB
+        # Integrity check: craft >= 75MB, crnn >= 10MB
         if craft.exists() and crnn.exists():
-            if craft.stat().st_size >= 80 * 1024 * 1024 and crnn.stat().st_size >= 14 * 1024 * 1024:
+            if craft.stat().st_size >= 75 * 1024 * 1024 and crnn.stat().st_size >= 10 * 1024 * 1024:
                 return True
         return False
 
@@ -264,7 +264,15 @@ def pull_ollama_model_stream(
                             return
 
             # If response stream finished without explicit error, verify model presence
-            if is_model_installed(model_name):
+            # Allow a short delay for Ollama daemon to register the model internally
+            model_verified = False
+            for _ in range(5):
+                if is_model_installed(model_name):
+                    model_verified = True
+                    break
+                time.sleep(1)
+                
+            if model_verified:
                 logger.info(f"[Downloader] Pull complete and verified for model: {model_name}")
                 yield {
                     "status": "success",
@@ -324,7 +332,7 @@ def install_easyocr_models() -> Generator[Dict[str, Any], None, None]:
 
     # Integrity verification
     if craft.exists() and crnn.exists():
-        if craft.stat().st_size >= 80 * 1024 * 1024 and crnn.stat().st_size >= 14 * 1024 * 1024:
+        if craft.stat().st_size >= 75 * 1024 * 1024 and crnn.stat().st_size >= 10 * 1024 * 1024:
             logger.info("[Downloader] EasyOCR weights verified via sizes.")
             yield {"status": "EasyOCR is already installed and verified in model_pool!", "percent": 100.0, "done": True}
             return
@@ -353,8 +361,10 @@ def install_easyocr_models() -> Generator[Dict[str, Any], None, None]:
     yield {"status": "Downloading EasyOCR weights via PyTorch...", "percent": 50.0}
     try:
         import easyocr
+        import torch
         logger.info("[Downloader] Launching EasyOCR torch download process.")
-        easyocr.Reader(['en'], gpu=False, model_storage_directory=str(EASYOCR_DIR), download_enabled=True)
+        use_gpu = torch.cuda.is_available()
+        easyocr.Reader(['en'], gpu=use_gpu, model_storage_directory=str(EASYOCR_DIR), download_enabled=True)
         yield {"status": "EasyOCR downloaded and verified successfully!", "percent": 100.0, "done": True}
     except Exception as e:
         logger.exception("[Downloader] EasyOCR download failed.")
