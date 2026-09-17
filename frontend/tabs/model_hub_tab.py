@@ -19,18 +19,14 @@ def is_mid_installed(mid: str, installed_set: set) -> bool:
 
 @st.cache_data(ttl=3600)
 def check_nvidia_gpu() -> bool:
-    try:
-        import subprocess
-        result = subprocess.run(["nvidia-smi"], capture_output=True, text=True)
-        return result.returncode == 0
-    except (FileNotFoundError, Exception):
-        return False
+    import shutil
+    return shutil.which("nvidia-smi") is not None
 
 @st.cache_data(ttl=3600)
 def is_pytorch_installed() -> bool:
     try:
-        import torch
-        return True
+        import importlib.util
+        return importlib.util.find_spec("torch") is not None
     except ImportError:
         return False
 
