@@ -71,9 +71,11 @@ def extract_ocr_from_image(image_path: Path) -> str:
     """
     try:
         import easyocr
+        import torch
         from config.settings import EASYOCR_DIR
-        # Run CPU OCR
-        reader = easyocr.Reader(['en'], gpu=False, model_storage_directory=str(EASYOCR_DIR), verbose=False)
+        # Run OCR (with GPU if available)
+        use_gpu = torch.cuda.is_available()
+        reader = easyocr.Reader(['en'], gpu=use_gpu, model_storage_directory=str(EASYOCR_DIR), verbose=False)
         results = reader.readtext(str(image_path), detail=0)
         return " ".join(results).strip()
     except Exception as e:

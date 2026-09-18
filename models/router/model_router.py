@@ -24,46 +24,110 @@ from config.settings import MODEL_REGISTRY, OLLAMA_MODELS_DIR, OLLAMA_HOST, logg
 sys.stdout.reconfigure(encoding='utf-8')
 sys.stderr.reconfigure(encoding='utf-8')
 
-# Heuristic keywords for fast task classification
-CODING_KEYWORDS = [
-    "python", "script", "code", "sql", "modbus", "scada", "crc", "parser",
-    "function", "bug", "algorithm", "database", "query", "syntax", "program",
-    "write code", "implement", "calculate in python", "python script", "def "
-]
-REASONING_KEYWORDS = [
-    "asme", "api 510", "api 570", "t_min", "thickness", "corrosion", "approval note",
-    "nfa", "cvc", "dop", "compliance", "calculate", "prove", "justification", "mawp"
-]
-VISION_KEYWORDS = [
-    "p&id", "drawing", "schematic", "isometric", "blueprint", "diagram",
-    "tag", "valve", "instrument bubble", "ocr", "scan", "image"
-]
-
-
 class SovereignModelRouter:
     def __init__(self, registry: Optional[Dict[str, str]] = None):
         self.registry = registry or MODEL_REGISTRY
+
+    def _llm_classify(self, prompt: str) -> str:
+        """Uses a lightweight LLM to semantically classify the prompt intent."""
+        router_model = "qwen2.5:0.5b"
+        
+        # Check if the routing model is installed
+        try:
+            from models.model_downloader import is_model_installed, pull_ollama_model_stream
+            if not is_model_installed(router_model):
+                logger.warning(f"[Router] Mandatory semantic router '{router_model}' missing. Auto-downloading...")
+                for update in pull_ollama_model_stream(router_model):
+                    if update.get("status") == "error":
+                        logger.error(f"[Router] Failed to auto-download router model: {update.get('error')}. Falling back to general.")
+                        return "general"
+                logger.info(f"[Router] Successfully auto-downloaded mandatory router '{router_model}'.")
+        except Exception as e:
+            logger.error(f"[Router] Exception during auto-download check: {e}. Falling back to general.")
+            return "general"
+
+        system_prompt = (
+            "You are a routing agent for an industrial AI workbench. "
+            "Analyze the user's prompt and classify the intent into exactly one of the following four categories:\n"
+            "- 'coding': For Python scripts, software automation, SQL, or parsing logic.\n"
+            "- 'reasoning': For engineering calculations, ASME/API compliance, regulatory audits, or approvals.\n"
+            "- 'vision': For processing images, P&ID diagrams, schematics, or OCR.\n"
+            "- 'general': For general conversation, summaries, or questions.\n\n"
+            "Reply ONLY with the exact single word of the category. Do not include any other text or punctuation."
+        )
+
+        try:
+            client = ollama.Client(host=OLLAMA_HOST)
+            response = client.generate(
+                model=router_model,
+                prompt=prompt,
+                system=system_prompt,
+                options={
+                    "temperature": 0.0,
+                    "num_predict": 5, # We only need 1 word
+                }
+            )
+            
+            result = response.get("response", "").strip().lower()
+            # Clean any stray punctuation
+            result = re.sub(r'[^a-z]', '', result)
+            
+            valid_categories = {"coding", "reasoning", "vision", "general"}
+            if result in valid_categories:
+                return result
+            else:
+                logger.warning(f"[Router] LLM returned invalid category '{result}', falling back to general.")
+                return "general"
+                
+        except Exception as e:
+            logger.error(f"[Router] Semantic classification failed: {e}")
+            return "general"
+
+    def _heuristic_classify(self, prompt: str) -> Optional[str]:
+        """Sub-millisecond keyword & regex pre-classifier for instantaneous routing."""
+        p = prompt.lower()
+
+        # Coding patterns
+        coding_patterns = [
+            r"\b(python|code|script|def |class |import |function|parser|crc|modbus|sql|json|regex|algorithm)\b",
+            r"\b(write a (python|script|program|parser|function|code))\b",
+            r"\b(develop|implement|debug|refactor)\b",
+        ]
+        if any(re.search(pat, p) for pat in coding_patterns):
+            return "coding"
+
+        # Reasoning & Statutory Compliance patterns
+        reasoning_patterns = [
+            r"\b(asme|ug-?27|api\s*510|mawp|cvc|dop|statutory|breach|allowable\s*stress|t_min|t_req|thickness\s*breach|corrosion\s*rate|procurement|single[\s-]source)\b",
+            r"\b(compliance|integrity|evaluation|approval\s*note|nfa|derated|remaining\s*life)\b",
+        ]
+        if any(re.search(pat, p) for pat in reasoning_patterns):
+            return "reasoning"
+
+        # Vision patterns
+        vision_patterns = [
+            r"\b(blueprint|drawing|p&id|diagram|schematic|isometric|ocr|scan|bubble|nozzle\s*tag)\b",
+        ]
+        if any(re.search(pat, p) for pat in vision_patterns):
+            return "vision"
+
+        # Summary patterns
+        summary_patterns = [
+            r"\b(summarize|summary|overview|bullet\s*points|safety\s*steps|brief|recap)\b",
+        ]
+        if any(re.search(pat, p) for pat in summary_patterns):
+            return "general"
+
+        return None
 
     def classify_task(self, prompt: str, has_image: bool = False) -> str:
         """Classifies the task category based on input prompt and modality."""
         if has_image:
             return "vision"
-
-        prompt_lower = prompt.lower()
-
-        # Check for coding keywords (e.g. python, script, code, function)
-        if any(kw in prompt_lower for kw in CODING_KEYWORDS):
-            return "coding"
-
-        # Check for reasoning / regulatory keywords
-        if any(kw in prompt_lower for kw in REASONING_KEYWORDS):
-            return "reasoning"
-
-        # Check for vision/drawing text prompts
-        if any(kw in prompt_lower for kw in VISION_KEYWORDS):
-            return "vision"
-
-        return "general"
+            
+        # 1. Primary: AI Semantic Classifier (qwen2.5:0.5b)
+        # Trust the LLM's judgement entirely over brittle keyword matching.
+        return self._llm_classify(prompt)
 
     def get_model(self, task_type: str) -> str:
         preferred = self.registry.get(task_type, self.registry["general"])
@@ -114,6 +178,8 @@ class SovereignModelRouter:
             response = client.chat(
                 model=target_model,
                 messages=messages,
+                options={"temperature": 0.3},
+                keep_alive="30m",
             )
             raw_content = response["message"]["content"]
             logger.info(f"[Router] Successfully received response from '{target_model}'")
