@@ -48,7 +48,8 @@ class SovereignModelRouter:
 
         system_prompt = (
             "You are a routing agent for an industrial AI workbench. "
-            "Analyze the user's prompt and classify the intent into exactly one of the following four categories:\n"
+            "Analyze the user's prompt and classify the intent into exactly one of the following five categories:\n"
+            "- 'greeting': If the user is just saying hi, hello, thanks, or making casual small talk.\n"
             "- 'coding': For Python scripts, software automation, SQL, or parsing logic.\n"
             "- 'reasoning': For engineering calculations, ASME/API compliance, regulatory audits, or approvals.\n"
             "- 'vision': For processing images, P&ID diagrams, schematics, or OCR.\n"
@@ -65,14 +66,15 @@ class SovereignModelRouter:
                 options={
                     "temperature": 0.0,
                     "num_predict": 5, # We only need 1 word
-                }
+                },
+                keep_alive="-1" # VRAM Pinning: Keep ultra-light decision maker in memory forever
             )
             
             result = response.get("response", "").strip().lower()
             # Clean any stray punctuation
             result = re.sub(r'[^a-z]', '', result)
             
-            valid_categories = {"coding", "reasoning", "vision", "general"}
+            valid_categories = {"greeting", "coding", "reasoning", "vision", "general"}
             if result in valid_categories:
                 return result
             else:
@@ -83,50 +85,13 @@ class SovereignModelRouter:
             logger.error(f"[Router] Semantic classification failed: {e}")
             return "general"
 
-    def _heuristic_classify(self, prompt: str) -> Optional[str]:
-        """Sub-millisecond keyword & regex pre-classifier for instantaneous routing."""
-        p = prompt.lower()
-
-        # Coding patterns
-        coding_patterns = [
-            r"\b(python|code|script|def |class |import |function|parser|crc|modbus|sql|json|regex|algorithm)\b",
-            r"\b(write a (python|script|program|parser|function|code))\b",
-            r"\b(develop|implement|debug|refactor)\b",
-        ]
-        if any(re.search(pat, p) for pat in coding_patterns):
-            return "coding"
-
-        # Reasoning & Statutory Compliance patterns
-        reasoning_patterns = [
-            r"\b(asme|ug-?27|api\s*510|mawp|cvc|dop|statutory|breach|allowable\s*stress|t_min|t_req|thickness\s*breach|corrosion\s*rate|procurement|single[\s-]source)\b",
-            r"\b(compliance|integrity|evaluation|approval\s*note|nfa|derated|remaining\s*life)\b",
-        ]
-        if any(re.search(pat, p) for pat in reasoning_patterns):
-            return "reasoning"
-
-        # Vision patterns
-        vision_patterns = [
-            r"\b(blueprint|drawing|p&id|diagram|schematic|isometric|ocr|scan|bubble|nozzle\s*tag)\b",
-        ]
-        if any(re.search(pat, p) for pat in vision_patterns):
-            return "vision"
-
-        # Summary patterns
-        summary_patterns = [
-            r"\b(summarize|summary|overview|bullet\s*points|safety\s*steps|brief|recap)\b",
-        ]
-        if any(re.search(pat, p) for pat in summary_patterns):
-            return "general"
-
-        return None
-
     def classify_task(self, prompt: str, has_image: bool = False) -> str:
         """Classifies the task category based on input prompt and modality."""
         if has_image:
             return "vision"
             
-        # 1. Primary: AI Semantic Classifier (qwen2.5:0.5b)
-        # Trust the LLM's judgement entirely over brittle keyword matching.
+        # Primary: AI Semantic Classifier (qwen2.5:0.5b)
+        # 100% LLM Intent routing (No brittle heuristics used).
         return self._llm_classify(prompt)
 
     def get_model(self, task_type: str) -> str:
@@ -151,18 +116,43 @@ class SovereignModelRouter:
         image_path: Optional[str] = None,
         override_model: Optional[str] = None,
         history: Optional[List[Dict[str, str]]] = None,
+        pin_router: bool = True,
     ) -> Dict[str, Any]:
         """
         Routes the prompt to the appropriate model and executes inference locally with session chat history.
         Extracts internal thinking/reasoning (<think> tags) and constructs a transparent step trace.
         """
         task_type = self.classify_task(prompt, has_image=bool(image_path))
-        preferred_model = self.registry.get(task_type, self.registry["general"])
-        target_model = override_model or self.get_model(task_type)
+        
+        # Ultra-Light Decision Maker Short-Circuit:
+        # If it's just a greeting, use the already-pinned routing model to reply instantly (0 VRAM thrashing)
+        if task_type == "greeting":
+            preferred_model = "qwen2.5:0.5b"
+            target_model = "qwen2.5:0.5b"
+        else:
+            preferred_model = self.registry.get(task_type, self.registry["general"])
+            target_model = override_model or self.get_model(task_type)
 
         logger.info(f"[Router] Category: '{task_type.upper()}' -> Assigned Model: '{target_model}' (History turns: {len(history) if history else 0})")
 
-        messages: List[Dict[str, Any]] = []
+        system_prompt = """You are AegisForge-AI, an elite, 100% air-gapped, sovereign industrial engineering assistant.
+You act as the primary interface for a highly advanced multi-agent system managing critical mechanical engineering tasks, including ASME pressure vessel calculations, CVC guidelines, and Statutory Procurement Compliance.
+
+ROLE & IDENTITY:
+- You are a senior Mechanical/Process Engineer and a highly secure AI orchestrator.
+- You operate entirely on the user's local hardware to guarantee data sovereignty (zero external network calls).
+- You are the conversational front-end. You assist with queries, analysis, and coding, but hand off formal deliverables to the backend agents.
+
+KEY RULES & BEHAVIORS:
+1. DOCUMENT & AUDIT GENERATION (CRITICAL): If the user asks to generate a document, report, Word (.docx) file, or PDF note (e.g., 'Generate Word note for vessel 11-V-102'), DO NOT WRITE SCRIPTING CODE (Python, C#, etc.) to generate the file yourself. Instead, politely state: "I am ready to generate the official document. Please click the **📄 Execute LangGraph Official Audit** button below to trigger the secure multi-agent Publisher pipeline."
+2. ENGINEERING PRECISION: When discussing ASME Section VIII, API 510, or CVC guidelines, provide exact formulas, realistic industrial parameters, and precise logic.
+3. CODE EXECUTION: If the user explicitly asks for code (e.g., Python scripts for stress analysis), write the code and remind them they can run it securely using the 'Execute in Sandbox' button below.
+4. TONE: Be concise, authoritative, and direct. Avoid conversational filler. Use markdown tables and bullet points for complex data."""
+
+        messages: List[Dict[str, Any]] = [{
+            "role": "system", 
+            "content": system_prompt
+        }]
         if history:
             for turn in history[-8:]:
                 if turn.get("role") in ("user", "assistant") and turn.get("content"):
@@ -173,13 +163,39 @@ class SovereignModelRouter:
             user_turn["images"] = [image_path]
         messages.append(user_turn)
 
+        # ─── VRAM Inspection Logging ───
+        import requests
+        is_cold = True
         try:
+            # We check the local Ollama API to see if the target model is already pinned
+            resp = requests.get('http://127.0.0.1:11434/api/ps', timeout=1)
+            if resp.status_code == 200:
+                loaded = [m.get('name') for m in resp.json().get('models', [])]
+                if target_model in loaded:
+                    is_cold = False
+        except Exception:
+            pass
+
+        if is_cold:
+            logger.info(f"[VRAM] Model '{target_model}' is COLD. Instructing Ollama engine to load weights into memory...")
+        else:
+            logger.info(f"[VRAM] Model '{target_model}' is HOT (Already pinned in memory). Skipping disk I/O.")
+        # ───────────────────────────────
+
+        try:
+            # ONLY pin the ultra-light decision maker permanently if the UI toggle is ON. 
+            # Other heavy models get a 5-minute timeout so they release automatically.
+            if target_model == "qwen2.5:0.5b" and pin_router:
+                ka_duration = -1  # Integer -1 for infinity
+            else:
+                ka_duration = "5m"
+            
             client = ollama.Client(host=OLLAMA_HOST)
             response = client.chat(
                 model=target_model,
                 messages=messages,
                 options={"temperature": 0.3},
-                keep_alive="30m",
+                keep_alive=ka_duration,
             )
             raw_content = response["message"]["content"]
             logger.info(f"[Router] Successfully received response from '{target_model}'")
@@ -199,6 +215,12 @@ class SovereignModelRouter:
                 steps.append(f"Auto-fallback: target model `{preferred_model}` not in local pool; routed to available sovereign model **{target_model}**")
             else:
                 steps.append(f"Selected sovereign model: **{target_model}** (100% on-premise air-gapped)")
+            
+            if is_cold:
+                steps.append(f"VRAM Status: **COLD START** — Loading `{target_model}` from disk to memory.")
+            else:
+                steps.append(f"VRAM Status: **HOT START** — `{target_model}` already pinned in memory.")
+                
             steps.append(f"Session context: preserved {len(messages) - 1} prior conversation turn(s)")
             steps.append(f"Dispatched via local socket `{OLLAMA_HOST}`")
 

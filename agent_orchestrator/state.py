@@ -23,7 +23,7 @@ class MultiAgentSystemState(TypedDict, total=False):
     completed_tasks: List[Dict[str, Any]]
     retry_count: int
     human_feedback: Optional[str]
-    next_node: str
+    next_node: Any  # Can be str or List[str] for parallel fan-out
 
     execution_mode: str  # "LOCAL_OLLAMA_AIR_GAPPED"
     inspection_data: Optional[Dict[str, Any]]
@@ -35,6 +35,10 @@ class MultiAgentSystemState(TypedDict, total=False):
     deliverable_payload: Optional[Dict[str, Any]]
     pipeline_status: str
     audit_trail_events: List[str]
+    
+    # Asynchronous RAG prefetch
+    rag_prefetch_context: Optional[str]
+    rag_prefetched: bool
 
 
 def create_initial_state(
@@ -64,4 +68,6 @@ def create_initial_state(
         "deliverable_payload": None,
         "pipeline_status": "INITIALIZED",
         "audit_trail_events": [],
+        "rag_prefetch_context": None,
+        "rag_prefetched": False,
     }

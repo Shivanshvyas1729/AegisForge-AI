@@ -38,9 +38,13 @@ flowchart TD
     classDef worker fill:#e17055,stroke:#ffeaa7,stroke-width:2px,color:#fff;
     classDef sandbox fill:#e84393,stroke:#fd79a8,stroke-width:2px,color:#fff;
     classDef gate fill:#fdcb6e,stroke:#ffeaa7,stroke-width:2px,color:#2d3436;
+    classDef database fill:#0984e3,stroke:#74b9ff,stroke-width:2px,color:#fff;
     
     %% Inputs
     User(["User / Operator Query & Uploaded Files"]):::user
+    
+    %% Database Layer
+    QdrantDB[("database/qdrant_manager.py<br/>Embedded Qdrant DB<br/>(Multimodal RAG)")]:::database
     
     %% Layer 1: Front Controller (Streamlit / CLI)
     FrontEnd{"Streamlit UI Tabs<br/>(No AI Model - User Driven)"}:::gate
@@ -54,6 +58,9 @@ flowchart TD
     ModelRouter -- "'reasoning'" --> DeepSeekRouter["DeepSeek-R1:1.5b<br/>Engineering Q&A"]:::llm
     ModelRouter -- "'general'" --> LlamaRouter["Llama-3.2:3b<br/>Summaries"]:::llm
     
+    DeepSeekRouter -.->|tools/rag.py| QdrantDB
+    LlamaRouter -.->|tools/rag.py| QdrantDB
+    
     QwenCoder --> InstantReply(["Instant Chat Response"])
     Moondream --> InstantReply
     DeepSeekRouter --> InstantReply
@@ -63,6 +70,8 @@ flowchart TD
     FrontEnd -- "Official Audit / NFA Request" --> SupervisorAgent["Stage 1: supervisor_agent.py<br/>DeepSeek-R1:1.5b Mission Planner"]:::langgraph
     
     SupervisorAgent --> VisionAgent["Stage 2A: vision_agent.py<br/>Multimodal Extractor (PyMuPDF, EasyOCR)"]:::worker
+    SupervisorAgent -. "Parallel Fan-Out" .-> RAGPrefetch["Stage 2A-Parallel: rag_prefetch_agent.py<br/>Async Knowledge Retrieval"]:::worker
+    RAGPrefetch -.->|tools/rag.py| QdrantDB
     
     VisionAgent --> RoutingGuard{"tools/routing_guard.py<br/>Physical Anomaly Check"}:::gate
     
@@ -74,6 +83,7 @@ flowchart TD
     
     CoderAgent --> Sandbox["tools/sandbox.py<br/>Isolated Subprocess + UG-27 Code"]:::sandbox
     Sandbox --> ReasoningAgent["Stage 2C: reasoning_agent.py<br/>CVC/DoP Auditor"]:::worker
+    RAGPrefetch -- "Prefetched Context" --> ReasoningAgent
     
     ReasoningAgent --> ReviewerAgent["Stage 3: general_agent.py<br/>Llama-3.2:3b Chief Gatekeeper"]:::worker
     
@@ -104,6 +114,7 @@ AegisForge-AI coordinates a sovereign **4-stage multi-agent pipeline** built on 
 | **Fraudulent PAC Detection** | PAC certificates cited in procurement claims are checked against verified local registries. | Unverified or missing PACs trigger `NON_COMPLIANT_CVC_VIOLATION` and flag the document. |
 | **Human-in-the-Loop Fallback** | The Supervisor evaluates agent outputs. If an LLM hallucination or crash occurs, it retries 3 times before routing to `GATE_WAITING_HUMAN`. | Infinite loops and silent failures are mathematically prevented. Pipeline halts securely. |
 | **Cryptographic Audit Ledger** | Every tool execution and human override is hash-chained via $\text{SHA256}(\text{prev\_hash} + \text{canonical\_payload})$. | Any tampering, deletion, or modification is flagged with exact entry index identification. |
+| **Asynchronous RAG Prefetch** | LangGraph Fan-out/Fan-in executes Knowledge Retrieval in parallel with Vision/Math processing, eliminating sequential block times. | Reasoning agent reads context directly from memory instantly instead of waiting for search. |
 
 ### 3. 🔢 Deterministic Engineering Math (ASME Section VIII Div 1 UG-27)
 Wall thickness calculations follow the **ASME Boiler and Pressure Vessel Code (BPVC)** Section VIII Div 1 (UG-27) standard:
@@ -129,6 +140,9 @@ The `tools/sandbox.py` module provides a hardened, air-gapped computational exec
 
 ### 7. 🌐 Passive Air-Gap Network Telemetry Auditor
 The `tools/network_verifier.py` proves the sovereign air-gap claim through **passive inspection of active network sockets** — without transmitting any outbound packets.
+
+### 8. 📚 Sovereign Multimodal RAG & Vector Database
+The `database/qdrant_manager.py` implements a 100% locally embedded Qdrant vector database. Using `fastembed` (Qdrant/clip-ViT-B-32), it aligns text and industrial images (P&ID diagrams, schematics) into a single 512-dimensional vector space. `tools/rag.py` enables agents to perform context-aware semantic retrieval of ASME codes, CVC circulars, and visual assets instantaneously, completely air-gapped.
 
 ---
 
@@ -198,6 +212,9 @@ AegisForge-AI/
 ├── frontend/
 │   └── app.py                         # Streamlit Web Dashboard (3 tabs)
 │
+├── database/                          # Air-Gapped Local Vector Database Layer
+│   └── qdrant_manager.py              # Embedded Qdrant & Multimodal fastembed engine
+│
 ├── agent_orchestrator/                # LangGraph Hub-and-Spoke Multi-Agent System
 │   ├── base_agent.py                  # Ollama interface with timeout & fail-fast
 │   ├── multi_agent_graph.py           # Compiled StateGraph with conditional edges
@@ -245,6 +262,32 @@ AegisForge-AI/
   - **API 581**: Risk-Based Inspection
   - **CVC Circular No. 02/02/2004**: Guidelines on Tendering & Single-Source Procurement in PSUs.
   - **IOCL Delegation of Powers (DoP) Clause 4.2**: Emergency Procurement Authorities.
+
+---
+
+## Strategic Industry Alignment (What's Implemented vs. Pending)
+
+As AegisForge-AI scales for deployment in high-security environments like **Defense PSUs (DRDO, HAL)** and **Asset-Intensive Refineries (IOCL, ONGC)**, we have strategically mapped our engineering efforts to their most critical pain points.
+
+### ✅ Currently Implemented (What We Have Done)
+
+1. **Overcoming "Institutional Inertia" & Procurement Bureaucracy:** 
+   In Indian PSUs, emergency procurement is delayed by months because officials fear Central Vigilance Commission (CVC) inquiries. We implemented a **Compliance Auditor Agent** that not only detects structural breaches but autonomously drafts legally sound Delegation of Powers (DoP Clause 4.2) justifications, accelerating the procurement cycle while protecting human officials.
+2. **"Air-Gap Pathway" Security & Deterministic Execution:** 
+   Defense PSUs cannot risk AI hallucinations or data leaks. We built a 100% local Ollama pipeline with an **Isolated Python Sandbox**. The LLM never guesses math; it writes pure Python ASME UG-27 scripts that are executed deterministically. Network telemetry confirms zero outbound packets.
+3. **Asynchronous Parallel Orchestration:** 
+   To maximize speed on local hardware, we refactored the LangGraph state machine. The RAG knowledge retrieval (fetching CVC rules) now runs in the background in parallel with the Vision/Math calculations, eliminating sequential blocking.
+
+### 🚧 Future Roadmap (What is Pending)
+
+1. **The Omni-Agent "Single Pane of Glass" Chat Interface**
+   Currently, operators run the pipeline via CLI or navigate between separate UI tabs. The pending upgrade will unify the Streamlit UI into a single chat window. A semantic router will autonomously detect if the user needs a quick chat or a heavyweight LangGraph audit, triggering the agents silently and streaming the logs directly into the chat bubble.
+2. **Solving "Dark Data" Silos in Refineries**
+   Refineries suffer from disconnected OT (SCADA sensors) and IT (PDF reports). A future upgrade to the Multimodal RAG agent will allow it to ingest massive archives of legacy handwritten logs and P&ID diagrams into our Qdrant vector space, breaking down enterprise silos.
+3. **Advanced "Payload" Air-Gap Security**
+   While the *network pathway* is currently secure, defense contractors also worry about the *payload* (adversarial AI model weights). Future updates will cryptographically hash all incoming model tensors and enforce a much stricter AST-allowlist for the sandbox to prevent adversarial code injection.
+4. **Hands-Free Voice Integration (Offline Whisper)**
+   Field inspectors wear thick gloves and operate in noisy environments. We plan to integrate an offline Whisper voice-to-text model, allowing engineers to dictate thickness measurements and visual anomalies straight into a ruggedized tablet.
 
 ---
 

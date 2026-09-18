@@ -69,13 +69,19 @@ def reasoning_agent_node(state: MultiAgentSystemState) -> MultiAgentSystemState:
             compliance_results = {"error": str(e)}
             logger.error(f"[ReasoningAgent] Deterministic execution failed: {e}")
 
-    # 2. RAG Context Gathering
-    rag_context = ""
-    try:
-        if rag_tool:
-            rag_context = rag_tool.invoke("CVC Circular 02/02/2004 compliance")
-    except Exception as e:
-        logger.warning(f"RAG failed in ReasoningAgent: {e}")
+    # 2. RAG Context Gathering (Optimized via Asynchronous Prefetch)
+    rag_context = state.get("rag_prefetch_context")
+    
+    if not rag_context:
+        logger.info("[ReasoningAgent] Prefetch missing, falling back to synchronous RAG search...")
+        try:
+            if rag_tool:
+                rag_context = rag_tool.invoke("CVC Circular 02/02/2004 compliance")
+        except Exception as e:
+            logger.warning(f"RAG failed in ReasoningAgent: {e}")
+            rag_context = ""
+    else:
+        logger.info("[ReasoningAgent] Successfully loaded pre-fetched asynchronous RAG context.")
 
     # 3. LLM Summarization Phase
     prompt = (

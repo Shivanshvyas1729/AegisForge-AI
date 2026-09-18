@@ -9,7 +9,7 @@ Final Step -> Publisher Agent.
 
 import sys
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union, List
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -24,6 +24,7 @@ from agent_orchestrator.vision_agent import vision_agent_node
 from agent_orchestrator.coder_agent import coder_agent_node
 from agent_orchestrator.reasoning_agent import reasoning_agent_node
 from agent_orchestrator.general_agent import general_agent_node
+from agent_orchestrator.rag_prefetch_agent import rag_prefetch_node
 from agent_orchestrator.publisher_agent import publisher_agent_node
 
 from tools.routing_guard import execute_human_override
@@ -68,7 +69,11 @@ def halt_pipeline_node(state: MultiAgentSystemState) -> MultiAgentSystemState:
     return state
 
 
-def route_from_supervisor(state: MultiAgentSystemState) -> str:
+def join_node(state: MultiAgentSystemState) -> MultiAgentSystemState:
+    """Fan-in synchronization node. Waits for parallel branches to complete."""
+    return state
+
+def route_from_supervisor(state: MultiAgentSystemState) -> Union[str, List[str]]:
     """Dynamic routing based on next_node set by supervisor."""
     return state.get("next_node", "halt_node")
 
@@ -87,6 +92,8 @@ def build_multi_agent_graph() -> StateGraph:
     builder.add_node("coder_agent", coder_agent_node)
     builder.add_node("reasoning_agent", reasoning_agent_node)
     builder.add_node("general_agent", general_agent_node)
+    builder.add_node("rag_prefetch_node", rag_prefetch_node)
+    builder.add_node("join_node", join_node)
     builder.add_node("human_approval_gate", human_approval_gate_node)
     builder.add_node("publisher_agent", publisher_agent_node)
     builder.add_node("halt_node", halt_pipeline_node)
@@ -103,17 +110,20 @@ def build_multi_agent_graph() -> StateGraph:
             "coder_agent": "coder_agent",
             "reasoning_agent": "reasoning_agent",
             "general_agent": "general_agent",
+            "rag_prefetch_node": "rag_prefetch_node",
             "human_approval_gate": "human_approval_gate",
             "publisher_agent": "publisher_agent",
             "halt_node": "halt_node",
         }
     )
 
-    # Agents loop back to supervisor
-    builder.add_edge("vision_agent", "supervisor")
-    builder.add_edge("coder_agent", "supervisor")
-    builder.add_edge("reasoning_agent", "supervisor")
-    builder.add_edge("general_agent", "supervisor")
+    # Agents loop back to supervisor via join_node for synchronization
+    builder.add_edge("vision_agent", "join_node")
+    builder.add_edge("coder_agent", "join_node")
+    builder.add_edge("reasoning_agent", "join_node")
+    builder.add_edge("general_agent", "join_node")
+    builder.add_edge("rag_prefetch_node", "join_node")
+    builder.add_edge("join_node", "supervisor")
 
     # Human Gate conditional routing
     builder.add_conditional_edges(

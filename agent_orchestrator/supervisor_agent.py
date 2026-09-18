@@ -89,7 +89,11 @@ def supervisor_node(state: MultiAgentSystemState) -> MultiAgentSystemState:
     # 3. Plan Initial Tasks if Queue is Empty
     if not task_queue and not current_task:
         logger.info("[Supervisor] Planning new dynamic task queue.")
-        # Hardcode initial safe extraction if file exists
+        
+        u_lower = user_query.lower()
+        is_engineering = any(k in u_lower for k in ["asme", "vessel", "cvc", "thickness", "breach", "audit", "compliance", "inspection", "api", "procurement", "integrity"])
+        
+        # 1. Vision extraction if file is attached
         if file_path:
             task_queue.append({
                 "task_name": "Extract Physical Parameters",
@@ -98,20 +102,29 @@ def supervisor_node(state: MultiAgentSystemState) -> MultiAgentSystemState:
                 "output": None
             })
             
-        task_queue.append({
-            "task_name": "Mathematical Integrity Validation",
-            "assigned_agent": "coder_agent",
-            "instructions": "Run ASME UG-27 integrity calculations.",
-            "output": None
-        })
-        
-        task_queue.append({
-            "task_name": "Statutory Procurement Compliance",
-            "assigned_agent": "reasoning_agent",
-            "instructions": "Audit CVC Circular 02/02/2004 emergency procurement limits.",
-            "output": None
-        })
-        
+        # 2. Domain-Specific Routing
+        if is_engineering:
+            task_queue.append({
+                "task_name": "Mathematical Integrity Validation",
+                "assigned_agent": "coder_agent",
+                "instructions": "Run ASME UG-27 integrity calculations.",
+                "output": None
+            })
+            task_queue.append({
+                "task_name": "Statutory Procurement Compliance",
+                "assigned_agent": "reasoning_agent",
+                "instructions": "Audit CVC Circular 02/02/2004 emergency procurement limits.",
+                "output": None
+            })
+        else:
+            task_queue.append({
+                "task_name": "Fulfill User Request",
+                "assigned_agent": "general_agent",
+                "instructions": f"Fulfill the following request: {user_query}",
+                "output": None
+            })
+            
+        # 3. Final Gatekeeping
         task_queue.append({
             "task_name": "Final Gatekeeping Review",
             "assigned_agent": "general_agent",
@@ -125,8 +138,16 @@ def supervisor_node(state: MultiAgentSystemState) -> MultiAgentSystemState:
         next_t = task_queue.pop(0)
         state["current_task"] = next_t
         state["task_queue"] = task_queue
-        state["next_node"] = next_t.get("assigned_agent")
-        logger.info(f"[Supervisor] Dispatching task: {next_t.get('task_name')} to {state['next_node']}")
+        
+        # Parallel Fan-Out: Run RAG Prefetch alongside the first task
+        if not state.get("rag_prefetched"):
+            state["rag_prefetched"] = True
+            state["next_node"] = [next_t.get("assigned_agent"), "rag_prefetch_node"]
+            logger.info(f"[Supervisor] Dispatching parallel tasks: {next_t.get('task_name')} and RAG Prefetch")
+        else:
+            state["next_node"] = next_t.get("assigned_agent")
+            logger.info(f"[Supervisor] Dispatching task: {next_t.get('task_name')} to {state['next_node']}")
+            
         return state
         
     # 5. All Tasks Done

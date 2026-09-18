@@ -50,8 +50,10 @@ def vision_agent_node(state: MultiAgentSystemState) -> MultiAgentSystemState:
         
     if feedback:
         output += f"\nHuman Feedback Addressed: {feedback}"
-
+        
     current_task["output"] = output
-    state["current_task"] = current_task
-    state["next_node"] = "supervisor"
-    return state
+    return {
+        "current_task": current_task,
+        "next_node": "supervisor",
+        "inspection_data": res if file_path and 'res' in locals() else None
+    }

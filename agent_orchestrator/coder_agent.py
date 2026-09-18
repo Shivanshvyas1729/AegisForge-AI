@@ -109,6 +109,10 @@ def coder_agent_node(state: MultiAgentSystemState) -> MultiAgentSystemState:
         output = f"Error calling LLM: {e}"
         
     current_task["output"] = output
-    state["current_task"] = current_task
-    state["next_node"] = "supervisor"
-    return state
+    current_task["output"] = output
+    
+    return {
+        "current_task": current_task,
+        "next_node": "supervisor",
+        "calculation_data": calc_results
+    }

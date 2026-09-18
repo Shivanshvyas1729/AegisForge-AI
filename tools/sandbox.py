@@ -3,7 +3,10 @@ import os
 import sys
 import time
 import shutil
-import resource
+try:
+    import resource
+except ImportError:
+    resource = None
 import psutil
 import tempfile
 import threading

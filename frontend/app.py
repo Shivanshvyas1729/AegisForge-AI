@@ -109,6 +109,90 @@ with st.sidebar:
     # Installed Models Count
     installed_count = sum(1 for mid in MODEL_METADATA if is_mid_installed(mid, installed_set))
     st.metric("Models Ready", f"{installed_count} / {len(MODEL_METADATA)}")
+    
+    st.divider()
+    
+    # ─────────────────────────────────────────────────────────────────
+    # VRAM Memory Status (Live from Ollama /api/ps)
+    # ─────────────────────────────────────────────────────────────────
+    st.markdown('<p class="section-header">Live VRAM Status</p>', unsafe_allow_html=True)
+    
+    if "pin_router" not in st.session_state:
+        st.session_state.pin_router = True
+        
+    pin_router_toggle = st.toggle("⚡ Pin Ultra-Light Router (0ms Latency)", value=st.session_state.pin_router, help="Keeps qwen2.5:0.5b locked in VRAM permanently. If disabled, it unloads after 5 minutes.")
+    
+    # Pre-warm logic to immediately load it into VRAM so it shows up in the UI
+    if "router_prewarmed" not in st.session_state:
+        st.session_state.router_prewarmed = True
+        if st.session_state.pin_router and ollama_active:
+            import requests
+            try:
+                requests.post('http://127.0.0.1:11434/api/generate', json={"model": "qwen2.5:0.5b", "keep_alive": -1}, timeout=2)
+            except Exception:
+                pass
+    
+    if pin_router_toggle != st.session_state.pin_router:
+        st.session_state.pin_router = pin_router_toggle
+        if ollama_active:
+            import requests
+            try:
+                if not pin_router_toggle:
+                    # Flush from VRAM instantly
+                    requests.post('http://127.0.0.1:11434/api/generate', json={"model": "qwen2.5:0.5b", "keep_alive": 0}, timeout=1)
+                else:
+                    # Load into VRAM instantly
+                    requests.post('http://127.0.0.1:11434/api/generate', json={"model": "qwen2.5:0.5b", "keep_alive": -1}, timeout=2)
+            except Exception:
+                pass
+        st.rerun()
+    
+    @st.fragment(run_every=2)
+    def render_vram_status():
+        loaded_models = []
+        if ollama_active:
+            import requests
+            try:
+                resp = requests.get('http://127.0.0.1:11434/api/ps', timeout=1)
+                if resp.status_code == 200:
+                    loaded_models = resp.json().get('models', [])
+            except Exception:
+                pass
+                
+        if loaded_models:
+            for m in loaded_models:
+                m_name = m.get('name', 'unknown')
+                m_vram = m.get('size_vram', 0) / (1024 * 1024)
+                
+                # Determine if it's permanently pinned or temporarily cached
+                is_permanently_pinned = ("qwen2.5:0.5b" in m_name) and st.session_state.pin_router
+                
+                if is_permanently_pinned:
+                    status_label = "⚡ LOADED (PINNED FOREVER)"
+                    status_color = "#10b981"  # Green
+                    bg_color = "rgba(16, 185, 129, 0.1)"
+                    border_color = "rgba(16, 185, 129, 0.2)"
+                else:
+                    status_label = "⏳ CACHED (WILL UNLOAD IN 5m)"
+                    status_color = "#f59e0b"  # Amber/Orange
+                    bg_color = "rgba(245, 158, 11, 0.1)"
+                    border_color = "rgba(245, 158, 11, 0.2)"
+    
+                st.markdown(f"""
+                <div style="background-color: {bg_color}; border: 1px solid {border_color}; border-radius: 4px; padding: 8px; margin-bottom: 8px;">
+                    <div style="color: {status_color}; font-weight: 600; font-size: 0.85rem;">{status_label}</div>
+                    <div style="font-family: monospace; font-size: 0.9rem; margin-top: 2px;">{m_name}</div>
+                    <div style="color: #94a3b8; font-size: 0.75rem; margin-top: 2px;">VRAM Usage: {m_vram:.1f} MB</div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div style="background-color: rgba(148, 163, 184, 0.1); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 4px; padding: 8px;">
+                <div style="color: #94a3b8; font-size: 0.85rem;">❄️ VRAM Empty (Cold)</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    render_vram_status()
 
     st.divider()
     st.markdown("""
@@ -121,26 +205,34 @@ with st.sidebar:
 
 
 # ─────────────────────────────────────────────────────────────────
-# Main Content — 4 Tabs
+# Main Content — 2 Tabs (Strict End-User vs Developer Separation)
 # ─────────────────────────────────────────────────────────────────
-tab_workbench, tab_calculator, tab_models, tab_logs = st.tabs([
-    "💬  AI Workbench",
-    "🧮  ASME Calculator",
-    "📦  Model Hub",
-    "📋  System Logs",
+tab_user, tab_dev = st.tabs([
+    "💬 Sovereign Copilot (End-User)",
+    "⚙️ Developer Testing Console (Admin)",
 ])
 
-with tab_workbench:
+with tab_user:
     render_workbench_tab()
 
-with tab_calculator:
-    render_calculator_tab()
-
-with tab_models:
-    render_model_hub_tab(ollama_active, ollama_path, installed_set, clear_system_cache)
-
-with tab_logs:
-    render_logs_tab()
+with tab_dev:
+    st.markdown("### 🛠️ Developer Testing Console")
+    st.caption("End-to-End Unit Testing and Component Verification")
+    
+    dev_view = st.radio(
+        "Select Testing Environment:",
+        ["🧮 ASME Math Sandbox", "📦 Model Hub & Registry", "📋 System Logs (Routing Trace)"],
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    st.markdown("---")
+    
+    if dev_view == "🧮 ASME Math Sandbox":
+        render_calculator_tab()
+    elif dev_view == "📦 Model Hub & Registry":
+        render_model_hub_tab(ollama_active, ollama_path, installed_set, clear_system_cache)
+    elif dev_view == "📋 System Logs (Routing Trace)":
+        render_logs_tab()
 
 # ─────────────────────────────────────────────────────────────────
 # Footer
