@@ -16,6 +16,15 @@ class MultiAgentSystemState(TypedDict, total=False):
     user_query: str
     uploaded_file_path: Optional[str]
     mission_plan: List[str]
+    
+    # Hub-and-Spoke Dynamic Routing State
+    task_queue: List[Dict[str, Any]]
+    current_task: Optional[Dict[str, Any]]
+    completed_tasks: List[Dict[str, Any]]
+    retry_count: int
+    human_feedback: Optional[str]
+    next_node: str
+
     execution_mode: str  # "LOCAL_OLLAMA_AIR_GAPPED"
     inspection_data: Optional[Dict[str, Any]]
     requires_human_confirmation: bool
@@ -39,6 +48,12 @@ def create_initial_state(
         "user_query": user_query,
         "uploaded_file_path": uploaded_file_path,
         "mission_plan": [],
+        "task_queue": [],
+        "current_task": None,
+        "completed_tasks": [],
+        "retry_count": 0,
+        "human_feedback": None,
+        "next_node": "supervisor",
         "execution_mode": "LOCAL_OLLAMA_AIR_GAPPED",
         "inspection_data": None,
         "requires_human_confirmation": False,
