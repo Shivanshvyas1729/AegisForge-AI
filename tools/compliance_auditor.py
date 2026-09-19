@@ -1,0 +1,81 @@
+import sys
+import os
+
+# Ensure the root workspace is in the python path to allow absolute imports
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from typing import List, Callable
+from schemas.procurement import ProcurementRequest, AuditVerdict
+from tools.audit_trail import AuditLedger
+
+# ---------------------------------------------------------
+# Isolated Rule Functions (Scalable Pattern)
+# ---------------------------------------------------------
+
+def rule_check_single_source(request: ProcurementRequest) -> str | None:
+    """Ensures single-source procurements have valid statutory exceptions."""
+    if request.is_single_source:
+        if not request.has_pac and not request.is_emergency:
+            return "CRITICAL VIOLATION: Single-source procurement attempted without an Emergency justification or valid PAC."
+        if "cvc" not in request.applicable_cvc_clause.lower() and "exception" not in request.applicable_cvc_clause.lower():
+            return "CRITICAL VIOLATION: Invalid or missing CVC sanction clause provided by LLM for single-source procurement."
+    return None
+
+def rule_check_vendor_blacklist(request: ProcurementRequest) -> str | None:
+    """Ensures we do not do business with blacklisted entities."""
+    if request.vendor_is_blacklisted:
+        return "CRITICAL VIOLATION: Vendor is on the active CVC Blacklist."
+    return None
+
+# ---------------------------------------------------------
+# The Deterministic Rules Engine
+# ---------------------------------------------------------
+
+class ComplianceAuditor:
+    def __init__(self, use_audit_trail: bool = True):
+        # Register all active statutory rules here
+        self.rules: List[Callable[[ProcurementRequest], str | None]] = [
+            rule_check_single_source,
+            rule_check_vendor_blacklist
+        ]
+        
+        self.use_audit_trail = use_audit_trail
+        if self.use_audit_trail:
+            # Initialize the cryptographic ledger for financial compliance logging
+            self.ledger = AuditLedger()
+
+    def evaluate(self, request: ProcurementRequest) -> AuditVerdict:
+        violations = []
+        
+        # Execute all rules cleanly
+        for rule in self.rules:
+            violation = rule(request)
+            if violation:
+                violations.append(violation)
+             
+        is_compliant = len(violations) == 0
+        
+        verdict = AuditVerdict(
+            is_compliant=is_compliant,
+            competent_financial_authority=request.required_financial_authority if is_compliant else "NONE",
+            sanction_clause=request.applicable_cvc_clause if is_compliant else "NONE",
+            violations=violations
+        )
+        
+        # Cryptographically log the compliance decision
+        if self.use_audit_trail:
+            status = "APPROVED" if is_compliant else "BLOCKED_BY_COMPLIANCE"
+            self.ledger.append_event(
+                event_type="COMPLIANCE_CHECK",
+                workflow_id="PROCUREMENT_AUDIT",
+                tool_name="compliance_auditor",
+                caller="reasoning_agent",
+                agent_version="1.0.0",
+                tool_version="1.5.0",
+                inputs=request.model_dump(),
+                outputs=verdict.model_dump(),
+                status=status
+            )
+            
+        return verdict
+

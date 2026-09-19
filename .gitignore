@@ -68,7 +68,8 @@ coverage.xml
 Thumbs.db
 ehthumbs.db
 Desktop.ini
-
+.agents
+/data
 # ── Temporary & log files ──
 *.log
 *.tmp
