@@ -36,3 +36,5 @@ fastembed>=0.2.0
 
 # System Monitoring & Sandbox
 psutil>=5.9.0
+
+ipykernel
