@@ -40,3 +40,9 @@ psutil>=5.9.0
 ipykernel
 
 docxtpl
+
+pandas 
+
+pydantic 
+
+openpyxl
