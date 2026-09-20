@@ -63,13 +63,14 @@ coverage.xml
 *.swo
 *~
 
-# ── Operating system files ──
+# ── Operating system & Agent metadata ──
 .DS_Store
 Thumbs.db
 ehthumbs.db
 Desktop.ini
-.agents
-/data
+.agents/
+.gemini/
+
 # ── Temporary & log files ──
 *.log
 *.tmp
@@ -83,6 +84,7 @@ tempCodeRunnerFile.py
 # ==============================================================================
 # AegisForge-AI: Runtime Data Directories
 # ==============================================================================
+/data
 data/output/*
 !data/output/.gitkeep
 data/logs/*
@@ -120,7 +122,7 @@ model_pool/models/*
 OllamaSetup.exe
 
 # ==============================================================================
-# Safety: Never ignore source code and docs
+# Safety: Never ignore source code, notebooks, and docs
 # ==============================================================================
 !*.py
 !*.md
@@ -128,23 +130,7 @@ OllamaSetup.exe
 !*.ps1
 !*.sh
 
-# Explicitly ignore runtime generated data regardless of file extension
-data/output/*
-!data/output/.gitkeep
-data/logs/*
-!data/logs/.gitkeep
-data/scratch/*
-!data/scratch/.gitkeep
-data/uploads/*
-!data/uploads/.gitkeep
-data/vector_storage/qdrant_db/
-data/vector_storage/extracted_images/
-!data/vector_storage/.gitkeep
-
-
-
-
-# Test artifacts
+# ── Output artifacts & generated files ──
 mock_inspection.pdf
 *.pdf
 Grid_11V102_Survey.csv
