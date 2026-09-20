@@ -17,6 +17,12 @@ ollama>=0.5.0
 # Multi-Agent Orchestration
 langgraph>=0.2.0
 
+# Knowledge Base Ingestion & Retrieval
+langchain-core>=0.3.0
+langchain-community>=0.3.0
+langchain-text-splitters>=0.3.0
+requests>=2.31.0
+
 # Data Validation
 pydantic>=2.0.0
 
@@ -26,9 +32,12 @@ pillow>=10.0.0
 
 # Document, Spreadsheet & PDF Parsing
 python-docx>=1.1.0
+docx2txt>=0.8
 reportlab>=4.0.0
 pymupdf>=1.23.0
 openpyxl>=3.1.0
+unstructured>=0.15.0
+pandas>=2.0.0
 
 # Local Vector Database & Multimodal Embeddings
 qdrant-client>=1.9.0
@@ -37,12 +46,6 @@ fastembed>=0.2.0
 # System Monitoring & Sandbox
 psutil>=5.9.0
 
-ipykernel
-
-docxtpl
-
-pandas 
-
-pydantic 
-
-openpyxl
+# Development & Notebook Support
+ipykernel>=6.0.0
+docxtpl>=0.16.0
