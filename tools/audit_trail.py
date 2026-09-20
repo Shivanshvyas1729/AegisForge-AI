@@ -241,3 +241,28 @@ class AuditLedger:
         print(f"✅ Audit ledger integrity verified! {len(rows)} blocks cryptographically validated.")
         return True
 
+
+from langchain_core.tools import tool
+from pydantic import BaseModel, Field
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+
+@tool
+def write_sha256_audit_seal(file_path: str) -> str:
+    """Calculates and writes a SHA256 audit seal for the artifact."""
+    print(f"\n--- EXECUTING TOOL: write_sha256_audit_seal ---\n")
+    logger.info(f"Executing tool: write_sha256_audit_seal")
+    try:
+        return AuditLedger.hash_artifact(file_path)
+    except Exception as e:
+        logger.error(f"Error in write_sha256_audit_seal: {e}")
+        return str(e)
+
+if __name__ == "__main__":
+    # Test for Audit Trail
+    logger.info("Testing write_sha256_audit_seal...")
+    # Testing it on itself
+    result = write_sha256_audit_seal.invoke({"file_path": __file__})
+    logger.info(f"Result (Hash): {result}")

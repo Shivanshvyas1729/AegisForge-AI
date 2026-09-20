@@ -1,119 +1,119 @@
-"""
-tools/api_579_ffs_tool.py
-API 579-1 / ASME FFS-1 Level 1 Fitness-For-Service Assessment Tool
-"""
-
 import math
+import sys
+import os
 
-ALLOWABLE_RSF = 0.90
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from schemas.inspection import Api579FfsInput, Api579FfsResult
+from tools.audit_trail import AuditLedger
+
+class Api579FfsTool:
+    def __init__(self, use_audit_trail: bool = True):
+        self.use_audit_trail = use_audit_trail
+        if self.use_audit_trail:
+            self.ledger = AuditLedger()
+
+    def evaluate_lta(self, inp: Api579FfsInput, caller_agent: str = "coder_agent") -> Api579FfsResult:
+        # Pydantic boundary checks (gt=0) handle most validation automatically.
+        
+        # Cross-field logical validation
+        if inp.t_min_lta > inp.t_actual_global:
+            result = Api579FfsResult(status="ERROR", error="Minimum LTA thickness cannot be greater than global thickness.")
+            return self._log_and_return(result, inp, caller_agent, "FAILED")
+
+        Rt = inp.t_min_lta / inp.t_req
+        if Rt < 0.20:
+            result = Api579FfsResult(status="ERROR", error=f"Rt = {Rt:.3f} is below Level 1 screening limits (0.20). Level 2/3 required.")
+            return self._log_and_return(result, inp, caller_agent, "FAILED")
+
+        # Perform calculations
+        diameter_mm = 2.0 * inp.inside_radius_mm
+        sqrt_argument = diameter_mm * inp.t_req
+        lambda_value = 1.285 * inp.flaw_length_mm / math.sqrt(sqrt_argument)
+        Mt = math.sqrt(1.0 + (0.48 * lambda_value ** 2))
+        denominator = 1.0 - ((1.0 - Rt) / Mt)
+        
+        if denominator <= 0:
+            result = Api579FfsResult(status="ERROR", error="Invalid calculation parameters for RSF denominator.")
+            return self._log_and_return(result, inp, caller_agent, "FAILED")
+
+        rsf = Rt / denominator
+        
+        # The LLM passes the allowable RSF via the Pydantic schema
+        is_acceptable = rsf >= inp.allowable_rsf
+
+        if is_acceptable:
+            action = "Acceptable for continued operation based on Level 1 RSF assessment."
+        else:
+            action = "Pressure derating or weld overlay required before turnaround."
+
+        result = Api579FfsResult(
+            status="SUCCESS",
+            rsf=round(rsf, 3),
+            allowable_rsf=inp.allowable_rsf,
+            is_acceptable=is_acceptable,
+            action=action
+        )
+        status_flag = "COMPLETED_SAFE" if is_acceptable else "CRITICAL_BREACH"
+        return self._log_and_return(result, inp, caller_agent, status_flag)
+
+    def _log_and_return(self, result: Api579FfsResult, inp: Api579FfsInput, caller_agent: str, status: str) -> Api579FfsResult:
+        if self.use_audit_trail:
+            self.ledger.append_event(
+                event_type="ENGINEERING_CALCULATION",
+                workflow_id="API_579_LTA_ASSESSMENT",
+                tool_name="api_579_ffs_tool",
+                caller=caller_agent,
+                agent_version="1.0.0",
+                tool_version="1.0.0",
+                inputs=inp.model_dump(),
+                outputs=result.model_dump(),
+                status=status
+            )
+        return result
+
+from langchain_core.tools import tool
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
-def evaluate_lta(
+@tool
+def run_ffs_assessment(
     t_actual_global: float,
     t_min_lta: float,
     t_req: float,
     flaw_length_mm: float,
-    inside_radius_mm: float
+    inside_radius_mm: float,
+    allowable_rsf: float
 ) -> dict:
-    """
-    API 579-1 / ASME FFS-1 Level 1 Localized Thin Area (LTA) assessment.
+    """Runs API 579 Fitness-For-Service Assessment."""
+    print(f"\n--- EXECUTING TOOL: run_ffs_assessment ---\n")
+    logger.info(f"Executing tool: run_ffs_assessment")
+    try:
+        inp = Api579FfsInput(
+            t_actual_global=t_actual_global,
+            t_min_lta=t_min_lta,
+            t_req=t_req,
+            flaw_length_mm=flaw_length_mm,
+            inside_radius_mm=inside_radius_mm,
+            allowable_rsf=allowable_rsf
+        )
+        tool_instance = Api579FfsTool()
+        return tool_instance.evaluate_lta(inp).model_dump()
+    except Exception as e:
+        logger.error(f"Error in run_ffs_assessment: {e}")
+        return {"status": "error", "error": str(e)}
 
-    Calculates:
-        Rt = t_min_lta / t_req
-        lambda = 1.285 * flaw_length / sqrt(2 * R * t_req)
-        Mt = sqrt(1 + 0.48 * lambda^2)
-        RSF = Rt / [1 - (1 - Rt) / Mt]
-
-    Parameters
-    ----------
-    t_actual_global : float
-        Global/reference wall thickness in mm.
-    t_min_lta : float
-        Minimum wall thickness measured in the LTA in mm.
-    t_req : float
-        Required wall thickness in mm.
-    flaw_length_mm : float
-        Length of localized thinning/flaw in mm.
-    inside_radius_mm : float
-        Inside radius of the vessel/component in mm.
-    """
-
-    # 1. Input validation
-    values = {
-        "t_actual_global": t_actual_global,
-        "t_min_lta": t_min_lta,
-        "t_req": t_req,
-        "flaw_length_mm": flaw_length_mm,
-        "inside_radius_mm": inside_radius_mm
-    }
-
-    for name, value in values.items():
-        if isinstance(value, bool):
-            return {
-                "status": "ERROR",
-                "error": f"{name} must be a numeric value, not boolean."
-            }
-        if not isinstance(value, (int, float)):
-            return {
-                "status": "ERROR",
-                "error": f"{name} must be a numeric value."
-            }
-        if not math.isfinite(value):
-            return {
-                "status": "ERROR",
-                "error": f"{name} cannot be NaN or infinity."
-            }
-
-    # 2. Physical boundary checks
-    if t_actual_global <= 0:
-        return {"status": "ERROR", "error": "Global thickness must be greater than 0 mm."}
-    if t_min_lta <= 0:
-        return {"status": "ERROR", "error": "Minimum LTA thickness must be greater than 0 mm."}
-    if t_req <= 0:
-        return {"status": "ERROR", "error": "Required thickness must be greater than 0 mm."}
-    if flaw_length_mm <= 0:
-        return {"status": "ERROR", "error": "Flaw length must be greater than 0 mm."}
-    if inside_radius_mm <= 0:
-        return {"status": "ERROR", "error": "Inside radius must be greater than 0 mm."}
-    if t_min_lta > t_actual_global:
-        return {"status": "ERROR", "error": "Minimum LTA thickness cannot be greater than global thickness."}
-
-    # 3. Remaining Thickness Ratio (Rt)
-    Rt = t_min_lta / t_req
-    if Rt <= 0:
-        return {"status": "ERROR", "error": "Remaining thickness ratio Rt must be greater than 0."}
-
-    if Rt < 0.20:
-        return {
-            "status": "ERROR",
-            "error": f"Rt = {Rt:.3f} is below Level 1 screening limits (0.20). Level 2/3 required."
-        }
-
-    # 4. Geometry and Shell Parameter lambda
-    diameter_mm = 2.0 * inside_radius_mm
-    sqrt_argument = diameter_mm * t_req
-    lambda_value = 1.285 * flaw_length_mm / math.sqrt(sqrt_argument)
-
-    # 5. Folias Factor Mt
-    Mt = math.sqrt(1.0 + (0.48 * lambda_value ** 2))
-
-    # 6. Remaining Strength Factor (RSF)
-    denominator = 1.0 - ((1.0 - Rt) / Mt)
-    if denominator <= 0:
-        return {"status": "ERROR", "error": "Invalid calculation parameters for RSF denominator."}
-
-    rsf = Rt / denominator
-    is_acceptable = rsf >= ALLOWABLE_RSF
-
-    # 7. Recommended Action
-    if is_acceptable:
-        action = "Acceptable for continued operation based on Level 1 RSF assessment."
-    else:
-        action = "Pressure derating to 118 barg or weld overlay required before turnaround."
-
-    return {
-        "rsf": round(rsf, 3),
-        "allowable_rsf": ALLOWABLE_RSF,
-        "is_acceptable": is_acceptable,
-        "action": action
-    }
+if __name__ == "__main__":
+    # Test for API 579 FFS Tool
+    logger.info("Testing run_ffs_assessment...")
+    result = run_ffs_assessment.invoke({
+        "t_actual_global": 16.5,
+        "t_min_lta": 12.0,
+        "t_req": 16.0,
+        "flaw_length_mm": 100.0,
+        "inside_radius_mm": 1200.0,
+        "allowable_rsf": 0.90
+    })
+    logger.info(f"Result: {result}")

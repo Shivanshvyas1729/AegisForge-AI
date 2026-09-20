@@ -72,9 +72,162 @@ AegisForge-AI avoids the "monolithic God-model" anti-pattern by deploying domain
 | **Reasoning Agent** | `deepseek-r1:1.5b` | Audits CVC Circular 02/02/2004, PAC validity, Delegation of Powers (DOP) limits, and computes RBI intervals. | `calculation_data`, `inspection_data` | `compliance_data`, `current_task.output` |
 | **Chief Reviewer Agent** | `llama3.2:3b` or `qwen2.5:3b` | Gatekeeper review: validates calculation integrity, verifies zero-egress network telemetry, and drafts executive summaries. | `calculation_data`, `compliance_data` | `review_verdict`, `executive_summary` |
 
+### Agent Connections & Detailed Blueprints
+
+**Each specialized worker agent is connected to specific tools.** 
+
+The **Supervisor Agent** (the Hub) usually uses **zero tools**. Its only job is to act as the "brain" or the manager. It looks at the user's request, decides which specialized agent is needed, and routes the data to them.
+
+The tools are strictly handed out to the worker agents based on their specific jobs. Here is exactly who gets which tool:
+
+1. **The Coder Agent (The Engineer)**
+   - **Connected Tools:** `asme_calculator.py`, `material_lookup_tool.py`, `sandbox.py`
+   - *Why?* Because it is responsible for crunching the numbers and safely executing Python code.
+
+2. **The Vision Agent (The Eyes)**
+   - **Connected Tools:** `inspection_extractor_tool.py`, `thickness_grid_analyzer.py`
+   - *Why?* Because it is responsible for running OCR on degraded PDFs and parsing spreadsheets.
+
+3. **The Reasoning Agent (The Auditor)**
+   - **Connected Tools:** `compliance_auditor.py`, `risk_based_inspection_tool.py`, `rag.py`
+   - *Why?* Because it needs to search the local vector database for CVC rules and audit the safety intervals.
+
+4. **The Chief Reviewer Agent (The Gatekeeper)**
+   - **Connected Tools:** `network_verifier.py`, `doc_generator.py`, `audit_trail.py`
+   - *Why?* Because its job is to compile the final Word/PDF document, verify the cryptographic audit trail, and ensure the system stayed air-gapped before publishing.
+
+#### Summary
+Think of it like a real factory:
+- The **Supervisor Agent** is the factory manager. They hold the clipboard and direct traffic, but they don't operate the machinery.
+- The **Worker Agents** (Coder, Vision, Reasoning) are the technicians on the floor. Each technician is handed a very specific set of **Tools** to do their exact job.
+
+To build this system in LangGraph, you need to treat each agent as a Python function (a "Node") that receives the global State, does its specific job (often by invoking an LLM and a Tool), and then updates the State.
+
+Here is the detailed blueprint for exactly how to build each agent, what tasks they handle, and how they operate internally.
+
+#### 1. 🧭 The Supervisor Agent (The Dispatcher)
+This agent does not do actual work; it is the traffic cop that controls the flow of the LangGraph.
+
+* **Responsibility:** Dynamic routing, task delegation, and evaluating whether to proceed or halt for human approval.
+* **Tasks Handled:** 
+  - Looking at the user’s request ("I uploaded a UT scan, check if we need an emergency replacement").
+  - Deciding the sequence of operations (e.g., Vision ➔ Coder ➔ Reasoning ➔ Reviewer).
+  - Checking the `routing_guard` to see if a downstream agent failed and needs to be retried.
+* **How to Build It:**
+  - **Model:** `qwen2.5:3b`
+  - **Input State:** `user_query`, `current_state` of the graph.
+  - **How it operates:** You use a **Conditional Edge** in LangGraph. You prompt the LLM: *"You are the routing manager. The current state is [X]. Based on this, output only the exact string name of the next node to execute: 'vision', 'coder', 'reasoning', 'reviewer', or 'human_approval'."*
+  - **Tools Used:** None. It relies purely on its LLM classification abilities and the Python `routing_guard.py` script.
+
+#### 2. 👁️ The Vision Agent
+This agent bridges the physical world (scanned papers) to the digital world.
+
+* **Responsibility:** Ingesting unstructured, degraded visual data and converting it into strongly-typed Pydantic JSON.
+* **Tasks Handled:** 
+  - Reading scanned PDFs of Ultrasonic Thickness (UT) reports.
+  - Parsing handwriting or tables from P&ID drawings.
+  - Extracting critical variables: `design_pressure`, `inside_radius`, `measured_thickness`, `material`.
+* **How to Build It:**
+  - **Model:** Local EasyOCR + a lightweight vision model (like `moondream2` or `llama3.2-vision`).
+  - **Input State:** `uploaded_file_path`
+  - **How it operates:** 
+    1. The LangGraph Node receives the file path.
+    2. It executes `inspection_extractor_tool.py` (which runs EasyOCR to scrape all raw text).
+    3. It passes that raw text to the LLM with a strict prompt: *"Extract the pressure, radius, and thickness from this text. Output valid JSON matching the InspectionInput schema."*
+    4. The Node validates the JSON. If confidence is low, it flags `requires_human_confirmation = True`.
+  - **Tools Used:** `inspection_extractor_tool.py`, `thickness_grid_analyzer.py`
+
+#### 3. ⚙️ The Coder Agent (The Engineer)
+This agent handles deterministic mechanical engineering logic. It is prevented from "guessing" math.
+
+* **Responsibility:** Executing statutory formulas and sandbox scripts.
+* **Tasks Handled:** 
+  - Calculating ASME Section VIII minimum thickness requirements.
+  - Derating maximum allowable working pressure (MAWP) if corrosion is severe.
+  - Looking up metal stress tolerances.
+* **How to Build It:**
+  - **Model:** `qwen2.5-coder:1.5b`
+  - **Input State:** `inspection_data` (from the Vision Agent).
+  - **How it operates:**
+    1. The Node receives the structured `inspection_data`.
+    2. Instead of asking the LLM to do the math, the Node directly passes the data into `asme_calculator.py`.
+    3. **Sandbox execution:** If a custom calculation is needed, the LLM is prompted to write a Python script. The Node takes that script and executes it via `sandbox.py` (which restricts memory to 512MB and blocks network access).
+  - **Tools Used:** `asme_calculator.py`, `material_lookup_tool.py`, `sandbox.py`
+  - **Output State:** It writes `calculation_data` (e.g., `t_req_mm`, `is_breach=True/False`) to the graph state.
+
+#### 4. ⚖️ The Reasoning Agent (The Auditor)
+This agent handles complex textual logic, compliance, and regulatory auditing.
+
+* **Responsibility:** Ensuring the engineering results align with government and PSU procurement laws.
+* **Tasks Handled:** 
+  - Searching local PDF manuals (RAG) for Central Vigilance Commission (CVC) rules.
+  - Justifying whether a single-source "Emergency Procurement" is legally valid based on the Coder Agent's findings (e.g., "The vessel will rupture in 6 months, therefore emergency procurement is valid").
+* **How to Build It:**
+  - **Model:** `deepseek-r1:1.5b` (DeepSeek models excel at logical reasoning and rule-following).
+  - **Input State:** `calculation_data` + `inspection_data`.
+  - **How it operates:**
+    1. The Node invokes `rag.py` to search the local vector database for "emergency procurement rules".
+    2. It passes the rules AND the `calculation_data` to the LLM.
+    3. Prompt: *"You are a CVC Auditor. Based on the rule [X] and the fact that the vessel has breached safe limits, write a justification for emergency procurement."*
+    4. The Node validates the decision by running `compliance_auditor.py`.
+  - **Tools Used:** `rag.py`, `compliance_auditor.py`, `risk_based_inspection_tool.py`
+
+#### 5. 📝 The Chief Reviewer Agent (The Gatekeeper)
+This agent finalizes the workflow, guarantees security, and produces the physical deliverable.
+
+* **Responsibility:** Final sign-off, security verification, and document generation.
+* **Tasks Handled:** 
+  - Proving the system was air-gapped during the entire run.
+  - Verifying the cryptographic hashes of the audit trail so data can't be tampered with.
+  - Drafting the executive summary and compiling the Microsoft Word (`.docx`) Note for Approval.
+* **How to Build It:**
+  - **Model:** `llama3.2:3b`
+  - **Input State:** `calculation_data` + `compliance_data`
+  - **How it operates:**
+    1. The Node immediately runs `network_verifier.py`. If it detects any outgoing internet traffic, it halts and throws a security error.
+    2. If safe, it passes all data to the LLM to draft a 3-paragraph executive summary tailored for a board of directors.
+    3. The Node takes the LLM's summary, the math, and the compliance data, and passes them all into `doc_generator.py` to create the final formatted Word/PDF documents.
+  - **Tools Used:** `network_verifier.py`, `doc_generator.py`, `audit_trail.py`
+
+#### How they physically connect in LangGraph (Python concept):
+When you build this, your `main` graph file will look conceptually like this:
+
+```python
+from langgraph.graph import StateGraph
+
+# 1. Define the Graph and the State schema it holds
+workflow = StateGraph(AegisForgeState)
+
+# 2. Add your Agent Nodes
+workflow.add_node("vision_agent", vision_node_function)
+workflow.add_node("coder_agent", coder_node_function)
+workflow.add_node("reasoning_agent", reasoning_node_function)
+workflow.add_node("reviewer_agent", reviewer_node_function)
+
+# 3. Add the Supervisor for routing
+workflow.add_conditional_edges(
+    "supervisor_agent", # The starting node
+    supervisor_router_function, # The function that decides where to go next
+    {
+        "vision": "vision_agent",
+        "coder": "coder_agent",
+        "human_approval": END
+    }
+)
+```
+
 ---
 
 ## 🛠️ Pure Tool Suite (Deterministic Execution Layer)
+
+### Design Philosophy: Dynamic Reasoning vs. Deterministic Execution
+AegisForge-AI employs a strict architectural boundary between LLM reasoning and deterministic execution to prevent hallucination in safety-critical industrial workflows:
+
+* 🟢 **100% Dynamic (LLM-Driven):** All reasoning, variable extraction, and engineering thresholds (e.g., API 581 toxicity/pressure factors, API 579 `allowable_rsf`) are passed as strictly typed Pydantic inputs by the LLM. The sandbox code is generated entirely on the fly.
+* 🟡 **Strictly Hardcoded (Deterministic Tools):**
+  * **Statutory Math Formulas:** ASME UG-27 and API 510/579 physical equations are hardcoded. The LLM provides the inputs; the tool calculates the physics. 
+  * **Security Boundaries:** Zero-egress IPs and blocked Docker imports are hardcoded to prevent sandbox escapes.
+  * **Mock Database:** `material_lookup_tool.py` contains a hardcoded Python dictionary (`MATERIAL_DB`) to mock a SQL database for the hackathon demonstration.
 
 All critical math, compliance rules, security boundaries, and document generation are handled by **deterministic Python engines**—preventing LLM arithmetic hallucination.
 
@@ -489,7 +642,20 @@ To prevent VRAM thrashing when switching agents, enforce single-model residency:
   ollama pull qwen2.5-coder:1.5b
   ollama pull deepseek-r1:1.5b
   ollama pull llama3.2:3b
+  ollama pull moondream
   ```
+
+#### One-Liner Command to Pull All 5 Models in Sequence
+
+**In PowerShell:**
+```powershell
+ollama pull qwen2.5:3b; ollama pull qwen2.5-coder:1.5b; ollama pull deepseek-r1:1.5b; ollama pull llama3.2:3b; ollama pull moondream
+```
+
+**In Command Prompt (cmd):**
+```cmd
+ollama pull qwen2.5:3b && ollama pull qwen2.5-coder:1.5b && ollama pull deepseek-r1:1.5b && ollama pull llama3.2:3b && ollama pull moondream
+```
 
 ### 1. Clone & Setup Environment
 ```bash

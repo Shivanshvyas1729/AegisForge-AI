@@ -130,3 +130,29 @@ class DockerSecureSandbox:
                 outputs=result.model_dump(),
                 status=result.status
             )
+
+from langchain_core.tools import tool
+from pydantic import BaseModel, Field
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+
+@tool
+def execute_in_sandbox(code_string: str) -> dict:
+    """Executes python code in a secure sandbox."""
+    print(f"\n--- EXECUTING TOOL: execute_in_sandbox ---\n")
+    logger.info(f"Executing tool: execute_in_sandbox")
+    try:
+        sandbox = DockerSecureSandbox()
+        return sandbox.execute(code_string).model_dump()
+    except Exception as e:
+        logger.error(f"Error in execute_in_sandbox: {e}")
+        return {"status": "error", "error": str(e)}
+
+if __name__ == "__main__":
+    # Test for Docker Sandbox
+    logger.info("Testing execute_in_sandbox...")
+    mock_code = "print('Hello from the secure sandbox!')"
+    result = execute_in_sandbox.invoke({"code_string": mock_code})
+    logger.info(f"Result: {result}")

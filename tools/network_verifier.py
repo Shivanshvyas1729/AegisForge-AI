@@ -68,3 +68,32 @@ class NetworkVerifier:
             )
             
         return report
+
+from langchain_core.tools import tool
+from pydantic import BaseModel
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+
+class VerifyInput(BaseModel):
+    pass
+
+@tool
+def verify_zero_egress(inp: VerifyInput) -> dict:
+    """Verifies that no egress network traffic occurred."""
+    print(f"\n--- EXECUTING TOOL: verify_zero_egress ---\n")
+    logger.info(f"Executing tool: verify_zero_egress")
+    try:
+        verifier = NetworkVerifier()
+        return verifier.verify_zero_egress().model_dump()
+    except Exception as e:
+        logger.error(f"Error in verify_zero_egress: {e}")
+        return {"status": "error", "error": str(e)}
+
+if __name__ == "__main__":
+    # Test for Network Verifier
+    logger.info("Testing verify_zero_egress...")
+    mock_input = VerifyInput()
+    result = verify_zero_egress.invoke({"inp": mock_input})
+    logger.info(f"Result: {result}")

@@ -79,3 +79,53 @@ class ComplianceAuditor:
             
         return verdict
 
+
+from langchain_core.tools import tool
+from schemas.procurement import ProcurementRequest
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+
+@tool
+def audit_cvc_compliance(
+    request_id: str,
+    amount_inr: float,
+    is_single_source: bool,
+    has_pac: bool,
+    is_emergency: bool,
+    applicable_cvc_clause: str,
+    dop_authority: str
+) -> dict:
+    """Audits compliance with CVC rules based on procurement request."""
+    print(f"\n--- EXECUTING TOOL: audit_cvc_compliance ---\n")
+    logger.info(f"Executing tool: audit_cvc_compliance")
+    try:
+        request = ProcurementRequest(
+            request_id=request_id,
+            amount_inr=amount_inr,
+            is_single_source=is_single_source,
+            has_pac=has_pac,
+            is_emergency=is_emergency,
+            applicable_cvc_clause=applicable_cvc_clause,
+            dop_authority=dop_authority
+        )
+        auditor = ComplianceAuditor()
+        return auditor.evaluate(request).model_dump()
+    except Exception as e:
+        logger.error(f"Error in audit_cvc_compliance: {e}")
+        return {"status": "error", "error": str(e)}
+
+if __name__ == "__main__":
+    # Test for Compliance Auditor
+    logger.info("Testing audit_cvc_compliance...")
+    result = audit_cvc_compliance.invoke({
+        "request_id": "REQ-123",
+        "amount_inr": 500000.0,
+        "is_single_source": True,
+        "has_pac": False,
+        "is_emergency": True,
+        "applicable_cvc_clause": "CVC Circular 02/02/2004 Emergency Exception",
+        "dop_authority": "Director"
+    })
+    logger.info(f"Result: {result}")

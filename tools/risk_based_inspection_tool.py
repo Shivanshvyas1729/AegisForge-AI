@@ -1,168 +1,92 @@
-"""
-tools/risk_based_inspection_tool.py
-API 581 Risk-Based Inspection (RBI) Interval Determination Tool
-"""
+import sys
+import os
 
-import math
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from schemas.inspection import RbiIntervalInput, RbiIntervalResult
+from tools.audit_trail import AuditLedger
+
+class RiskBasedInspectionTool:
+    def __init__(self, use_audit_trail: bool = True):
+        self.use_audit_trail = use_audit_trail
+        if self.use_audit_trail:
+            self.ledger = AuditLedger()
+
+    def calculate_rbi_interval(self, inp: RbiIntervalInput, caller_agent: str = "coder_agent") -> RbiIntervalResult:
+        # Pydantic boundary checks handle most validation automatically.
+        
+        # Calculate Risk Score purely based on LLM-provided factors
+        risk_score = inp.toxicity_factor + inp.pressure_factor + inp.life_factor
+
+        # Standard final categorization
+        if risk_score >= 8:
+            risk_category = "HIGH"
+            recommended_interval_months = 6
+            statutory_verdict = "ENGINEERING_REVIEW_REQUIRED"
+        elif risk_score >= 6:
+            risk_category = "MEDIUM_HIGH"
+            recommended_interval_months = 12
+            statutory_verdict = "ENHANCED_INSPECTION_REQUIRED"
+        elif risk_score >= 4:
+            risk_category = "MEDIUM"
+            recommended_interval_months = 24
+            statutory_verdict = "PERIODIC_INSPECTION_REQUIRED"
+        else:
+            risk_category = "LOW"
+            recommended_interval_months = 36
+            statutory_verdict = "ROUTINE_INSPECTION"
+
+        result = RbiIntervalResult(
+            status="SUCCESS",
+            risk_category=risk_category,
+            recommended_interval_months=recommended_interval_months,
+            statutory_verdict=statutory_verdict
+        )
+        return self._log_and_return(result, inp, caller_agent, "COMPLETED_SAFE")
+
+    def _log_and_return(self, result: RbiIntervalResult, inp: RbiIntervalInput, caller_agent: str, status: str) -> RbiIntervalResult:
+        if self.use_audit_trail:
+            self.ledger.append_event(
+                event_type="ENGINEERING_CALCULATION",
+                workflow_id="API_581_RBI_ASSESSMENT",
+                tool_name="risk_based_inspection_tool",
+                caller=caller_agent,
+                agent_version="1.0.0",
+                tool_version="1.0.0",
+                inputs=inp.model_dump(),
+                outputs=result.model_dump(),
+                status=status
+            )
+        return result
+
+from langchain_core.tools import tool
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 
-def calculate_rbi_interval(
-    remaining_life_years: float,
-    design_pressure_mpa: float,
-    fluid_toxicity: str
-) -> dict:
-    """
-    API 581 Risk-Based Inspection (RBI) Interval Engine.
+@tool
+def calculate_rbi_score(inp: RbiIntervalInput) -> dict:
+    """Calculates Risk Based Inspection (RBI) score and intervals."""
+    print(f"\n--- EXECUTING TOOL: calculate_rbi_score ---\n")
+    logger.info(f"Executing tool: calculate_rbi_score")
+    try:
+        rbi = RiskBasedInspectionTool()
+        return rbi.calculate_rbi_interval(inp).model_dump()
+    except Exception as e:
+        logger.error(f"Error in calculate_rbi_score: {e}")
+        return {"status": "error", "error": str(e)}
 
-    Combines remaining service life with process fluid toxicity and operating pressure
-    to dynamically determine statutory turnaround/inspection intervals.
-
-    Parameters
-    ----------
-    remaining_life_years : float
-        Estimated remaining service life in years.
-    design_pressure_mpa : float
-        Design/operating pressure in MPa.
-    fluid_toxicity : str
-        Fluid toxicity category: 'Low', 'Medium', or 'High'.
-
-    Returns
-    -------
-    dict
-        {
-            "risk_category": str,
-            "recommended_interval_months": int,
-            "statutory_verdict": str
-        }
-    """
-
-    # 1. Type validation
-    if isinstance(remaining_life_years, bool):
-        return {
-            "status": "ERROR",
-            "error": "remaining_life_years must be a numeric value, not boolean."
-        }
-
-    if not isinstance(remaining_life_years, (int, float)):
-        return {
-            "status": "ERROR",
-            "error": "remaining_life_years must be a numeric value."
-        }
-
-    if isinstance(design_pressure_mpa, bool):
-        return {
-            "status": "ERROR",
-            "error": "design_pressure_mpa must be a numeric value, not boolean."
-        }
-
-    if not isinstance(design_pressure_mpa, (int, float)):
-        return {
-            "status": "ERROR",
-            "error": "design_pressure_mpa must be a numeric value."
-        }
-
-    if not isinstance(fluid_toxicity, str):
-        return {
-            "status": "ERROR",
-            "error": "fluid_toxicity must be a string."
-        }
-
-    # 2. NaN / Infinity validation
-    if not math.isfinite(remaining_life_years):
-        return {
-            "status": "ERROR",
-            "error": "remaining_life_years cannot be NaN or infinity."
-        }
-
-    if not math.isfinite(design_pressure_mpa):
-        return {
-            "status": "ERROR",
-            "error": "design_pressure_mpa cannot be NaN or infinity."
-        }
-
-    # 3. Physical boundaries
-    if design_pressure_mpa <= 0:
-        return {
-            "status": "ERROR",
-            "error": "Design pressure must be greater than 0 MPa."
-        }
-
-    # 4. Fluid toxicity validation
-    fluid_toxicity = fluid_toxicity.strip().lower()
-
-    if not fluid_toxicity:
-        return {
-            "status": "ERROR",
-            "error": "Fluid toxicity cannot be empty."
-        }
-
-    allowed_toxicity = {"low", "medium", "high"}
-
-    if fluid_toxicity not in allowed_toxicity:
-        return {
-            "status": "ERROR",
-            "error": "fluid_toxicity must be 'Low', 'Medium', or 'High'."
-        }
-
-    # 5. Critical condition check
-    # Remaining life <= 0 indicates wall breach / unsafe condition
-    if remaining_life_years <= 0:
-        return {
-            "risk_category": "CRITICAL_HIGH",
-            "recommended_interval_months": 0,
-            "statutory_verdict": "MANDATORY_IMMEDIATE_SHUTDOWN_INSPECTION"
-        }
-
-    # 6. Toxicity risk factor
-    if fluid_toxicity == "high":
-        toxicity_factor = 3
-    elif fluid_toxicity == "medium":
-        toxicity_factor = 2
-    else:
-        toxicity_factor = 1
-
-    # 7. Pressure risk factor
-    if design_pressure_mpa >= 15:
-        pressure_factor = 3
-    elif design_pressure_mpa >= 5:
-        pressure_factor = 2
-    else:
-        pressure_factor = 1
-
-    # 8. Remaining life risk factor
-    if remaining_life_years <= 1:
-        life_factor = 3
-    elif remaining_life_years <= 3:
-        life_factor = 2
-    else:
-        life_factor = 1
-
-    # 9. Combined screening score
-    risk_score = toxicity_factor + pressure_factor + life_factor
-
-    # 10. Risk category and statutory interval assignment
-    if risk_score >= 8:
-        risk_category = "HIGH"
-        recommended_interval_months = 6
-        statutory_verdict = "ENGINEERING_REVIEW_REQUIRED"
-
-    elif risk_score >= 6:
-        risk_category = "MEDIUM_HIGH"
-        recommended_interval_months = 12
-        statutory_verdict = "ENHANCED_INSPECTION_REQUIRED"
-
-    elif risk_score >= 4:
-        risk_category = "MEDIUM"
-        recommended_interval_months = 24
-        statutory_verdict = "PERIODIC_INSPECTION_REQUIRED"
-
-    else:
-        risk_category = "LOW"
-        recommended_interval_months = 36
-        statutory_verdict = "ROUTINE_INSPECTION"
-
-    return {
-        "risk_category": risk_category,
-        "recommended_interval_months": recommended_interval_months,
-        "statutory_verdict": statutory_verdict
-    }
+if __name__ == "__main__":
+    # Test for RBI Tool
+    logger.info("Testing calculate_rbi_score...")
+    mock_input = RbiIntervalInput(
+        remaining_life_years=10.0,
+        design_pressure_mpa=1.5,
+        fluid_toxicity="High",
+        toxicity_factor=3,
+        pressure_factor=2,
+        life_factor=1
+    )
+    result = calculate_rbi_score.invoke({"inp": mock_input})
+    logger.info(f"Result: {result}")

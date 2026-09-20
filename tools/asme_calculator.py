@@ -62,3 +62,55 @@ class AsmeCalculator:
             )
             
         return result
+
+from langchain_core.tools import tool
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+
+@tool
+def calculate_asme_stresses(
+    equipment_id: str,
+    design_pressure_mpa: float,
+    inside_radius_mm: float,
+    allowable_stress_mpa: float,
+    joint_efficiency: float,
+    corrosion_allowance_mm: float,
+    measured_thickness_mm: float,
+    corrosion_rate_mm_yr: float
+) -> dict:
+    """Calculates ASME Section VIII Division 1 (UG-27) minimum thickness and MAWP."""
+    print(f"\n--- EXECUTING TOOL: calculate_asme_stresses ---\n")
+    logger.info(f"Executing tool: calculate_asme_stresses")
+    try:
+        inp = InspectionInput(
+            equipment_id=equipment_id,
+            design_pressure_mpa=design_pressure_mpa,
+            inside_radius_mm=inside_radius_mm,
+            allowable_stress_mpa=allowable_stress_mpa,
+            joint_efficiency=joint_efficiency,
+            corrosion_allowance_mm=corrosion_allowance_mm,
+            measured_thickness_mm=measured_thickness_mm,
+            corrosion_rate_mm_yr=corrosion_rate_mm_yr
+        )
+        calculator = AsmeCalculator()
+        return calculator.evaluate_vessel_integrity(inp).model_dump()
+    except Exception as e:
+        logger.error(f"Error in calculate_asme_stresses: {e}")
+        return {"status": "error", "error": str(e)}
+
+if __name__ == "__main__":
+    # Test for ASME Calculator
+    logger.info("Testing calculate_asme_stresses...")
+    result = calculate_asme_stresses.invoke({
+        "equipment_id": "TEST-1",
+        "design_pressure_mpa": 1.5,
+        "inside_radius_mm": 1200.0,
+        "allowable_stress_mpa": 137.9,
+        "joint_efficiency": 1.0,
+        "corrosion_allowance_mm": 3.0,
+        "measured_thickness_mm": 16.5,
+        "corrosion_rate_mm_yr": 0.15
+    })
+    logger.info(f"Result: {result}")
