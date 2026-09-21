@@ -60,13 +60,18 @@ class DockerSecureSandbox:
 
         # 2. Docker Execution Chamber
         try:
+            import os
+            container_name = f"sandbox_task_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.urandom(2).hex()}"
+            
             cmd_result = subprocess.run(
                 [
-                    "docker", "run", "--rm", "-i", 
+                    "docker", "run", "-i", 
+                    "--name", container_name,
                     "--network", "none", 
                     "--memory", "128m", 
                     "--cpus", "0.5", 
-                    "sih-agent-sandbox", "python", "-"
+                    "sih-agent-sandbox", "sh", "-c",
+                    "cat > /tmp/script.py && echo '--- INPUT CODE ---' >&2 && cat /tmp/script.py >&2 && echo '\\n--- OUTPUT ---' >&2 && python /tmp/script.py"
                 ],
                 input=code_string,
                 capture_output=True,
