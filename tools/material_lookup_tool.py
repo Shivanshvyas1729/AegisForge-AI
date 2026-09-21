@@ -47,6 +47,25 @@ class MaterialLookupTool:
         if self.use_audit_trail:
             self.ledger = AuditLedger()
 
+    def _resolve_material_key(self, grade: str) -> str | None:
+        """Fuzzy/alias resolver for engineering material specifications."""
+        if grade in MATERIAL_DB:
+            return grade
+        g_clean = grade.lower().replace(" ", "").replace("-", "").replace(".", "")
+        for k, v in MATERIAL_DB.items():
+            k_clean = k.lower().replace(" ", "").replace("-", "").replace(".", "")
+            full_name = v["material"].lower().replace(" ", "").replace("-", "").replace(".", "")
+            if g_clean in k_clean or k_clean in g_clean or g_clean in full_name:
+                return k
+        # Common refinery aliases
+        if any(x in g_clean for x in ["225cr", "sa387", "gr22", "chrome"]):
+            return "2.25Cr-1Mo"
+        elif any(x in g_clean for x in ["516", "sa516", "gr70", "carbon"]):
+            return "SA-516 Gr 70"
+        elif any(x in g_clean for x in ["316", "sa240", "stainless", "ss"]):
+            return "SA-240 316L"
+        return None
+
     def lookup_material(self, inp: MaterialLookupInput, caller_agent: str = "coder_agent") -> MaterialLookupResult:
         material_grade = inp.material_grade.strip()
         temperature_c = inp.temperature_c
@@ -55,22 +74,26 @@ class MaterialLookupTool:
             result = MaterialLookupResult(status="ERROR", error="Material grade cannot be empty.")
             return self._log_and_return(result, inp, caller_agent, "FAILED")
 
-        if material_grade not in MATERIAL_DB:
+        resolved_key = self._resolve_material_key(material_grade)
+        if not resolved_key or resolved_key not in MATERIAL_DB:
             result = MaterialLookupResult(status="ERROR", error=f"Material '{material_grade}' not found in offline database.")
             return self._log_and_return(result, inp, caller_agent, "FAILED")
 
-        material = MATERIAL_DB[material_grade]
+        material = MATERIAL_DB[resolved_key]
+        temps = material["temperatures"]
 
-        if temperature_c not in material["temperatures"]:
-            result = MaterialLookupResult(status="ERROR", error=f"No verified data available for {material_grade} at {temperature_c} °C.")
-            return self._log_and_return(result, inp, caller_agent, "FAILED")
+        # If exact temperature is available use it, otherwise find the closest rated temperature
+        if temperature_c in temps:
+            rated_temp = temperature_c
+        else:
+            rated_temp = min(temps.keys(), key=lambda t: abs(t - temperature_c))
 
-        data = material["temperatures"][temperature_c]
+        data = temps[rated_temp]
 
         result = MaterialLookupResult(
             status="SUCCESS",
             material=material["material"],
-            temperature_c=temperature_c,
+            temperature_c=rated_temp,
             allowable_stress_mpa=data["allowable_stress_mpa"],
             yield_strength_mpa=data["yield_strength_mpa"],
             tensile_strength_mpa=data["tensile_strength_mpa"]
@@ -117,11 +140,3 @@ def lookup_material(
         logger.error(f"Error in lookup_material: {e}")
         return {"status": "error", "error": str(e)}
 
-if __name__ == "__main__":
-    # Test for Material Lookup
-    logger.info("Testing lookup_material...")
-    result = lookup_material.invoke({
-        "material_grade": "SA-516 Grade 70",
-        "temperature_c": 150.0
-    })
-    logger.info(f"Result: {result}")

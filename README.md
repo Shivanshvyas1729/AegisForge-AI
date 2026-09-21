@@ -27,193 +27,253 @@ Refineries, PSUs, defence manufacturing units, and government industrial bodies 
 
 ---
 
+## 💡 Core Innovations & Real End-User Pain Points Matrix
+
+### The Industrial Reality (MRPL Refinery End-User Pain Points)
+Operating in a PSU refinery or industrial plant involves immense operational pressures and zero tolerance for failure:
+1. **The "Shadow AI" vs. Regulatory Dilemma:** Field inspection engineers and integrity managers spend **2 to 3 days** per equipment drafting Notes for Approval (NFAs), doing manual calculations, checking CVC procurement manuals, and cross-referencing OISD standards. Cloud AI (ChatGPT, Claude) offers 10x speed, but pasting confidential P&IDs, corrosion rates, or PAC vendor justifications breaches enterprise security and the Official Secrets Act.
+2. **The "Math Hallucination" Catastrophe Risk:** Raw LLMs cannot do deterministic arithmetic. In a hydrocracker or separator drum operating at 145 bar and 350°C with sour H₂S, an AI hallucinating an ASME UG-27 wall thickness by just 0.5 mm or getting a joint efficiency ($E$) wrong can lead to catastrophic rupture, toxic gas release, or refinery shutdown.
+3. **The Scanned Dossier Nightmare:** Refinery inspection records are physical paper scans—thermal printer UT thickness grids, carbon copies with coffee/oil stains, low-DPI scans, and handwritten inspector notes. Generic cloud OCR chokes on these formats.
+4. **Vigilance & Audit Scrutiny (CVC & CAG):** When critical equipment fails, ordering emergency single-source replacement parts without bulletproof justification under CVC Circular 02/02/2004 or Delegation of Powers (DOP) leads to Vigilance inquiries and audit objections against the engineer years later.
+5. **No Deliverable-Ready Desktop Tools:** Existing AI demos output chat text in a browser. An engineer needs a ready-to-print, legally structured Word (`.docx`) or signed `.pdf` Note for Approval with comparison tables, signature blocks, and expenditure codes that can be placed directly on the General Manager's desk.
+
+---
+
+### What We Did: Built-In Innovations (Addressing Real Pain Points Today)
+
+| # | Real End-User Pain Point | Industry Status Quo | AegisForge-AI Innovation (Built) |
+|---|---|---|---|
+| **1** | **Confidentiality & National Data Residency** | Manual paperwork or risky "shadow AI" on public cloud APIs. | **100% On-Premise Air-Gapped Multi-Agent Workbench.** Operates entirely on local GPU hardware via Ollama. Backed by `network_verifier.py` providing kernel-level OS socket proof of **Zero External Egress**. |
+| **2** | **Arithmetic & Physics Hallucination** | Raw LLMs generate approximate numbers with no statutory accountability. | **Decoupled Cognitive Reasoning & Deterministic Execution.** LLMs only extract and route; statutory ASME Sec VIII UG-27, API 510 RSL, and API 579 FFS physics are calculated by hardcoded, peer-reviewed Python engines (`ug27_core.py`) inside an AST-scanned container sandbox (`docker_sandbox.py`). |
+| **3** | **Degraded Industrial Inspection Scans** | Manual data entry from paper reports; prone to transcription errors. | **Multimodal Vision & UT Grid Intelligence.** Combines EasyOCR + local vision models with coordinate-based matrix parsers (`thickness_grid_analyzer.py`) that ingest $N \times M$ ultrasonic thickness grids to map localized thinning. |
+| **4** | **Vigilance & Statutory Compliance Burden** | Engineers spend days searching CVC circulars, PAC clauses, and DOP tables. | **Automated Statutory Procurement Auditor.** Powered by `deepseek-r1:8b` and local RAG over CVC Circular 02/02/2004, validating single-source emergency justifications and specifying the Competent Financial Authority (CFA). |
+| **5** | **Safety-Critical Automation Fear** | Reluctance to trust autonomous AI decisions on multi-million dollar equipment. | **3-Way Human Approval Gate (HITL).** LangGraph checkpointer `interrupt()` pauses execution on safety-critical breaches or low OCR confidence, allowing the engineer to **Confirm**, **Correct & Rerun**, or **Reject**. |
+| **6** | **Audit Trail & Document Integrity** | Paper files easily lost or challenged during vigilance/CAG audits. | **Cryptographic SHA-256 Chained Ledger & Dual Deliverable Compiler.** `audit_trail.py` block-chains every tool input/output; `doc_generator.py` compiles ministerial Word (`.docx`) and sealed `.pdf` deliverables with embedded hashes. |
+
+---
+
+### Future Roadmap: What We Can Do in Future (Targeting Next-Level Pain Points)
+
+1. **Native CAD & P&ID Graph Parsing (`.dwg` / `.dxf` Direct to Topology)**:
+   - *Pain Point:* Currently, engineers trace interconnected pipelines and relief valves manually across multi-sheet blueprints.
+   - *Future Innovation:* Ingest vector CAD schematics directly without rasterization, constructing a NetworkX equipment-piping topology graph to trace failure propagation across refinery units automatically.
+2. **Bi-Directional CMMS / ERP Connector (SAP Plant Maintenance & IBM Maximo)**:
+   - *Pain Point:* After an NFA is approved, the engineer must re-enter equipment IDs, failure codes, and spare parts requisitions manually into SAP PM.
+   - *Future Innovation:* Direct air-gapped RFC/BAPI bridge to convert approved NFAs into draft SAP Maintenance Notifications and material reservations with one click.
+3. **Multi-Year Ultrasonic Degradation Forecasting (Bayesian Time-Series)**:
+   - *Pain Point:* Single-point remaining life assumes linear corrosion, but refinery corrosion accelerates non-linearly with feed sourness and temperature excursions.
+   - *Future Innovation:* Ingest 10-15 years of historical turnaround UT scans to fit probabilistic Gaussian process degradation curves, predicting exactly *when* an elbow or nozzle will reach $t_{\text{req}}$ before the next planned turnaround.
+4. **Air-Gapped Whisper Voice-to-Dossier for Field Inspectors**:
+   - *Pain Point:* Plant inspectors wearing heavy PPE, gloves, and respirators inside towers struggle to write on clipboards or type on tablets.
+   - *Future Innovation:* Local, on-device Whisper model transcribing spoken field observations ("Nozzle N1 showing 2mm pit at 6 o'clock position") directly into structured inspection JSON.
+
+---
+
 ## 🏛️ System Architecture
 
-AegisForge-AI implements a **Dynamic Hub-and-Spoke StateGraph** orchestrated via **LangGraph**. The **Supervisor Agent** acts as the cognitive dispatcher, dynamically decomposing queries into task queues, auto-selecting open-weight models based on domain, and evaluating execution results through closed feedback loops.
+AegisForge-AI implements an **Adaptive Hub-and-Spoke StateGraph** orchestrated via **LangGraph**. The architecture combines an entry-level **Adaptive Complexity Router** (triage between fast direct responses and deep agent workflows) with a cognitive **Supervisor Agent** dispatcher, domain-specialized **ReAct Worker Agents**, a checkpointer-backed **Human Approval Gate (HITL)**, and formal **Deliverable Publishing**.
 
 ```mermaid
-graph TD
-    User([User Query / Scanned Dossier]) --> Sup[Supervisor Agent\nqwen2.5:3b]
+flowchart TD
+    User([User Query / Scanned Inspection Dossier]) --> Start([START])
     
-    Sup -->|Scanned PDF / Drawing| Vis[Vision Agent\nEasyOCR + Vision Model]
-    Sup -->|Code / ASME Math / Sandbox| Code[Coder Agent\nqwen2.5-coder:1.5b]
-    Sup -->|CVC Audit / Compliance| Reas[Reasoning Agent\ndeepseek-r1:1.5b]
+    Start --> Route{Adaptive Complexity\nRouter}
     
-    Vis -->|Extracted Parameters| Sup
-    Code -->|Math & Sandbox Output| Sup
-    Reas -->|Compliance Verdict| Sup
+    %% Fast-path branch
+    Route -->|Conversational Query / General FAQ| Direct[Direct Answer Node\nllama3.2:3b\nFast Path - Zero Tools]
+    Direct --> EndNode([END])
     
-    Sup -->|Max Retries Exceeded| Gate{Human Approval Gate\nMandatory Engineer Sign-Off}
-    Gate -->|Feedback Provided| Sup
-    Gate -->|Approved / Safe| Rev[Chief Reviewer Agent\nllama3.2:3b / qwen2.5:3b]
+    %% Multi-agent deep pipeline branch
+    Route -->|Dossier Processing / Calculations / Audits| Sup[Supervisor Agent Node\nllama3.2:3b\nCognitive Dispatcher & Router]
     
-    Sup -->|All Tasks Completed| Rev
-    Rev --> Pub[Deliverable Publisher Engine\npython-docx + ReportLab]
-    Pub --> Out([Signed NFA .docx & .pdf Deliverables\n+ SHA-256 Audit Seal])
+    %% Hub-and-Spoke Worker Agents
+    Sup -->|Command goto: vision_agent| Vis[Vision ReAct Agent\nmoondream:latest / llama3.2:3b + EasyOCR\n• extract_inspection_data\n• analyze_thickness_grid\n• read_scanned_pdf]
+    Sup -->|Command goto: coder_agent| Code[Coder ReAct Agent\nqwen2.5-coder:7b\n• calculate_asme_stresses\n• run_ffs_assessment\n• lookup_material\n• execute_in_sandbox]
+    Sup -->|Command goto: reasoning_agent| Reas[Reasoning ReAct Agent\ndeepseek-r1:8b\n• audit_cvc_compliance\n• calculate_rbi_score\n• verify_routing_policy\n• local SOP vector RAG]
     
+    %% Closed feedback loops back to Supervisor
+    Vis -->|Command goto: supervisor\nInspection Data & Grid Analysis| Sup
+    Code -->|Command goto: supervisor\nASME Math & Sandbox Output| Sup
+    Reas -->|Command goto: supervisor\nCVC & RBI Statutory Verdict| Sup
+    
+    %% Human Gate & Reviewer paths
+    Sup -->|retry_count >= max_retries\nor Low OCR Confidence| Gate{Human Approval Gate\nLangGraph interrupt\nState in MemorySaver}
+    Gate -->|Rejected / Engineer Feedback| Sup
+    Gate -->|Approved / Confirmed| Rev[Chief Reviewer Agent Node\nllama3.2:3b\nFinal Safety & Sanity Cross-Check]
+    
+    Sup -->|All Milestones Completed| Rev
+    
+    %% Deliverable Publisher
+    Rev --> Pub[Deliverable Publisher Agent Node\nllama3.1:8b / supervisor_llm\n• generate_nfa_documents\n• write_sha256_audit_seal\n• verify_zero_egress]
+    Pub --> Out([Signed NFA .docx & .pdf Deliverables\n+ Cryptographic SHA-256 Audit Seal])
+    Out --> EndNode
+    
+    %% Sovereign Security Layer
     subgraph Sovereign Security Guardrails
-        NetMon[Passive & Active Network Monitor\nZero-Egress Enforcement]
-        AuditLedger[Tamper-Proof SHA-256 Audit Trail]
-        Sandbox[Restricted Code Execution Sandbox]
+        NetMon[network_verifier.py\nZero-Egress Socket Telemetry Monitor]
+        AuditLedger[audit_trail.py\nChained SHA-256 Cryptographic Ledger]
+        DockerBox[docker_sandbox.py\nAST Scanner + Docker Container Sandbox]
+        FileIOGuard[file_io.py\nPath-Traversal Boundary Protection]
     end
 ```
 
 ---
 
-## 🤖 Core Agent Specifications (Cognitive Layer)
+## 🤖 Core Agent Specifications & State Machine (Cognitive Layer)
 
-AegisForge-AI avoids the "monolithic God-model" anti-pattern by deploying domain-specialized open-weight models running locally via **Ollama**:
+AegisForge-AI operates on an asynchronous state machine built with **LangGraph**, where state persistence, human-in-the-loop interruptions, and multi-agent coordination are guaranteed via typed schemas and checkpointing.
 
-| Agent | Open-Weight Model | Primary Responsibility | Input State | Output State |
-| :--- | :--- | :--- | :--- | :--- |
-| **Supervisor Agent** *(The Hub)* | `qwen2.5:3b` | Dynamic task decomposition, domain routing, evaluator-optimizer loops, retry tracking, and fallback gating. | `user_query`, `uploaded_file_path`, `task_queue` | `task_queue`, `current_task`, `next_node` |
-| **Vision Agent** | EasyOCR + `moondream2` / `llama3.2-vision` | Ingests degraded field inspection scans, handwritten notes, and P&ID drawings; extracts structured vessel parameters. | `uploaded_file_path`, `current_task` | `inspection_data`, `current_task.output` |
-| **Coder Agent** | `qwen2.5-coder:1.5b` or `qwen2.5:3b` | Executes deterministic ASME UG-27 formulas, material lookups, and runs custom Python scripts in the sandbox. | `inspection_data`, `current_task` | `calculation_data`, `current_task.output` |
-| **Reasoning Agent** | `deepseek-r1:1.5b` | Audits CVC Circular 02/02/2004, PAC validity, Delegation of Powers (DOP) limits, and computes RBI intervals. | `calculation_data`, `inspection_data` | `compliance_data`, `current_task.output` |
-| **Chief Reviewer Agent** | `llama3.2:3b` or `qwen2.5:3b` | Gatekeeper review: validates calculation integrity, verifies zero-egress network telemetry, and drafts executive summaries. | `calculation_data`, `compliance_data` | `review_verdict`, `executive_summary` |
+### 1. The Global State Schema (`AgentState`)
 
-### Agent Connections & Detailed Blueprints
-
-**Each specialized worker agent is connected to specific tools.** 
-
-The **Supervisor Agent** (the Hub) usually uses **zero tools**. Its only job is to act as the "brain" or the manager. It looks at the user's request, decides which specialized agent is needed, and routes the data to them.
-
-The tools are strictly handed out to the worker agents based on their specific jobs. Here is exactly who gets which tool:
-
-1. **The Coder Agent (The Engineer)**
-   - **Connected Tools:** `asme_calculator.py`, `material_lookup_tool.py`, `sandbox.py`
-   - *Why?* Because it is responsible for crunching the numbers and safely executing Python code.
-
-2. **The Vision Agent (The Eyes)**
-   - **Connected Tools:** `inspection_extractor_tool.py`, `thickness_grid_analyzer.py`
-   - *Why?* Because it is responsible for running OCR on degraded PDFs and parsing spreadsheets.
-
-3. **The Reasoning Agent (The Auditor)**
-   - **Connected Tools:** `compliance_auditor.py`, `risk_based_inspection_tool.py`, `rag.py`
-   - *Why?* Because it needs to search the local vector database for CVC rules and audit the safety intervals.
-
-4. **The Chief Reviewer Agent (The Gatekeeper)**
-   - **Connected Tools:** `network_verifier.py`, `doc_generator.py`, `audit_trail.py`
-   - *Why?* Because its job is to compile the final Word/PDF document, verify the cryptographic audit trail, and ensure the system stayed air-gapped before publishing.
-
-#### Summary
-Think of it like a real factory:
-- The **Supervisor Agent** is the factory manager. They hold the clipboard and direct traffic, but they don't operate the machinery.
-- The **Worker Agents** (Coder, Vision, Reasoning) are the technicians on the floor. Each technician is handed a very specific set of **Tools** to do their exact job.
-
-To build this system in LangGraph, you need to treat each agent as a Python function (a "Node") that receives the global State, does its specific job (often by invoking an LLM and a Tool), and then updates the State.
-
-Here is the detailed blueprint for exactly how to build each agent, what tasks they handle, and how they operate internally.
-
-#### 1. 🧭 The Supervisor Agent (The Dispatcher)
-This agent does not do actual work; it is the traffic cop that controls the flow of the LangGraph.
-
-* **Responsibility:** Dynamic routing, task delegation, and evaluating whether to proceed or halt for human approval.
-* **Tasks Handled:** 
-  - Looking at the user’s request ("I uploaded a UT scan, check if we need an emergency replacement").
-  - Deciding the sequence of operations (e.g., Vision ➔ Coder ➔ Reasoning ➔ Reviewer).
-  - Checking the `routing_guard` to see if a downstream agent failed and needs to be retried.
-* **How to Build It:**
-  - **Model:** `qwen2.5:3b`
-  - **Input State:** `user_query`, `current_state` of the graph.
-  - **How it operates:** You use a **Conditional Edge** in LangGraph. You prompt the LLM: *"You are the routing manager. The current state is [X]. Based on this, output only the exact string name of the next node to execute: 'vision', 'coder', 'reasoning', 'reviewer', or 'human_approval'."*
-  - **Tools Used:** None. It relies purely on its LLM classification abilities and the Python `routing_guard.py` script.
-
-#### 2. 👁️ The Vision Agent
-This agent bridges the physical world (scanned papers) to the digital world.
-
-* **Responsibility:** Ingesting unstructured, degraded visual data and converting it into strongly-typed Pydantic JSON.
-* **Tasks Handled:** 
-  - Reading scanned PDFs of Ultrasonic Thickness (UT) reports.
-  - Parsing handwriting or tables from P&ID drawings.
-  - Extracting critical variables: `design_pressure`, `inside_radius`, `measured_thickness`, `material`.
-* **How to Build It:**
-  - **Model:** Local EasyOCR + a lightweight vision model (like `moondream2` or `llama3.2-vision`).
-  - **Input State:** `uploaded_file_path`
-  - **How it operates:** 
-    1. The LangGraph Node receives the file path.
-    2. It executes `inspection_extractor_tool.py` (which runs EasyOCR to scrape all raw text).
-    3. It passes that raw text to the LLM with a strict prompt: *"Extract the pressure, radius, and thickness from this text. Output valid JSON matching the InspectionInput schema."*
-    4. The Node validates the JSON. If confidence is low, it flags `requires_human_confirmation = True`.
-  - **Tools Used:** `inspection_extractor_tool.py`, `thickness_grid_analyzer.py`
-
-#### 3. ⚙️ The Coder Agent (The Engineer)
-This agent handles deterministic mechanical engineering logic. It is prevented from "guessing" math.
-
-* **Responsibility:** Executing statutory formulas and sandbox scripts.
-* **Tasks Handled:** 
-  - Calculating ASME Section VIII minimum thickness requirements.
-  - Derating maximum allowable working pressure (MAWP) if corrosion is severe.
-  - Looking up metal stress tolerances.
-* **How to Build It:**
-  - **Model:** `qwen2.5-coder:1.5b`
-  - **Input State:** `inspection_data` (from the Vision Agent).
-  - **How it operates:**
-    1. The Node receives the structured `inspection_data`.
-    2. Instead of asking the LLM to do the math, the Node directly passes the data into `asme_calculator.py`.
-    3. **Sandbox execution:** If a custom calculation is needed, the LLM is prompted to write a Python script. The Node takes that script and executes it via `sandbox.py` (which restricts memory to 512MB and blocks network access).
-  - **Tools Used:** `asme_calculator.py`, `material_lookup_tool.py`, `sandbox.py`
-  - **Output State:** It writes `calculation_data` (e.g., `t_req_mm`, `is_breach=True/False`) to the graph state.
-
-#### 4. ⚖️ The Reasoning Agent (The Auditor)
-This agent handles complex textual logic, compliance, and regulatory auditing.
-
-* **Responsibility:** Ensuring the engineering results align with government and PSU procurement laws.
-* **Tasks Handled:** 
-  - Searching local PDF manuals (RAG) for Central Vigilance Commission (CVC) rules.
-  - Justifying whether a single-source "Emergency Procurement" is legally valid based on the Coder Agent's findings (e.g., "The vessel will rupture in 6 months, therefore emergency procurement is valid").
-* **How to Build It:**
-  - **Model:** `deepseek-r1:1.5b` (DeepSeek models excel at logical reasoning and rule-following).
-  - **Input State:** `calculation_data` + `inspection_data`.
-  - **How it operates:**
-    1. The Node invokes `rag.py` to search the local vector database for "emergency procurement rules".
-    2. It passes the rules AND the `calculation_data` to the LLM.
-    3. Prompt: *"You are a CVC Auditor. Based on the rule [X] and the fact that the vessel has breached safe limits, write a justification for emergency procurement."*
-    4. The Node validates the decision by running `compliance_auditor.py`.
-  - **Tools Used:** `rag.py`, `compliance_auditor.py`, `risk_based_inspection_tool.py`
-
-#### 5. 📝 The Chief Reviewer Agent (The Gatekeeper)
-This agent finalizes the workflow, guarantees security, and produces the physical deliverable.
-
-* **Responsibility:** Final sign-off, security verification, and document generation.
-* **Tasks Handled:** 
-  - Proving the system was air-gapped during the entire run.
-  - Verifying the cryptographic hashes of the audit trail so data can't be tampered with.
-  - Drafting the executive summary and compiling the Microsoft Word (`.docx`) Note for Approval.
-* **How to Build It:**
-  - **Model:** `llama3.2:3b`
-  - **Input State:** `calculation_data` + `compliance_data`
-  - **How it operates:**
-    1. The Node immediately runs `network_verifier.py`. If it detects any outgoing internet traffic, it halts and throws a security error.
-    2. If safe, it passes all data to the LLM to draft a 3-paragraph executive summary tailored for a board of directors.
-    3. The Node takes the LLM's summary, the math, and the compliance data, and passes them all into `doc_generator.py` to create the final formatted Word/PDF documents.
-  - **Tools Used:** `network_verifier.py`, `doc_generator.py`, `audit_trail.py`
-
-#### How they physically connect in LangGraph (Python concept):
-When you build this, your `main` graph file will look conceptually like this:
+All agent interactions and state transitions share a centralized Pydantic state schema:
 
 ```python
-from langgraph.graph import StateGraph
+from typing import Annotated, Sequence
+from pydantic import BaseModel, Field
+from langchain_core.messages import BaseMessage
+from langgraph.graph.message import add_messages
 
-# 1. Define the Graph and the State schema it holds
-workflow = StateGraph(AegisForgeState)
+class AgentState(BaseModel):
+    messages: Annotated[Sequence[BaseMessage], add_messages]  # Append-only message history with reducer
+    retry_count: int = Field(default=0)                       # Tracks retries across agent steps
+    max_retries: int = Field(default=3)                       # Safety threshold triggering Human Gate
+    human_approved: bool = Field(default=False)               # Flag set by Human Approval Gate
+    human_feedback: str = Field(default="")                   # Corrective feedback from field engineer
+```
 
-# 2. Add your Agent Nodes
-workflow.add_node("vision_agent", vision_node_function)
-workflow.add_node("coder_agent", coder_node_function)
-workflow.add_node("reasoning_agent", reasoning_node_function)
-workflow.add_node("reviewer_agent", reviewer_node_function)
+### 2. Multi-Agent Topology & Role Breakdown
 
-# 3. Add the Supervisor for routing
+| Agent / Node | Model Architecture | Primary Responsibility | Input State Keys | Output State Keys | Attached Tools |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Adaptive Complexity Router** | `llama3.2:3b` (JSON mode) | Triage incoming user intent at `START`; routes greetings/FAQs to direct answer and complex tasks to supervisor. | `messages` | `destination: "direct_answer" \| "supervisor"` | None (Fast path) |
+| **Direct Answer Node** | `llama3.2:3b` | Instant conversational answers for non-dossier queries without orchestrating tools. | `messages` | `messages` (AIMessage) | None |
+| **Supervisor Agent** *(The Dispatcher)* | `llama3.2:3b` (JSON mode) | Dynamic routing, task scheduling, retry counter management, and dispatching LangGraph `Command` transitions. | `messages`, `retry_count`, `max_retries` | `messages`, `goto: <agent_name>` | None (Cognitive brain) |
+| **Vision Worker Agent** | EasyOCR + `moondream:latest` / `llama3.2:3b` | Ingests degraded field inspection scans, handwritten notes, and P&ID drawings; parses UT thickness matrices. | `messages` | `messages` (Worker AIMessage) | `extract_inspection_data`, `analyze_thickness_grid`, `read_scanned_pdf` |
+| **Coder Worker Agent** | `qwen2.5-coder:7b` | Computes statutory ASME UG-27 formulas, API 579 FFS, material stress lookups, and runs isolated sandbox scripts. | `messages` | `messages` (Worker AIMessage) | `calculate_asme_stresses`, `run_ffs_assessment`, `lookup_material`, `execute_in_sandbox` |
+| **Reasoning Worker Agent** | `deepseek-r1:8b` | Audits CVC Circular 02/02/2004, PAC single-source validity, DOP financial limits, and computes API 581 RBI intervals. | `messages` | `messages` (Worker AIMessage) | `audit_cvc_compliance`, `calculate_rbi_score`, `verify_routing_policy`, Local RAG |
+| **Human Approval Gate** | LangGraph `interrupt()` | Blocks automated execution when retries exceed thresholds or safety-critical flags trigger; awaits human sign-off. | `messages`, `retry_count`, `human_approved` | `human_approved`, `human_feedback`, `retry_count` | `routing_guard.py` |
+| **Chief Reviewer Agent** | `llama3.2:3b` / `llama3.1:8b` | Cross-validates mathematical calculations against compliance verdicts; validates zero-egress state before compilation. | `messages` | `messages` (Review Verdict) | None |
+| **Deliverable Publisher Agent** | `llama3.1:8b` / `llama3.2:3b` | Compiles formal PSU Notes for Approval (Word `.docx` & PDF), applies cryptographic SHA-256 seal, and verifies air-gap. | `messages` | `messages`, Final `.docx` / `.pdf` paths | `generate_nfa_documents`, `write_sha256_audit_seal`, `verify_zero_egress` |
+
+---
+
+### 3. Detailed Agent Blueprints & Execution Mechanics
+
+#### 🧭 1. Adaptive Complexity Router (`route_question`)
+- **Location:** Entry point connected to `START`.
+- **Functionality:** Inspects `state.messages[-1].content` and outputs strict JSON: `{"destination": "direct_answer" | "supervisor"}`.
+- **Why?** Industrial users often ask quick informational questions ("What does ASME UG-27 define?") where invoking the multi-agent worker pipeline is wasteful. The fast path provides sub-second responses directly to `END`.
+
+#### 🧠 2. The Supervisor Agent (`supervisor_node`)
+- **Role:** Central cognitive orchestrator.
+- **Routing Protocol:** Prompts the supervisor LLM with system context to return:
+  ```json
+  {"next": "vision_agent" | "coder_agent" | "reasoning_agent" | "chief_reviewer", "instruction": "Task description"}
+  ```
+- **Dynamic Transition:** Returns a LangGraph `Command(update={"messages": [...]}, goto=next_target)` object.
+- **Fail-Safe Protection:** Automatically forces `next_target = "human_approval_gate"` if `state.retry_count >= state.max_retries`.
+
+#### 👁️ 3. The Vision Worker Agent (`vision_node` & `vision_agent`)
+- **Structure:** Built via `create_react_agent(vision_llm, tools=vision_tools, ...)`.
+- **Connected Tools:**
+  - `inspection_extractor_tool.extract_inspection_data`: Multi-engine OCR (EasyOCR + regex heuristic filtering).
+  - `thickness_grid_analyzer.analyze_thickness_grid`: UT coordinate grid statistical matrix parsing.
+  - `file_io.read_scanned_pdf`: Workspace-confined safe PDF ingestion.
+- **State Transition:** Wraps tool output into message history and returns `Command(goto="supervisor")`.
+
+#### ⚙️ 4. The Coder Worker Agent (`coder_node` & `coder_agent`)
+- **Structure:** Built via `create_react_agent(coder_llm, tools=coder_tools, ...)`.
+- **Connected Tools:**
+  - `asme_calculator.calculate_asme_stresses`: Pure math engine for statutory minimum thickness ($t_{\text{req}}$), delta, RSL, and derated MAWP.
+  - `api_579_ffs_tool.run_ffs_assessment`: API 579 Level 1 Fitness-For-Service for Local Thin Areas (LTA).
+  - `material_lookup_tool.lookup_material`: ASME Section II Part D allowable stresses ($S$) at temperature.
+  - `docker_sandbox.execute_in_sandbox`: AST safety checking + containerized Docker Python execution.
+- **State Transition:** Returns `Command(goto="supervisor")`.
+
+#### ⚖️ 5. The Reasoning Worker Agent (`reasoning_node` & `reasoning_agent`)
+- **Structure:** Built via `create_react_agent(reasoning_llm, tools=reasoning_tools, ...)`.
+- **Connected Tools:**
+  - `compliance_auditor.audit_cvc_compliance`: Audits CVC Circular 02/02/2004, PAC validity, and DOP limits.
+  - `risk_based_inspection_tool.calculate_rbi_score`: Computes API 581 statutory inspection intervals.
+  - `routing_guard.verify_routing_policy`: Enforces organizational governance rules.
+  - `rag.search_local_knowledge`: Local vector search over OISD standards, SOPs, and CVC circulars.
+- **State Transition:** Returns `Command(goto="supervisor")`.
+
+#### 🛡️ 6. The Human Approval Gate (`human_approval_gate`)
+- **Structure:** LangGraph `interrupt()` node with `MemorySaver` persistence.
+- **Operation:**
+  ```python
+  def human_approval_gate(state: AgentState) -> Command[Literal["supervisor", "chief_reviewer"]]:
+      user_input = interrupt({
+          "message": "CRITICAL: Max retries exceeded or safety flag raised. Human engineer sign-off required.",
+          "status": "Awaiting Sign-off"
+      })
+      approved = user_input.get("approved", False)
+      feedback = user_input.get("feedback", "")
+      
+      if approved:
+          return Command(
+              update={"human_approved": True, "human_feedback": feedback, "retry_count": 0,
+                      "messages": [HumanMessage(content=f"Human Engineer Approved: {feedback}", name="HumanGate")]},
+              goto="chief_reviewer"
+          )
+      else:
+          return Command(
+              update={"human_approved": False, "human_feedback": feedback, "retry_count": 0,
+                      "messages": [HumanMessage(content=f"Human Engineer Rejected/Re-routed: {feedback}", name="HumanGate")]},
+              goto="supervisor"
+          )
+  ```
+
+#### 🔍 7. The Chief Reviewer Agent (`chief_reviewer_node`)
+- **Role:** Gatekeeper cross-checking that all calculations, extractions, and compliance findings are mathematically consistent and safe for PSU executive review.
+- **State Transition:** Passes verified state to `Command(goto="deliverable_publisher")`.
+
+#### 🖨️ 8. The Deliverable Publisher Agent (`deliverable_publisher_node`)
+- **Connected Tools:**
+  - `doc_generator.generate_nfa_documents`: Compiles high-fidelity `.docx` and `.pdf` deliverables adhering to Indian Oil / MRPL ministerial formatting.
+  - `audit_trail.write_sha256_audit_seal`: Writes a cryptographically linked SHA-256 ledger entry with input/output digests.
+  - `network_verifier.verify_zero_egress`: Inspects OS socket handles to verify zero external egress before file sign-off.
+- **State Transition:** Concludes the pipeline with `Command(goto=END)`.
+
+---
+
+### 4. Production LangGraph Implementation Pattern
+
+The complete multi-agent pipeline is constructed as follows:
+
+```python
+from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import MemorySaver
+from agent_orchestrator.state import AgentState
+
+# 1. Initialize StateGraph with typed schema
+workflow = StateGraph(AgentState)
+
+# 2. Register all Agent Nodes
+workflow.add_node("direct_answer", direct_answer_node)
+workflow.add_node("supervisor", supervisor_node)
+workflow.add_node("vision_agent", vision_node)
+workflow.add_node("coder_agent", coder_node)
+workflow.add_node("reasoning_agent", reasoning_node)
+workflow.add_node("human_approval_gate", human_approval_gate)
+workflow.add_node("chief_reviewer", chief_reviewer_node)
+workflow.add_node("deliverable_publisher", deliverable_publisher_node)
+
+# 3. Configure Entry Point via Adaptive Complexity Router
 workflow.add_conditional_edges(
-    "supervisor_agent", # The starting node
-    supervisor_router_function, # The function that decides where to go next
+    START,
+    route_question,
     {
-        "vision": "vision_agent",
-        "coder": "coder_agent",
-        "human_approval": END
+        "direct_answer": "direct_answer",
+        "supervisor": "supervisor"
     }
 )
+workflow.add_edge("direct_answer", END)
+
+# 4. Compile with Checkpoint Memory for Human-in-the-Loop Resumption
+memory = MemorySaver()
+app = workflow.compile(checkpointer=memory)
 ```
 
 ---
@@ -242,7 +302,7 @@ tools/
 ├── thickness_grid_analyzer.py     # Ultrasonic thickness (UT) matrix (.xlsx/.csv) parser
 ├── compliance_auditor.py          # CVC Circular 02/02/2004 & IOCL/MRPL DOP engine
 ├── rag.py                         # Air-gapped vector search over internal refinery SOPs
-├── sandbox.py                     # Restricted subprocess code sandbox (memory & CPU capped)
+├── docker_sandbox.py              # AST-scanned Docker container execution sandbox
 ├── network_verifier.py            # Real-time socket & telemetry monitor (zero-egress proof)
 ├── audit_trail.py                 # Chained SHA-256 cryptographic audit ledger
 ├── routing_guard.py               # Dispatch guardrails & 3-way Human Approval Gate
@@ -463,32 +523,32 @@ Every tool is built as an independent, deterministic Python module with zero dep
 
 ---
 
-#### 9. `sandbox.py` (Air-Gapped Python Code Execution Sandbox)
-* **What It Is:** A secure, isolated execution environment for running agent-generated scripts and numerical validations safely.
-* **What It Does:** Spawns a hardened child process with:
-  * Hard execution timeout: 10 seconds max.
-  * Memory ceiling: 512 MB.
-  * Network isolation: Intercepts and blocks all OS socket operations.
-  * Captures `stdout` and `stderr` safely.
+#### 9. `docker_sandbox.py` (Containerized Sandbox with AST Static Safety Analysis)
+* **What It Is:** A multi-layered secure execution environment for safely running LLM-generated Python code without risking host system compromise.
+* **What It Does:**
+  * **Layer 1 (AST Pre-Execution Scanner):** Parses the Python Abstract Syntax Tree prior to execution. Instantly detects and blocks forbidden import statements (`os`, `sys`, `subprocess`, `shutil`, `socket`, `requests`).
+  * **Layer 2 (Docker Container Isolation):** Automatically builds and spins up a dedicated container (`sih-agent-sandbox`) with non-root user privileges, memory caps (512 MB), 15-second timeouts, and network interfaces completely disabled.
+  * **Layer 3 (Audit Trail Integration):** Logs source code, execution outputs, and status directly into the cryptographic `AuditLedger`.
 * **Example:**
   ```python
-  from tools.sandbox import execute_python_code
+  from tools.docker_sandbox import DockerSecureSandbox
 
+  sandbox = DockerSecureSandbox(timeout_seconds=15)
   code = """
   p, r, s, e = 14.5, 1200, 138, 1.0
   t_req = (p * r) / (s * e - 0.6 * p) + 4.0
   print(f"Calculated t_req: {t_req:.2f} mm")
   """
-  result = execute_python_code(code)
+  result = sandbox.execute(code, caller_agent="coder_agent")
   ```
   **Output:**
   ```json
   {
-    "exit_code": 0,
+    "status": "SUCCESS",
     "stdout": "Calculated t_req: 138.57 mm\n",
     "stderr": "",
-    "execution_time_ms": 94,
-    "sandbox_security_passed": true
+    "execution_time_ms": 112,
+    "security_passed": true
   }
   ```
 
@@ -614,15 +674,17 @@ The workbench demonstrates an autonomous end-to-end industrial lifecycle:
 
 AegisForge-AI is engineered to run on a **single developer workstation or laptop with a 6 GB VRAM GPU** (e.g., RTX 3060 Laptop, RTX 2060, GTX 1660 Ti) without running out of memory.
 
-### 6 GB VRAM Allocation Budget
+### 6 GB to 16 GB VRAM Allocation Budget
 * **Windows OS & Display:** ~1.5 GB VRAM
-* **Active Working VRAM:** ~4.5 GB VRAM
-* **Model Footprint:**
-  * `qwen2.5:3b` $\rightarrow$ ~2.0 GB VRAM
-  * `qwen2.5-coder:1.5b` $\rightarrow$ ~1.2 GB VRAM
-  * `deepseek-r1:1.5b` $\rightarrow$ ~1.3 GB VRAM
+* **Active Working VRAM:** ~4.5 GB to 14.5 GB VRAM
+* **Installed Model Library (Ollama On-Premise):**
+  * `llama3.2:3b` $\rightarrow$ Fast Router, Supervisor & Direct Answer (~2.0 GB VRAM)
+  * `qwen2.5-coder:7b` $\rightarrow$ Deterministic ASME Math & Sandbox Coding (~4.7 GB VRAM)
+  * `deepseek-r1:8b` $\rightarrow$ Deep CVC Compliance & Statutory Reasoning (~5.2 GB VRAM)
+  * `moondream:latest` $\rightarrow$ Multimodal Vision & OCR Document Parsing (~1.7 GB VRAM)
+  * `llama3.1:8b` $\rightarrow$ Gatekeeper Chief Reviewer & Deliverable Compilation (~4.9 GB VRAM)
 
-### Essential Ollama Configuration for 6 GB GPUs
+### Essential Ollama Configuration for Workstations
 To prevent VRAM thrashing when switching agents, enforce single-model residency:
 ```powershell
 # In Windows PowerShell:
@@ -636,25 +698,25 @@ To prevent VRAM thrashing when switching agents, enforce single-model residency:
 ### Prerequisites
 * Python 3.11+
 * [Ollama](https://ollama.com/) installed and running locally
-* Local open-weight models pulled:
+* Local open-weight models installed:
   ```bash
-  ollama pull qwen2.5:3b
-  ollama pull qwen2.5-coder:1.5b
-  ollama pull deepseek-r1:1.5b
   ollama pull llama3.2:3b
-  ollama pull moondream
+  ollama pull qwen2.5-coder:7b
+  ollama pull deepseek-r1:8b
+  ollama pull moondream:latest
+  ollama pull llama3.1:8b
   ```
 
 #### One-Liner Command to Pull All 5 Models in Sequence
 
 **In PowerShell:**
 ```powershell
-ollama pull qwen2.5:3b; ollama pull qwen2.5-coder:1.5b; ollama pull deepseek-r1:1.5b; ollama pull llama3.2:3b; ollama pull moondream
+ollama pull llama3.2:3b; ollama pull qwen2.5-coder:7b; ollama pull deepseek-r1:8b; ollama pull moondream:latest; ollama pull llama3.1:8b
 ```
 
 **In Command Prompt (cmd):**
 ```cmd
-ollama pull qwen2.5:3b && ollama pull qwen2.5-coder:1.5b && ollama pull deepseek-r1:1.5b && ollama pull llama3.2:3b && ollama pull moondream
+ollama pull llama3.2:3b && ollama pull qwen2.5-coder:7b && ollama pull deepseek-r1:8b && ollama pull moondream:latest && ollama pull llama3.1:8b
 ```
 
 ### 1. Clone & Setup Environment
@@ -691,7 +753,7 @@ python main.py sandbox --code "print(sum(range(100)))"
 ```
 
 ### 4. Interactive Agent Testing in Jupyter
-Open and run [`agent_orchestrator/test.ipynb`](agent_orchestrator/test.ipynb) to test the multi-agent LangGraph pipeline step-by-step, inspect graph transitions, and test human-in-the-loop overrides.
+Open and run [`agent_orchestrator/agents.ipynb`](agent_orchestrator/agents.ipynb) or [`agent_orchestrator/agent_testing.ipynb`](agent_orchestrator/agent_testing.ipynb) to test the multi-agent LangGraph pipeline step-by-step, inspect graph transitions, stream node outputs, and test human-in-the-loop overrides.
 
 ---
 
@@ -702,7 +764,7 @@ Open and run [`agent_orchestrator/test.ipynb`](agent_orchestrator/test.ipynb) to
 | **Self-hosted, air-gapped on-premise** | Local Ollama serving, local vector embeddings, zero cloud telemetry. | ✅ Production Ready |
 | **Model auto-selection across task types** | `Supervisor Agent` dynamically routes between Coder, Vision, Reasoning, and General models. | ✅ Production Ready |
 | **Scanned PDFs, handwritten notes, drawings** | `inspection_extractor_tool.py` combining EasyOCR + local vision models. | ✅ Production Ready |
-| **Code execution verified in sandbox** | `sandbox.py` with memory limits, timeouts, and blocked network sockets. | ✅ Production Ready |
+| **Code execution verified in sandbox** | `docker_sandbox.py` with AST safety filtering, Docker container isolation, and disabled network. | ✅ Production Ready |
 | **Calculations with steps shown** | `ug27_core.py` showing full ASME formulas, variables, and API 510 derivations. | ✅ Production Ready |
 | **Real industrial deliverables (Word/PDF)** | `doc_generator.py` producing formal Notes for Approval with signature blocks. | ✅ Production Ready |
 | **Grounded in manuals & SOPs** | `rag.py` local vector database indexing refinery standards & OISD guides. | ✅ Production Ready |

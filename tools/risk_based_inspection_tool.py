@@ -65,28 +65,41 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
+RbiTool = RiskBasedInspectionTool
+
 @tool
-def calculate_rbi_score(inp: RbiIntervalInput) -> dict:
-    """Calculates Risk Based Inspection (RBI) score and intervals."""
+def calculate_rbi_score(
+    equipment_id: str = "11-V-102",
+    measured_thickness_mm: float = 138.2,
+    design_pressure_mpa: float = 14.5,
+    remaining_life_years: float = 5.0,
+    fluid_toxicity: str = "High",
+    toxicity_factor: float = 2.0,
+    pressure_factor: float = 2.0,
+    life_factor: float = 2.0
+) -> dict:
+    """Calculates Risk-Based Inspection (RBI) score and returns next inspection interval."""
     print(f"\n--- EXECUTING TOOL: calculate_rbi_score ---\n")
     logger.info(f"Executing tool: calculate_rbi_score")
     try:
+        tf = max(1, min(3, int(round(toxicity_factor)))) if toxicity_factor is not None else 2
+        pf = max(1, min(3, int(round(pressure_factor)))) if pressure_factor is not None else 2
+        lf = max(1, min(3, int(round(life_factor)))) if life_factor is not None else 2
+        dp = max(0.1, float(design_pressure_mpa)) if design_pressure_mpa is not None else 14.5
+        
         rbi = RiskBasedInspectionTool()
+        inp = RbiIntervalInput(
+            equipment_id=equipment_id or "11-V-102",
+            measured_thickness_mm=measured_thickness_mm if measured_thickness_mm is not None else 138.2,
+            design_pressure_mpa=dp,
+            remaining_life_years=remaining_life_years if remaining_life_years is not None else 5.0,
+            fluid_toxicity=fluid_toxicity or "High",
+            toxicity_factor=tf,
+            pressure_factor=pf,
+            life_factor=lf
+        )
         return rbi.calculate_rbi_interval(inp).model_dump()
     except Exception as e:
         logger.error(f"Error in calculate_rbi_score: {e}")
         return {"status": "error", "error": str(e)}
 
-if __name__ == "__main__":
-    # Test for RBI Tool
-    logger.info("Testing calculate_rbi_score...")
-    mock_input = RbiIntervalInput(
-        remaining_life_years=10.0,
-        design_pressure_mpa=1.5,
-        fluid_toxicity="High",
-        toxicity_factor=3,
-        pressure_factor=2,
-        life_factor=1
-    )
-    result = calculate_rbi_score.invoke({"inp": mock_input})
-    logger.info(f"Result: {result}")

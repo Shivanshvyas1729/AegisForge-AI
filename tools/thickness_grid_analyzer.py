@@ -2,6 +2,7 @@ import sys
 import os
 import csv
 import statistics
+from typing import Optional, List, Dict
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -23,7 +24,7 @@ class ThicknessGridAnalyzer:
     identifies localized thinning coordinates across the vessel circumference.
     """
 
-    def __init__(self, nominal_thickness_mm: float = 142.0, use_audit_trail: bool = True):
+    def __init__(self, nominal_thickness_mm: Optional[float] = None, use_audit_trail: bool = True):
         self.nominal_thickness = nominal_thickness_mm
         self.use_audit_trail = use_audit_trail
         if self.use_audit_trail:
@@ -77,6 +78,7 @@ class ThicknessGridAnalyzer:
         iqr = q3 - q1
         lower_bound = q1 - threshold_factor * iqr
 
+        nom = self.nominal_thickness or max(thicknesses)
         outliers = []
         for point in data_points:
             if point["thickness"] < lower_bound:
@@ -84,7 +86,7 @@ class ThicknessGridAnalyzer:
                     "row": point["row"],
                     "col": point["col"],
                     "thickness_mm": point["thickness"],
-                    "deviation_from_nominal_mm": round(self.nominal_thickness - point["thickness"], 2)
+                    "deviation_from_nominal_mm": round(nom - point["thickness"], 2)
                 })
         return outliers
 
@@ -124,27 +126,33 @@ class ThicknessGridAnalyzer:
         min_point = min(data_points, key=lambda p: p["thickness"])
         critical_coord = f"Row {min_point['row']}, Col {min_point['col']}"
 
+        # Determine nominal thickness dynamically if not explicitly specified
+        nom_t = self.nominal_thickness
+        if nom_t is None or nom_t <= 0:
+            nom_t = round(max_val)  # Unworn plate thickness estimate
+        self.nominal_thickness = nom_t
+
         # Wall loss percentage relative to nominal
-        mean_loss_pct = round(((self.nominal_thickness - mean_val) / self.nominal_thickness) * 100, 2)
+        mean_loss_pct = round(((nom_t - mean_val) / nom_t) * 100, 2) if nom_t > 0 else 0.0
 
         # Detect outlier pits
         outliers = self._detect_outliers(data_points)
 
         # Estimate flaw length from adjacent thin points (simplified: count points below nominal - 2mm)
-        thin_threshold = self.nominal_thickness - 2.0
+        thin_threshold = nom_t - 2.0
         thin_points = [p for p in data_points if p["thickness"] < thin_threshold]
         flaw_length = len(thin_points) * 25.0  # Approximate 25mm grid spacing
 
         result = ThicknessGridResult(
             status="SUCCESS",
             grid_points_scanned=len(data_points),
-            nominal_thickness_mm=self.nominal_thickness,
+            nominal_thickness_mm=nom_t,
             min_point_thickness_mm=round(min_val, 2),
             max_point_thickness_mm=round(max_val, 2),
             mean_thickness_mm=round(mean_val, 2),
             critical_coordinate=critical_coord,
             mean_loss_percentage=mean_loss_pct,
-            flaw_length_mm=round(flaw_length, 1),
+            flaw_length_mm=round(flaw_length, 2),
             outlier_points=outliers
         )
         return self._log_and_return(result, file_path, caller_agent, "COMPLETED")
@@ -166,30 +174,19 @@ class ThicknessGridAnalyzer:
         return result
 
 from langchain_core.tools import tool
-from pydantic import BaseModel, Field
 import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
-class GridFileInput(BaseModel):
-    file_path: str = Field(..., description="Path to the CSV or XLSX file")
-
 @tool
-def analyze_thickness_grid(inp: GridFileInput) -> dict:
-    """Analyzes a thickness grid from CSV/XLSX to detect outliers."""
+def analyze_thickness_grid(file_path: str, nominal_thickness_mm: Optional[float] = None) -> dict:
+    """Analyzes a thickness grid CSV or Excel file for localized thinning."""
     print(f"\n--- EXECUTING TOOL: analyze_thickness_grid ---\n")
-    logger.info(f"Executing tool: analyze_thickness_grid")
+    logger.info(f"Executing tool: analyze_thickness_grid (File: {file_path})")
     try:
-        analyzer = ThicknessGridAnalyzer()
-        return analyzer.analyze(inp.file_path).model_dump()
+        analyzer = ThicknessGridAnalyzer(nominal_thickness_mm=nominal_thickness_mm)
+        return analyzer.analyze(file_path).model_dump()
     except Exception as e:
         logger.error(f"Error in analyze_thickness_grid: {e}")
         return {"status": "error", "error": str(e)}
-
-if __name__ == "__main__":
-    # Test for Thickness Grid Analyzer
-    logger.info("Testing analyze_thickness_grid...")
-    mock_input = GridFileInput(file_path="data/test_dossiers/ID-9982_Thickness_Grid.csv")
-    result = analyze_thickness_grid.invoke({"inp": mock_input})
-    logger.info(f"Result: {result}")

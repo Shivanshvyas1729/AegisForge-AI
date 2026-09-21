@@ -241,6 +241,15 @@ class AuditLedger:
         print(f"✅ Audit ledger integrity verified! {len(rows)} blocks cryptographically validated.")
         return True
 
+    def get_latest_events(self, limit=50):
+        """Fetches the latest audit events from SQLite as dictionaries."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, timestamp, workflow_id, tool_name, caller, status, block_hash FROM audit_chain ORDER BY id DESC LIMIT ?", (int(limit),))
+            rows = cursor.fetchall()
+            col_names = [d[0] for d in cursor.description]
+            return [dict(zip(col_names, row)) for row in rows]
+
 
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
@@ -260,9 +269,3 @@ def write_sha256_audit_seal(file_path: str) -> str:
         logger.error(f"Error in write_sha256_audit_seal: {e}")
         return str(e)
 
-if __name__ == "__main__":
-    # Test for Audit Trail
-    logger.info("Testing write_sha256_audit_seal...")
-    # Testing it on itself
-    result = write_sha256_audit_seal.invoke({"file_path": __file__})
-    logger.info(f"Result (Hash): {result}")

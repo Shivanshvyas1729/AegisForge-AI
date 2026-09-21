@@ -80,8 +80,8 @@ class VerifyInput(BaseModel):
     pass
 
 @tool
-def verify_zero_egress(inp: VerifyInput) -> dict:
-    """Verifies that no egress network traffic occurred."""
+def verify_zero_egress() -> dict:
+    """Verifies zero external egress telemetry from the environment."""
     print(f"\n--- EXECUTING TOOL: verify_zero_egress ---\n")
     logger.info(f"Executing tool: verify_zero_egress")
     try:
@@ -90,10 +90,3 @@ def verify_zero_egress(inp: VerifyInput) -> dict:
     except Exception as e:
         logger.error(f"Error in verify_zero_egress: {e}")
         return {"status": "error", "error": str(e)}
-
-if __name__ == "__main__":
-    # Test for Network Verifier
-    logger.info("Testing verify_zero_egress...")
-    mock_input = VerifyInput()
-    result = verify_zero_egress.invoke({"inp": mock_input})
-    logger.info(f"Result: {result}")

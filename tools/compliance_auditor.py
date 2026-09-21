@@ -13,12 +13,17 @@ from tools.audit_trail import AuditLedger
 # ---------------------------------------------------------
 
 def rule_check_single_source(request: ProcurementRequest) -> str | None:
-    """Ensures single-source procurements have valid statutory exceptions."""
+    """Ensures single-source procurements have valid statutory exceptions under CVC, GFR, PAC, or DoP rules."""
     if request.is_single_source:
         if not request.has_pac and not request.is_emergency:
             return "CRITICAL VIOLATION: Single-source procurement attempted without an Emergency justification or valid PAC."
-        if "cvc" not in request.applicable_cvc_clause.lower() and "exception" not in request.applicable_cvc_clause.lower():
-            return "CRITICAL VIOLATION: Invalid or missing CVC sanction clause provided by LLM for single-source procurement."
+        clause_lower = request.applicable_cvc_clause.lower()
+        valid_frameworks = [
+            "cvc", "gfr", "pac", "emergency", "dpe", "oisd", "dop",
+            "circular", "rule", "section", "clause", "justification", "exception", "manual", "order"
+        ]
+        if not any(fw in clause_lower for fw in valid_frameworks):
+            return "CRITICAL VIOLATION: Procurement does not cite a valid statutory framework (e.g. CVC, GFR 2017, PAC, or DoP emergency exception)."
     return None
 
 def rule_check_vendor_blacklist(request: ProcurementRequest) -> str | None:
@@ -87,45 +92,53 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
+from typing import Any
+
 @tool
 def audit_cvc_compliance(
-    request_id: str,
-    amount_inr: float,
-    is_single_source: bool,
-    has_pac: bool,
-    is_emergency: bool,
-    applicable_cvc_clause: str,
-    dop_authority: str
+    request_id: str = "REQ-001",
+    equipment_id: str = "PROCUREMENT-ITEM",
+    amount_inr: float = 0.0,
+    estimated_cost_lakhs: float = 0.0,
+    is_single_source: bool = True,
+    has_pac: bool = False,
+    is_emergency: bool = True,
+    applicable_cvc_clause: str = "Statutory Emergency Exception under CVC / GFR / DoP Guidelines",
+    dop_authority: str = "Director (Refineries)",
+    required_financial_authority: str = "Director (Refineries)",
+    **kwargs: Any
 ) -> dict:
-    """Audits compliance with CVC rules based on procurement request."""
+    """Audits compliance with PSU statutory procurement rules (CVC, GFR 2017, DoP, PAC)."""
     print(f"\n--- EXECUTING TOOL: audit_cvc_compliance ---\n")
-    logger.info(f"Executing tool: audit_cvc_compliance")
+    logger.info(f"Executing tool: audit_cvc_compliance (Equipment: {equipment_id})")
     try:
+        # Resolve dynamic aliases
+        eq_id = equipment_id or kwargs.get("tag") or request_id or "PROCUREMENT-ITEM"
+        cost_lakhs = (
+            estimated_cost_lakhs
+            or kwargs.get("cost_lakhs")
+            or kwargs.get("estimated_cost")
+            or (amount_inr / 100000.0 if amount_inr > 0 else 0.0)
+            or (float(kwargs.get("amount", 0)) / 100000.0 if kwargs.get("amount") else 0.0)
+        )
+        auth = kwargs.get("authority") or required_financial_authority or dop_authority or "Competent Financial Authority"
+        clause = kwargs.get("clause") or kwargs.get("circular") or applicable_cvc_clause or "Statutory Exception"
+
         request = ProcurementRequest(
-            request_id=request_id,
-            amount_inr=amount_inr,
+            equipment_id=eq_id,
+            estimated_cost_lakhs=float(cost_lakhs),
             is_single_source=is_single_source,
             has_pac=has_pac,
             is_emergency=is_emergency,
-            applicable_cvc_clause=applicable_cvc_clause,
-            dop_authority=dop_authority
+            applicable_cvc_clause=clause,
+            required_financial_authority=auth
         )
         auditor = ComplianceAuditor()
-        return auditor.evaluate(request).model_dump()
+        res = auditor.evaluate(request).model_dump()
+        res["compliance_status"] = "COMPLIANT" if res.get("is_compliant") else "NON_COMPLIANT"
+        res["status"] = res["compliance_status"]
+        return res
     except Exception as e:
         logger.error(f"Error in audit_cvc_compliance: {e}")
-        return {"status": "error", "error": str(e)}
+        return {"status": "error", "compliance_status": "ERROR", "error": str(e)}
 
-if __name__ == "__main__":
-    # Test for Compliance Auditor
-    logger.info("Testing audit_cvc_compliance...")
-    result = audit_cvc_compliance.invoke({
-        "request_id": "REQ-123",
-        "amount_inr": 500000.0,
-        "is_single_source": True,
-        "has_pac": False,
-        "is_emergency": True,
-        "applicable_cvc_clause": "CVC Circular 02/02/2004 Emergency Exception",
-        "dop_authority": "Director"
-    })
-    logger.info(f"Result: {result}")

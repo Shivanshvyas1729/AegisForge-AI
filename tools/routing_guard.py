@@ -35,7 +35,7 @@ class RoutingGuard:
             self.ledger = AuditLedger()
 
     def evaluate(self, extraction_output: dict, calculation_output: dict = None,
-                 caller_agent: str = "supervisor_agent") -> RoutingGuardVerdict:
+                 compliance_output: dict = None, caller_agent: str = "supervisor_agent") -> RoutingGuardVerdict:
         """
         Evaluates whether automated dispatch should proceed or be blocked
         for human review.
@@ -129,18 +129,16 @@ class RoutingGuardPolicyInput(BaseModel):
     compliance_output: Optional[dict] = Field(None)
 
 @tool
-def verify_routing_policy(inp: RoutingGuardPolicyInput) -> dict:
-    """Verifies if the workflow can proceed based on extracted/calculated/compliance data."""
+def verify_routing_policy(extraction_output: dict, calculation_output: dict = None, compliance_output: dict = None) -> dict:
+    """Evaluates results from prior agents to verify if the routing policy holds or if human intervention is needed."""
     print(f"\n--- EXECUTING TOOL: verify_routing_policy ---\n")
     logger.info(f"Executing tool: verify_routing_policy")
     try:
         guard = RoutingGuard()
-        return guard.evaluate(inp.extraction_output, inp.calculation_output, inp.compliance_output).model_dump()
+        return guard.evaluate(extraction_output, calculation_output, compliance_output).model_dump()
     except Exception as e:
         logger.error(f"Error in verify_routing_policy: {e}")
         return {"status": "error", "error": str(e)}
-
-
 # ============================================================
 # SUPERVISOR DISPATCH GUARD (REMOTE VERSION SCHEMA)
 # ============================================================
@@ -411,13 +409,3 @@ def supervisor_dispatch_guard(
         allowed_actions=[],
     )
 
-if __name__ == "__main__":
-    # Test for Routing Guard
-    logger.info("Testing verify_routing_policy...")
-    mock_input = RoutingGuardPolicyInput(
-        extraction_output={"status": "SUCCESS"},
-        calculation_output={"status": "SAFE"},
-        compliance_output=None
-    )
-    result = verify_routing_policy.invoke({"inp": mock_input})
-    logger.info(f"Result: {result}")

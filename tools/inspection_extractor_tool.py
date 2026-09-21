@@ -13,9 +13,13 @@ except ImportError:
     easyocr = None
 
 try:
-    import fitz  # PyMuPDF for PDF page-to-image conversion
+    import pymupdf as fitz  # PyMuPDF (formerly fitz) for PDF page-to-image conversion
 except ImportError:
-    fitz = None
+    try:
+        import fitz
+    except ImportError:
+        fitz = None
+
 
 
 class InspectionExtractorTool:
@@ -190,21 +194,13 @@ class FileInput(BaseModel):
     file_path: str = Field(..., description="Path to the PDF file")
 
 @tool
-def extract_inspection_data(inp: FileInput) -> dict:
+def extract_inspection_data(file_path: str) -> dict:
     """Extracts inspection parameters from a scanned PDF."""
     print(f"\n--- EXECUTING TOOL: extract_inspection_data ---\n")
     logger.info(f"Executing tool: extract_inspection_data")
     try:
         extractor = InspectionExtractorTool()
-        return extractor.extract(inp.file_path).model_dump()
+        return extractor.extract(file_path).model_dump()
     except Exception as e:
         logger.error(f"Error in extract_inspection_data: {e}")
         return {"status": "error", "error": str(e)}
-
-if __name__ == "__main__":
-    # Test for Inspection Extractor
-    logger.info("Testing extract_inspection_data...")
-    # Make sure to point this to the newly created mock dossier
-    mock_input = FileInput(file_path="data/test_dossiers/ID-9982_UT_Scan.txt")
-    result = extract_inspection_data.invoke({"inp": mock_input})
-    logger.info(f"Result: {result}")

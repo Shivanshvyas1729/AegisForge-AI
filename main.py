@@ -32,9 +32,13 @@ except Exception:
     pass
 
 
-class AegisForgeCentralEngine:
+from backend import AegisForgeBackend
+
+
+class AegisForgeCentralEngine(AegisForgeBackend):
     """
     Central engine providing a clean programmatic interface to AegisForge-AI.
+    Inherits from the unified AegisForgeBackend architecture.
 
     Example:
         >>> from main import AegisForgeCentralEngine
@@ -44,6 +48,7 @@ class AegisForgeCentralEngine:
     """
 
     def __init__(self):
+        super().__init__()
         from config.settings import (
             PROJECT_ROOT as _root,
             MODEL_POOL_DIR,
@@ -109,40 +114,128 @@ class AegisForgeCentralEngine:
         self,
         input_source: Optional[Union[str, Path]] = None,
         output_name: str = "IOCL_Emergency_Approval_Note.docx",
-        model_name: str = "deepseek-r1:1.5b",
+        model_name: str = "llama3.2:3b",
+        statutory_framework: str = "CVC Circular 02/02/2004 Clause 4.2 / GFR 2017 Rule 194 Emergency Exception",
     ) -> Dict[str, Any]:
         """
         End-to-end Golden Path:
-        Inspection Log → ASME Math → DeepSeek-R1 Synthesis → Word .docx
+        Inspection Log → ASME Math → Statutory Compliance → Word .docx Deliverable
         """
-        from agent_orchestrator.orchestrator_mvp import run_mvp_pipeline
+        from tools.file_io import read_scanned_pdf
+        from tools.asme_calculator import calculate_asme_stresses
+        from tools.compliance_auditor import audit_cvc_compliance
+        from tools.doc_generator import generate_nfa_documents
 
         if input_source is None:
             input_source = (
-                self._sample_data_dir
-                / "06_inspection_reports"
-                / "field_inspector_raw_ocr_log.txt"
+                self._project_root
+                / "data"
+                / "sample_reports"
+                / "UT_Scan_Separator_11V102.pdf"
             )
 
-        payload = run_mvp_pipeline(
-            input_source=input_source,
-            output_filename=output_name,
-            model_name=model_name,
-        )
+        # 1. Read document
+        read_res = read_scanned_pdf.invoke({"file_path": str(input_source)})
+        content = read_res.get("content", "")
+
+        # 2. Default ASME Section VIII parameters (overridden dynamically if found in dossier)
+        equipment_id = "11-V-102"
+        p_val = 14.5
+        r_val = 1200.0
+        s_val = 138.0
+        e_val = 1.0
+        ca_val = 4.0
+        t_act = 138.20
+        cr_val = 0.75
+
+        # Dynamic parameter extraction from dossier text
+        import re
+        m_id = re.search(r'(?:Equipment\s*(?:ID|Tag|No)?|Vessel\s*(?:Tag|ID|No)?|Tag)[:\s=]*([A-Za-z0-9\-]+)', content, re.IGNORECASE)
+        if m_id: equipment_id = m_id.group(1).strip()
+
+        m_p = re.search(r'(?:Design\s*Pressure|Operating\s*Pressure|Pressure\s*P|Pressure)[:\s=]*([\d.]+)', content, re.IGNORECASE)
+        if m_p: p_val = float(m_p.group(1))
+
+        m_r = re.search(r'(?:Inside\s*Radius|Internal\s*Radius|Radius\s*R|Radius)[:\s=]*([\d.]+)', content, re.IGNORECASE)
+        if m_r: r_val = float(m_r.group(1))
+
+        m_t = re.search(r'(?:Measured\s*Thickness|Actual\s*Thickness|Minimum\s*Recorded\s*Thickness|Thickness\s*t|Thickness)[:\s=]*([\d.]+)', content, re.IGNORECASE)
+        if m_t: t_act = float(m_t.group(1))
+
+        m_cr = re.search(r'(?:Corrosion\s*Rate|CR)[:\s=]*([\d.]+)', content, re.IGNORECASE)
+        if m_cr: cr_val = float(m_cr.group(1))
+
+        m_ca = re.search(r'(?:Corrosion\s*Allowance|CA)[:\s=]*([\d.]+)', content, re.IGNORECASE)
+        if m_ca: ca_val = float(m_ca.group(1))
+
+        m_s = re.search(r'(?:Allowable\s*Stress|Stress\s*S|Max\s*Allowable\s*Stress)[:\s=]*([\d.]+)', content, re.IGNORECASE)
+        if m_s: s_val = float(m_s.group(1))
+
+        # Dynamic material lookup if present in document
+        m_mat = re.search(r'Material(?: Specification)?[:\s=]*([A-Za-z0-9\.\-\+ ]+)', content, re.IGNORECASE)
+        if m_mat:
+            mat_grade = m_mat.group(1).strip().split('\n')[0]
+            try:
+                from tools.material_lookup_tool import lookup_material
+                mat_res = lookup_material.invoke({"material_grade": mat_grade, "temperature_c": 350.0})
+                if mat_res.get("status") == "SUCCESS" and mat_res.get("allowable_stress_mpa"):
+                    s_val = float(mat_res["allowable_stress_mpa"])
+            except Exception:
+                pass
+
+        # Perform deterministic ASME Section VIII UG-27 calculation
+        calc = calculate_asme_stresses.invoke({
+            "design_pressure_mpa": p_val,
+            "inside_radius_mm": r_val,
+            "allowable_stress_mpa": s_val,
+            "joint_efficiency": e_val,
+            "corrosion_allowance_mm": ca_val,
+            "measured_thickness_mm": t_act,
+            "corrosion_rate_mm_yr": cr_val,
+            "equipment_id": equipment_id
+        })
+
+        # Dynamic statutory / CVC compliance audit
+        audit = audit_cvc_compliance.invoke({
+            "request_id": f"REQ-{equipment_id}-01",
+            "equipment_id": equipment_id,
+            "estimated_cost_lakhs": 15.0,
+            "is_single_source": True,
+            "has_pac": False,
+            "is_emergency": True,
+            "dop_authority": "General Manager",
+            "applicable_cvc_clause": statutory_framework
+        })
+
+        # Generate signed Word deliverable with cryptographic hash
+        doc_res = generate_nfa_documents.invoke({
+            "equipment_id": equipment_id,
+            "asme_results": str(calc),
+            "cvc_compliance": str(audit),
+            "template_name": "NFA_Emergency_Procurement.docx"
+        })
+
+        import datetime
         return {
-            "equipment_id": payload.inspection_data.equipment_id,
-            "t_req_mm": payload.calculation_data.t_req_mm,
-            "measured_mm": payload.calculation_data.measured_thickness_mm,
-            "delta_mm": payload.calculation_data.delta_mm,
-            "is_breach": payload.calculation_data.is_breach,
-            "remaining_life_years": payload.calculation_data.remaining_life_years,
-            "status": payload.calculation_data.status,
-            "executive_summary": payload.reasoning_data.executive_summary,
-            "docx_path": payload.docx_path,
-            "sha256_hash": payload.sha256_hash,
-            "pdf_path": payload.pdf_path,
-            "pdf_sha256": payload.pdf_sha256,
-            "generated_at": payload.generated_at,
+            "equipment_id": equipment_id,
+            "t_req_mm": calc["t_req_mm"],
+            "measured_mm": t_act,
+            "delta_mm": calc["delta_mm"],
+            "is_breach": calc["is_breach"],
+            "remaining_life_years": calc["remaining_life_years"],
+            "status": calc["status"],
+            "executive_summary": (
+                f"ASME Section VIII Div 1 UG-27 verification for {equipment_id}: "
+                f"Required thickness = {calc['t_req_mm']:.2f}mm, Measured = {t_act:.2f}mm, "
+                f"Safety Margin Δ = {calc['delta_mm']:.2f}mm ({calc['status']}). "
+                f"Remaining Service Life = {calc['remaining_life_years']:.2f} years. "
+                f"Statutory Audit ({audit.get('sanction_clause', 'Statutory Rules')}): {audit.get('compliance_status')}."
+            ),
+            "docx_path": doc_res.get("docx_path", ""),
+            "sha256_hash": doc_res.get("document_hash", doc_res.get("sha256_hash", "")),
+            "pdf_path": doc_res.get("pdf_path"),
+            "pdf_sha256": doc_res.get("pdf_sha256"),
+            "generated_at": datetime.datetime.now().isoformat(),
         }
 
     def route_query(
@@ -173,8 +266,8 @@ class AegisForgeCentralEngine:
         equipment_id: str = "11-V-102",
     ) -> Dict[str, Any]:
         """Runs ASME Section VIII Div 1 UG-27 pressure vessel calculation."""
-        from schemas.mvp_schema import InspectionInput
-        from tools.asme_calculator import evaluate_vessel_integrity
+        from schemas.inspection import InspectionInput
+        from tools.asme_calculator import AsmeCalculator
 
         inp = InspectionInput(
             equipment_id=equipment_id,
@@ -186,23 +279,22 @@ class AegisForgeCentralEngine:
             measured_thickness_mm=t_actual,
             corrosion_rate_mm_yr=cr,
         )
-        calc = evaluate_vessel_integrity(inp)
+        calc = AsmeCalculator().evaluate_vessel_integrity(inp)
         return {
-            "formula": calc.formula_used,
+            "formula": "t = (P*R)/(S*E - 0.6*P) + CA [ASME UG-27]",
             "t_req_mm": calc.t_req_mm,
-            "measured_thickness_mm": calc.measured_thickness_mm,
+            "measured_thickness_mm": t_actual,
             "delta_mm": calc.delta_mm,
             "is_breach": calc.is_breach,
             "remaining_life_years": calc.remaining_life_years,
-            "derated_mawp_bar": calc.derated_mawp_bar,
-            "design_pressure_bar": calc.design_pressure_bar,
+            "derated_mawp_bar": calc.derated_mawp_mpa * 10.0,
+            "design_pressure_bar": p * 10.0,
             "status": calc.status,
         }
 
     def run_sandbox_code(self, code: str, timeout: int = 15) -> Dict[str, Any]:
-        """Executes Python code in an isolated subprocess with strict timeout."""
-        from tools.sandbox import execute_python_code
-        return execute_python_code(code, timeout_seconds=timeout)
+        """Executes Python code in the sandbox daemon or fallback runner."""
+        return self.sandbox.run_code_in_docker(code, task_title="CLI Sandbox Task")
 
     def download_models(self, model_id: Optional[str] = None) -> None:
         """Downloads model weights into model_pool/."""

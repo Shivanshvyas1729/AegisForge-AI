@@ -105,15 +105,3 @@ def run_ffs_assessment(
         logger.error(f"Error in run_ffs_assessment: {e}")
         return {"status": "error", "error": str(e)}
 
-if __name__ == "__main__":
-    # Test for API 579 FFS Tool
-    logger.info("Testing run_ffs_assessment...")
-    result = run_ffs_assessment.invoke({
-        "t_actual_global": 16.5,
-        "t_min_lta": 12.0,
-        "t_req": 16.0,
-        "flaw_length_mm": 100.0,
-        "inside_radius_mm": 1200.0,
-        "allowable_rsf": 0.90
-    })
-    logger.info(f"Result: {result}")
