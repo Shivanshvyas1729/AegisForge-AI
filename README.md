@@ -730,14 +730,35 @@ uv venv
 uv pip install -r requirements.txt
 ```
 
-### 2. Launch the Streamlit Enterprise Dashboard
+### 2. Quick Command Reference Table
+| Mode / Action | Command | Purpose |
+| :--- | :--- | :--- |
+| **Streamlit Web UI** | `python main.py ui` | Launch full web dashboard on `http://localhost:8501` |
+| **Streamlit (Direct)** | `streamlit run frontend/app.py` | Direct Streamlit execution |
+| **Interactive Terminal Menu** | `python main.py` | Central interactive CLI command menu |
+| **System Status & Health** | `python main.py status` | Check disk space, GPU, and local model availability |
+| **End-to-End Pipeline (Golden Path)** | `python main.py run-golden-path` | Execute autonomous multi-agent pipeline & produce signed NFA |
+| **Dynamic Model Router** | `python main.py route --prompt "..."` | Route prompt to best local open-weight model |
+| **ASME UG-27 Stress Math** | `python main.py calc --p 14.5 --r 1200` | Execute deterministic pressure vessel calculations |
+| **Air-Gapped Sandbox Execution** | `python main.py sandbox --code "..."` | Run Python script in isolated AST-guarded sandbox |
+| **Download Model Weights** | `python main.py download-models` | Pull all required open-weight models to local storage |
+| **Presentation Master Guide** | Refer to [`ppt.md`](ppt.md) | Slide-by-slide explanation, jargon buster & judge defense |
+
+### 3. Detailed Command Usage
+
+#### A. Launch the Streamlit Enterprise Dashboard
 ```bash
 python main.py ui
-# Or directly:
+# Or directly via Streamlit:
 streamlit run frontend/app.py
 ```
 
-### 3. Run via Central Command Gateway (CLI)
+#### B. Launch Interactive Terminal Menu
+```bash
+python main.py
+```
+
+#### C. Run via Central Command Gateway (CLI)
 ```bash
 # System health and model availability check
 python main.py status
@@ -745,11 +766,17 @@ python main.py status
 # Run the complete Golden Path pipeline end-to-end
 python main.py run-golden-path
 
+# Execute dynamic model router test
+python main.py route --prompt "Write a Python script to calculate CRC-32 checksum"
+
 # Execute standalone ASME Section VIII calculation
 python main.py calc --p 14.5 --r 1200 --s 138.0 --t 138.2 --ca 4.0 --cr 0.75
 
 # Test sandboxed code execution
 python main.py sandbox --code "print(sum(range(100)))"
+
+# Pull all model weights into local model pool
+python main.py download-models
 ```
 
 ### 4. Interactive Agent Testing in Jupyter
