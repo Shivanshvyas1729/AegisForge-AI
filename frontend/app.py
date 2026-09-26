@@ -106,6 +106,68 @@ st.markdown("""
         padding-top: 15px;
         padding-bottom: 10px;
     }
+
+    /* ====== AGENT ACTIVITY ANIMATION ====== */
+    @keyframes orbit {
+        0%   { transform: rotate(0deg)   translateX(22px) rotate(0deg); }
+        100% { transform: rotate(360deg) translateX(22px) rotate(-360deg); }
+    }
+    @keyframes pulse-ring {
+        0%   { box-shadow: 0 0 0 0 rgba(56,189,248,0.55); }
+        70%  { box-shadow: 0 0 0 14px rgba(56,189,248,0); }
+        100% { box-shadow: 0 0 0 0 rgba(56,189,248,0); }
+    }
+    @keyframes spin-ring {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(360deg); }
+    }
+    .agent-live-wrap {
+        display: flex; align-items: center; gap: 14px;
+        padding: 10px 0 6px 0;
+    }
+    .agent-shield-logo {
+        position: relative;
+        width: 48px; height: 48px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.7rem;
+        animation: pulse-ring 1.4s ease-out infinite;
+        border-radius: 50%;
+        background: rgba(14,165,233,0.08);
+        border: 2px solid rgba(56,189,248,0.35);
+    }
+    .agent-shield-logo .orbit-dot {
+        position: absolute; width: 8px; height: 8px;
+        border-radius: 50%;
+        background: #38bdf8;
+        animation: orbit 1.2s linear infinite;
+    }
+    .agent-shield-logo .orbit-dot:nth-child(2) {
+        background: #6366f1;
+        animation-delay: -0.4s;
+    }
+    .agent-shield-logo .orbit-dot:nth-child(3) {
+        background: #10b981;
+        animation-delay: -0.8s;
+    }
+    .agent-live-label {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #38bdf8;
+        letter-spacing: 0.02em;
+    }
+    .agent-live-sub {
+        font-size: 0.8rem;
+        color: #64748b;
+        margin-top: 1px;
+    }
+    .agent-done-wrap {
+        display: flex; align-items: center; gap: 12px;
+        padding: 6px 0;
+    }
+    .agent-done-logo {
+        font-size: 1.7rem;
+        filter: drop-shadow(0 0 8px #10b981);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -246,8 +308,82 @@ with tab1:
             saved_attachment_path = backend.dossier.save_uploaded_file(attached_file.name, attached_file.getbuffer())
             st.success(f"✅ **Attached for Multi-Agent Analysis:** `{attached_file.name}` ({len(attached_file.getbuffer()):,} bytes) — *Send your message below to process it!*")
 
+    # -----------------------------------------------------------------------
+    # _render_trace_step: shared helper for history & live trace rendering
+    # -----------------------------------------------------------------------
+    def _render_trace_step(step: dict, badge_map: dict):
+        """Render a single agent trace step with proper icon, label, and formatting."""
+        import json as _j
+        agent_raw = str(step.get("agent") or "Specialist Agent").upper()
+        label = badge_map.get(agent_raw, f"🤖 {agent_raw}")
+        content = str(step.get("content", ""))
+        step_type = step.get("step_type", "reasoning")
+        tool_name = step.get("tool_name", "")
+
+        if step_type == "tool_call":
+            # Agent is invoking a tool
+            st.markdown(f"**{label}** 🔧 **Tool Called:** `{tool_name}`")
+            # Try to show tool arguments if content has them
+            if content.strip().startswith("{"):
+                try:
+                    args = _j.loads(content)
+                    st.json(args)
+                except Exception:
+                    st.code(content[:600], language="json")
+            elif content.strip():
+                st.code(content[:400], language="text")
+
+        elif step_type == "tool_result":
+            # Tool returned a result
+            st.markdown(f"**📊 Tool Result:** `{tool_name}`")
+            if content.strip().startswith("{"):
+                try:
+                    result = _j.loads(content)
+                    st.json(result)
+                except Exception:
+                    st.code(content[:800], language="text")
+            else:
+                st.code(content[:800] + ("..." if len(content) > 800 else ""), language="text")
+
+        elif step_type == "directive":
+            # Supervisor JSON directive
+            st.markdown(f"**{label}:**")
+            try:
+                parsed_j = _j.loads(content)
+                intent_str = parsed_j.get("user_intent", "")
+                inst_str = parsed_j.get("instruction", "")
+                next_str = parsed_j.get("next", "")
+                st.info(
+                    f"🎯 **Intent:** {intent_str}\n\n"
+                    f"📋 **Directive to `{next_str}`:** {inst_str}"
+                )
+            except Exception:
+                st.code(content[:700], language="text")
+
+        else:
+            # General reasoning / agent answer
+            st.markdown(f"**{label}:** 🧠")
+            if content.strip().startswith("{") and content.strip().endswith("}"):
+                try:
+                    parsed_j = _j.loads(content)
+                    if "user_intent" in parsed_j or "instruction" in parsed_j:
+                        intent_str = parsed_j.get("user_intent", "")
+                        inst_str = parsed_j.get("instruction", "")
+                        next_str = parsed_j.get("next", "")
+                        st.info(
+                            f"🎯 **Intent:** {intent_str}\n\n"
+                            f"📋 **Directive to `{next_str}`:** {inst_str}"
+                        )
+                    else:
+                        st.json(parsed_j)
+                except Exception:
+                    st.code(content[:800] + ("..." if len(content) > 800 else ""), language="text")
+            else:
+                st.code(content[:800] + ("..." if len(content) > 800 else ""), language="text")
+
     # Render Chat History
     for idx, msg in enumerate(st.session_state["chat_messages"]):
+
         is_latest = (idx == len(st.session_state["chat_messages"]) - 1)
         with st.chat_message(msg["role"], avatar="🛡️" if msg["role"] == "assistant" else "👤"):
             # Multi-Agent Pipeline Badges
@@ -275,27 +411,7 @@ with tab1:
                 # Render multi-agent collaboration trace (expanded for latest message)
                 with st.expander("🔍 Multi-Agent Collaboration Trace & Tool Executions", expanded=is_latest):
                     for step in msg["steps"]:
-                        agent_raw = str(step.get("agent") or "Specialist Agent").upper()
-                        label = badge_map.get(agent_raw, f"🤖 {agent_raw}")
-                        content = str(step.get("content", ""))
-
-                        st.markdown(f"**{label}:**")
-                        # Format JSON neatly if supervisor emitted JSON
-                        if content.strip().startswith("{") and content.strip().endswith("}"):
-                            try:
-                                import json as _j
-                                parsed_j = _j.loads(content)
-                                if "user_intent" in parsed_j or "instruction" in parsed_j:
-                                    intent_str = parsed_j.get("user_intent", "")
-                                    inst_str = parsed_j.get("instruction", "")
-                                    next_str = parsed_j.get("next", "")
-                                    st.info(f"🎯 **Intent:** {intent_str}\n\n📋 **Directive to `{next_str}`:** {inst_str}")
-                                else:
-                                    st.json(parsed_j)
-                            except Exception:
-                                st.code(content[:700], language="text")
-                        else:
-                            st.code(content[:800] + ("..." if len(content) > 800 else ""), language="text")
+                        _render_trace_step(step, badge_map)
 
             st.markdown(msg["content"])
 
@@ -311,24 +427,22 @@ with tab1:
                     key=f"dl_{idx}_{os.path.basename(msg['docx_path'])}"
                 )
 
-    # Auto-scroll to bottom of page so user always sees the newest response
-    st.markdown("<div id='chat-bottom-anchor'></div>", unsafe_allow_html=True)
-    st.components.v1.html(
+    # Auto-scroll to bottom (no deprecated st.components.v1.html)
+    st.markdown(
         """
+        <div id='chat-bottom-anchor' style='height:0'></div>
         <script>
-            window.parent.postMessage({type: 'streamlit:scroll_to_bottom'}, '*');
-            const doc = window.parent.document;
-            setTimeout(() => {
-                const anchor = doc.getElementById('chat-bottom-anchor');
-                if (anchor) {
-                    anchor.scrollIntoView({ behavior: 'smooth', block: 'end' });
-                } else {
-                    window.parent.scrollTo({ top: doc.body.scrollHeight, behavior: 'smooth' });
-                }
-            }, 150);
+            (function() {
+                const doc = window.parent.document;
+                setTimeout(function() {
+                    const anchor = doc.getElementById('chat-bottom-anchor');
+                    if (anchor) { anchor.scrollIntoView({ behavior: 'smooth', block: 'end' }); }
+                    else { window.parent.scrollTo({ top: doc.body.scrollHeight, behavior: 'smooth' }); }
+                }, 150);
+            })();
         </script>
         """,
-        height=0,
+        unsafe_allow_html=True
     )
 
     # Chat Input
@@ -343,6 +457,25 @@ with tab1:
 
         # Assistant Processing with Live Multi-Agent Trace Streaming
         with st.chat_message("assistant", avatar="🛡️"):
+            # Animated agent logo shown while processing
+            anim_placeholder = st.empty()
+            anim_placeholder.markdown(
+                """
+                <div class="agent-live-wrap">
+                  <div class="agent-shield-logo">
+                    🛡️
+                    <span class="orbit-dot"></span>
+                    <span class="orbit-dot"></span>
+                    <span class="orbit-dot"></span>
+                  </div>
+                  <div>
+                    <div class="agent-live-label">⚡ Multi-Agent Pipeline Active</div>
+                    <div class="agent-live-sub">Specialist agents collaborating…</div>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
             status_container = st.status("🚀 Multi-Agent Collaboration Active...", expanded=True)
             chat_res = None
             final_text = ""
@@ -357,32 +490,26 @@ with tab1:
                     if event["type"] == "step":
                         step = event["step"]
                         steps_accumulated = event.get("steps", [])
-                        agent_raw = str(step.get("agent") or "Specialist Agent").upper()
-                        label = badge_map.get(agent_raw, f"🤖 {agent_raw}")
-                        content = str(step.get("content", ""))
-
-                        # Render live agent step into the active status container
+                        # Render live step into the active status container
                         with status_container:
-                            st.markdown(f"**{label}:**")
-                            if content.strip().startswith("{") and content.strip().endswith("}"):
-                                try:
-                                    import json as _j
-                                    parsed_j = _j.loads(content)
-                                    if "user_intent" in parsed_j or "instruction" in parsed_j:
-                                        intent_str = parsed_j.get("user_intent", "")
-                                        inst_str = parsed_j.get("instruction", "")
-                                        next_str = parsed_j.get("next", "")
-                                        st.info(f"🎯 **Intent:** {intent_str}\n\n📋 **Directive to `{next_str}`:** {inst_str}")
-                                    else:
-                                        st.json(parsed_j)
-                                except Exception:
-                                    st.code(content[:700], language="text")
-                            else:
-                                st.code(content[:800] + ("..." if len(content) > 800 else ""), language="text")
+                            _render_trace_step(step, badge_map)
 
                     elif event["type"] == "done":
                         chat_res = event
                         final_text = chat_res.get("final_answer", "Task completed.")
+                        # Stop animation, show completion logo
+                        anim_placeholder.markdown(
+                            """
+                            <div class="agent-done-wrap">
+                              <span class="agent-done-logo">✅</span>
+                              <div>
+                                <div style="font-size:0.95rem;font-weight:600;color:#10b981;">Pipeline Complete</div>
+                                <div style="font-size:0.8rem;color:#64748b;">All agents finished — review below</div>
+                              </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
                         status_container.update(
                             label="✅ Multi-Agent Collaboration Completed!",
                             state="complete",

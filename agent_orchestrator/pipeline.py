@@ -57,7 +57,7 @@ class AgentState(BaseModel):
 
 
 # ============================================================================
-# 2. LOCAL OLLAMA MODEL INSTANTIATION (OPTIMIZED HIGH-PERFORMANCE SUITE)
+# 2. LOCAL OLLAMA MODEL INSTANTIATION
 # ============================================================================
 supervisor_llm = ChatOllama(model="llama3.1:8b", temperature=0, format="json")
 coder_llm = ChatOllama(model="qwen2.5-coder:7b", temperature=0)
@@ -65,6 +65,7 @@ reasoning_llm = ChatOllama(model="llama3.1:8b", temperature=0)
 vision_llm = ChatOllama(model="llama3.2:3b", temperature=0, format="json")
 reviewer_llm = ChatOllama(model="llama3.1:8b", temperature=0)
 conversational_llm = ChatOllama(model="llama3.1:8b", temperature=0.3)
+router_llm = ChatOllama(model="llama3.1:8b", temperature=0, format="json")
 
 
 # ============================================================================
@@ -101,7 +102,148 @@ def get_next_node(last_message: BaseMessage, default_goto: str, state: AgentStat
         return "human_approval_gate"
     return "supervisor"
 
-# Vision Worker Agent
+
+# ============================================================================
+# TOOL EXECUTION HELPERS
+# Called when Ollama LLMs emit tool calls as JSON text instead of native
+# function-calling — this is a known limitation of smaller local models.
+# We detect this case and execute the tool directly.
+# ============================================================================
+def _parse_text_tool_call(content: str):
+    """
+    Parse a JSON tool call emitted as plain text by the LLM.
+    Returns (tool_name: str, args: dict) or ("", {}) if not found.
+    """
+    # Find all JSON-like blocks, try largest ones first
+    candidates = re.findall(r'\{(?:[^{}]|\{[^{}]*\})*\}', content, re.DOTALL)
+    for block in sorted(candidates, key=len, reverse=True):
+        # Fix common LLM JSON mistakes: missing commas between keys
+        fixed = re.sub(r'"\s*\n\s*"', '",\n"', block)
+        try:
+            parsed = json.loads(fixed)
+        except Exception:
+            try:
+                parsed = json.loads(block)
+            except Exception:
+                continue
+        name = parsed.get("name", "")
+        if name:
+            args = parsed.get("arguments", parsed.get("parameters", parsed.get("args", {})))
+            return str(name), (args if isinstance(args, dict) else {})
+    return "", {}
+
+
+def _execute_coder_tool(tool_name: str, args: dict, all_context: str = "") -> str:
+    """
+    Execute a coder tool by name with given args.
+    If args are incomplete, extract them dynamically from context.
+    Returns formatted result string.
+    """
+    name_lower = tool_name.lower()
+    try:
+        # --- execute_in_sandbox ---
+        if any(kw in name_lower for kw in ["sandbox", "execute", "run_code"]):
+            code = args.get("code_string") or args.get("code") or args.get("code_str", "")
+            title = args.get("task_title") or args.get("title") or "Sandbox Execution"
+            if not code:
+                return "[ERROR]: No code_string found in tool arguments"
+            res = docker_sandbox.execute_in_sandbox.invoke({"code_string": code, "task_title": title})
+            output = res.get("output", res.get("stdout", str(res)))
+            status = res.get("status", "COMPLETED")
+            return f"[DOCKER_SANDBOX_OUTPUT]:\n{output}\n[STATUS: {status}]"
+
+        # --- calculate_asme_stresses ---
+        elif any(kw in name_lower for kw in ["asme", "calculate_asme", "stress"]):
+            # If args are empty, extract dynamically from all_context
+            if not args.get("design_pressure_mpa") and all_context:
+                p_m = re.search(r'(?:design\s+pressure|pressure)[:\s=]*([\d.]+)', all_context, re.I)
+                r_m = re.search(r'(?:inside\s+radius|radius)[:\s=]*([\d.]+)', all_context, re.I)
+                s_m = re.search(r'(?:allowable\s+stress|stress)[:\s=]*([\d.]+)', all_context, re.I)
+                ca_m = re.search(r'(?:corrosion\s+allowance)[:\s=]*([\d.]+)', all_context, re.I)
+                t_m = re.search(r'(?:actual\s+thickness|measured\s+thickness)[:\s=]*([\d.]+)', all_context, re.I)
+                if p_m: args["design_pressure_mpa"] = float(p_m.group(1))
+                if r_m: args["inside_radius_mm"] = float(r_m.group(1))
+                if s_m: args["allowable_stress_mpa"] = float(s_m.group(1))
+                if ca_m: args["corrosion_allowance_mm"] = float(ca_m.group(1))
+                if t_m: args["measured_thickness_mm"] = float(t_m.group(1))
+            res = asme_calculator.calculate_asme_stresses.invoke(args)
+            return f"[CALCULATION_RESULT]:\n{json.dumps(res, indent=2, default=str)}"
+
+        # --- lookup_material ---
+        elif any(kw in name_lower for kw in ["material", "lookup"]):
+            res = material_lookup_tool.lookup_material.invoke(args)
+            return f"[MATERIAL_LOOKUP_RESULT]:\n{res}"
+
+        # --- run_ffs_assessment ---
+        elif any(kw in name_lower for kw in ["ffs", "fitness"]):
+            res = api_579_ffs_tool.run_ffs_assessment.invoke(args)
+            return f"[FFS_RESULT]:\n{res}"
+
+    except Exception as e:
+        logger.error(f"Tool execution error for '{tool_name}': {e}")
+        return f"[TOOL_ERROR]: {e}"
+
+    return f"[UNKNOWN_TOOL]: {tool_name}"
+
+
+def _execute_reasoning_tool(tool_name: str, args: dict, all_context: str = "") -> str:
+    """Execute a reasoning/compliance tool by name. Extracts params from context if args incomplete."""
+    name_lower = tool_name.lower()
+    try:
+        if any(kw in name_lower for kw in ["cvc", "compliance", "audit", "procurement"]):
+            # Dynamically extract missing args from conversation context
+            if not args.get("equipment_id") and all_context:
+                m_eq = re.search(r'\b(\d{1,3}-[A-Z]{1,3}-\d{2,4}|[A-Z][A-Z0-9-]{3,}\s+\d+|pump\s+[A-Z0-9-]+|vessel\s+[A-Z0-9-]+)', all_context, re.I)
+                if m_eq:
+                    args["equipment_id"] = m_eq.group(0).strip()
+            if not args.get("estimated_cost_lakhs") and all_context:
+                m_cost = re.search(r'([\d.]+)\s*(?:lakhs?|lakh)', all_context, re.I)
+                if m_cost:
+                    args["estimated_cost_lakhs"] = float(m_cost.group(1))
+            if not args.get("applicable_cvc_clause") and all_context:
+                m_clause = re.search(r'(GFR[\s\w/.,]+Rule\s*\d+|CVC[^.\n]{0,60}|Rule\s*\d+[^.\n]{0,40})', all_context, re.I)
+                if m_clause:
+                    args["applicable_cvc_clause"] = m_clause.group(0).strip()
+            res = compliance_auditor.audit_cvc_compliance.invoke(args)
+            return f"[COMPLIANCE_RESULT]:\n{json.dumps(res, indent=2, default=str)}"
+
+        elif any(kw in name_lower for kw in ["rbi", "risk"]):
+            res = risk_based_inspection_tool.calculate_rbi_score.invoke(args)
+            return f"[RBI_RESULT]:\n{res}"
+
+        elif "routing" in name_lower or "verify" in name_lower:
+            res = routing_guard.verify_routing_policy.invoke(args)
+            return f"[ROUTING_RESULT]:\n{res}"
+
+    except Exception as e:
+        logger.error(f"Reasoning tool error for '{tool_name}': {e}")
+        return f"[TOOL_ERROR]: {e}"
+
+    return f"[UNKNOWN_TOOL]: {tool_name}"
+
+
+def _execute_vision_tool(tool_name: str, args: dict) -> str:
+    """Execute a vision tool by name."""
+    name_lower = tool_name.lower()
+    try:
+        if any(kw in name_lower for kw in ["extract", "inspection"]):
+            res = inspection_extractor_tool.extract_inspection_data.invoke(args)
+            return f"[EXTRACTION_RESULT]:\n{res}"
+        elif any(kw in name_lower for kw in ["thickness", "grid", "analyze"]):
+            res = thickness_grid_analyzer.analyze_thickness_grid.invoke(args)
+            return f"[GRID_ANALYSIS_RESULT]:\n{res}"
+        elif any(kw in name_lower for kw in ["pdf", "read", "scanned"]):
+            res = file_io.read_scanned_pdf.invoke(args)
+            return f"[PDF_CONTENT]:\n{str(res)[:2000]}"
+    except Exception as e:
+        logger.error(f"Vision tool error for '{tool_name}': {e}")
+        return f"[TOOL_ERROR]: {e}"
+    return f"[UNKNOWN_TOOL]: {tool_name}"
+
+
+# ============================================================================
+# VISION AGENT
+# ============================================================================
 vision_agent = create_react_agent(
     vision_llm,
     tools=vision_tools,
@@ -118,167 +260,111 @@ vision_agent = create_react_agent(
         "• Material Specification (MOC, e.g. 2.25Cr-1Mo, SA-387 Gr 22, SA-516 Gr 70)\n"
         "• Measured Wall Thickness t_actual (mm) & Corrosion Rate CR (mm/yr)\n"
         "• Statutory Context (Tender type, estimated budget, emergency justification, applicable circulars)\n\n"
+        "MANDATORY: You MUST call one of your tools to do the actual extraction. Do not describe what you would do — call the tool.\n"
         "When extraction is complete, present the extracted data clearly in a markdown summary and append '[STATUS: EXTRACTION_COMPLETED]'."
     )
 )
 
 def vision_node(state: AgentState) -> Command[Literal["supervisor", "human_approval_gate", "chief_reviewer"]]:
+    """Vision specialist node with smart tool-call fallback."""
+    from langchain_core.messages import ToolMessage as _TM
     result = vision_agent.invoke(state)
-    goto = get_next_node(result["messages"][-1], "supervisor", state)
-    out_msg = HumanMessage(content=result["messages"][-1].content, name="vision_agent")
+    result_msgs = result.get("messages", [])
+    last_content = str(result_msgs[-1].content) if result_msgs else ""
+
+    # Check if tools were actually called natively via ReAct loop
+    tool_was_called = any(isinstance(m, _TM) for m in result_msgs)
+
+    if not tool_was_called:
+        # LLM emitted JSON tool call as text — parse and execute it
+        tool_name, args = _parse_text_tool_call(last_content)
+        if tool_name:
+            logger.info(f"Vision Node: Intercepting text tool call '{tool_name}' — executing directly")
+            tool_result = _execute_vision_tool(tool_name, args)
+            last_content = f"Tool '{tool_name}' executed:\n{tool_result}"
+        else:
+            logger.warning("Vision Node: No native tool call, no parseable text tool call found")
+
+    if "[STATUS: EXTRACTION_COMPLETED]" not in last_content:
+        last_content += "\n[STATUS: EXTRACTION_COMPLETED]"
+
+    out_msg = HumanMessage(content=last_content, name="vision_agent")
+    goto = get_next_node(out_msg, "supervisor", state)
     return Command(update={"messages": [out_msg]}, goto=goto)
 
-# Coder Worker Agent
+
+# ============================================================================
+# CODER AGENT
+# ============================================================================
 coder_agent = create_react_agent(
     coder_llm,
     tools=coder_tools,
     prompt=(
         "You are the Senior Scientific Coder Agent of AegisForge-AI, specialized in deterministic refinery mechanics and secure computing.\n"
         "Your responsibility is to perform high-precision engineering math and execute Python workloads in the air-gapped Docker sandbox.\n\n"
-        "AVAILABLE DETERMINISTIC TOOLS:\n"
+        "AVAILABLE DETERMINISTIC TOOLS — YOU MUST CALL THEM, NOT DESCRIBE THEM:\n"
         "1. 'calculate_asme_stresses': Computes ASME Section VIII Div 1 UG-27 minimum thickness (t_req), Safety Margin (Δ), Maximum Allowable Working Pressure (MAWP), and API 510 Remaining Service Life (RSL).\n"
         "2. 'lookup_material': Retrieves certified allowable stresses (S) and yield limits across temperatures for refinery materials.\n"
         "3. 'run_ffs_assessment': Evaluates Level 1 Fitness-For-Service Remaining Strength Factor (RSF) under API 579.\n"
         "4. 'execute_in_sandbox': Executes custom Python algorithms, data analysis, and simulations inside the secure container.\n\n"
-        "EXECUTION PROTOCOLS:\n"
-        "- When using 'execute_in_sandbox':\n"
+        "MANDATORY TOOL SELECTION RULES:\n"
+        "- FOR ASME SECTION VIII / UG-27 / WALL THICKNESS / PRESSURE VESSEL CALCULATIONS:\n"
+        "  • YOU MUST CALL 'calculate_asme_stresses' with parameters extracted from the user message:\n"
+        "    - design_pressure_mpa: the design pressure in MPa\n"
+        "    - inside_radius_mm: the inside radius in mm\n"
+        "    - allowable_stress_mpa: the allowable stress in MPa\n"
+        "    - corrosion_allowance_mm: the corrosion allowance in mm\n"
+        "    - measured_thickness_mm: the actual measured wall thickness in mm\n"
+        "  • NEVER write custom Python code or invoke 'execute_in_sandbox' for ASME pressure vessel equations — always call the certified deterministic tool!\n"
+        "- FOR MATERIAL LOOKUPS: CALL 'lookup_material' with the material grade (e.g. SA-387 Gr 22).\n"
+        "- FOR FITNESS-FOR-SERVICE: CALL 'run_ffs_assessment' with the required API 579 parameters.\n"
+        "- FOR GENERAL CODING & ALGORITHMS (Fibonacci, primes, data sorting, file generation, Word docs):\n"
+        "  • CALL 'execute_in_sandbox'.\n"
         "  • Provide clean, self-contained Python code in 'code_string'.\n"
-        "  • ALWAYS specify a concise 3 to 6 word title in 'task_title' (e.g. 'Fibonacci Sequence Calculation', 'Prime Sieve Benchmark').\n"
-        "  • NEVER use interactive `input()` calls — they cause sandbox timeouts.\n"
-        "  • Use `print(...)` to output calculation results.\n"
-        "- When calculation or sandbox output is received, present the numerical findings clearly.\n"
+        "  • Always specify a concise 3 to 6 word title in 'task_title'.\n"
+        "  • NEVER use interactive `input()` calls.\n"
+        "  • Use `print(...)` to output results.\n"
+        "  • FILE GENERATION: Save files to '/output/' directory inside sandbox (e.g. '/output/report.docx') and print the absolute path.\n"
+        "- When the tool returns results, present the numerical findings clearly.\n"
         "- ALWAYS append '[STATUS: CALCULATION_COMPLETED]' to signal completion to the supervisor."
     )
 )
 
 def coder_node(state: AgentState) -> Command[Literal["supervisor", "human_approval_gate", "chief_reviewer"]]:
+    """Coder specialist node with smart tool-call fallback."""
+    from langchain_core.messages import ToolMessage as _TM
+    all_context = " ".join(
+        str(getattr(m, "content", "")) for m in state.messages
+        if hasattr(m, "content") and isinstance(getattr(m, "content", None), str)
+    )
     result = coder_agent.invoke(state)
-    last_content = result["messages"][-1].content
+    result_msgs = result.get("messages", [])
+    last_content = str(result_msgs[-1].content) if result_msgs else ""
 
-    # Detect multiple patterns where the LLM emits a JSON tool call as text instead of calling tools natively
-    needs_sandbox_exec = False
-    code_to_run = ""
-    task_title = ""
+    # Check if tools were actually called natively via ReAct loop
+    tool_was_called = any(isinstance(m, _TM) for m in result_msgs)
 
-    if ("execute_in_sandbox" in last_content and "code_string" in last_content) or \
-       ("run_code" in last_content and ("code" in last_content or "parameters" in last_content)):
-        import json as _json
-        match = re.search(r'\{.*\}', last_content, re.DOTALL)
-        if match:
-            try:
-                parsed = _json.loads(match.group(0))
-                # Handle {"name": "run_code", "parameters": {"code": "..."}} pattern
-                if "parameters" in parsed:
-                    args = parsed["parameters"]
-                elif "arguments" in parsed:
-                    args = parsed["arguments"]
-                else:
-                    args = parsed
-
-                code_to_run = args.get("code_string") or args.get("code", "")
-                task_title = args.get("task_title", "") or args.get("name", "Sandbox Execution")
-                needs_sandbox_exec = bool(code_to_run)
-            except Exception as e:
-                logger.error(f"JSON parse for sandbox fallback: {e}")
-
-    elif "calculate_asme_stresses" in last_content:
-        import json as _json
-        match = re.search(r'\{.*\}', last_content, re.DOTALL)
-        if match:
-            try:
-                parsed = _json.loads(match.group(0))
-                args = parsed.get("arguments", parsed.get("parameters", parsed))
-                calc_res = asme_calculator.calculate_asme_stresses.invoke(args)
-                last_content += f"\n\n[CALCULATION_RESULT]:\n{calc_res}"
-            except Exception as e:
-                logger.error(f"Fallback calculation execution error: {e}")
-
-    # Also detect if code was generated as a markdown block without calling execute_in_sandbox tool
-    if not needs_sandbox_exec and "[DOCKER_SANDBOX_OUTPUT]" not in last_content:
-        py_match = re.search(r'```(?:python)?\s*\n(.*?)\n```', last_content, re.DOTALL)
-        if py_match:
-            code_to_run = py_match.group(1).strip()
-            task_title = "Python Sandbox Execution"
-            needs_sandbox_exec = True
-
-    if needs_sandbox_exec:
-        # Sanitize code_to_run to decode literal escaped newlines
-        if r'\n' in code_to_run and '\n' not in code_to_run:
-            try:
-                code_to_run = code_to_run.encode('utf-8').decode('unicode_escape')
-            except Exception:
-                code_to_run = code_to_run.replace(r'\n', '\n').replace(r'\t', '    ')
-        elif r'\n' in code_to_run:
-            code_to_run = code_to_run.replace(r'\n', '\n').replace(r'\t', '    ')
-
-        try:
-            exec_res = docker_sandbox.execute_in_sandbox.invoke({
-                "code_string": code_to_run,
-                "task_title": task_title or "Agent Sandbox Task"
-            })
-            sandbox_output = exec_res.get("output", exec_res.get("stdout", ""))
-            sandbox_status = exec_res.get("status", "COMPLETED")
-            error_details = exec_res.get("error_details", "") or ""
-
-            # Check if execution failed or threw an exception
-            is_error = (
-                sandbox_status in ["ERROR", "FAILED", "BLOCKED_BY_AST"]
-                or any(err in str(sandbox_output) for err in ["Error:", "Exception:", "Traceback", "SyntaxError", "NameError", "TypeError", "IndexError", "ZeroDivisionError"])
-            )
-
-            # AUTONOMOUS LLM SELF-HEALING: If an error occurred, pass it to coder_llm to diagnose, fix, and re-execute
-            if is_error:
-                logger.info("Coder Node: Sandbox execution error detected. Handing error trace to Coder LLM for self-healing...")
-                heal_prompt = (
-                    "You are a master Python software engineer. The following code encountered an execution error in the secure Docker sandbox:\n\n"
-                    f"FAILED CODE:\n```python\n{code_to_run}\n```\n\n"
-                    f"ERROR TRACE:\n{sandbox_output}\n{error_details}\n\n"
-                    "TASK: Fix all syntax and runtime issues. Write the complete, working Python script that executes cleanly and prints the proper answer.\n"
-                    "Output ONLY the corrected Python script inside a ```python ``` block."
-                )
-                try:
-                    heal_resp = coder_llm.invoke(heal_prompt).content
-                    m_code = re.search(r'```(?:python)?\s*\n(.*?)\n```', heal_resp, re.DOTALL)
-                    healed_code = m_code.group(1).strip() if m_code else heal_resp.strip()
-
-                    # Sanitize healed code
-                    if r'\n' in healed_code and '\n' not in healed_code:
-                        try:
-                            healed_code = healed_code.encode('utf-8').decode('unicode_escape')
-                        except Exception:
-                            healed_code = healed_code.replace(r'\n', '\n')
-                    elif r'\n' in healed_code:
-                        healed_code = healed_code.replace(r'\n', '\n')
-
-                    # Re-execute healed code in sandbox
-                    retry_res = docker_sandbox.execute_in_sandbox.invoke({
-                        "code_string": healed_code,
-                        "task_title": f"{task_title} (Self-Healed)"
-                    })
-                    retry_out = retry_res.get("output", retry_res.get("stdout", ""))
-                    retry_stat = retry_res.get("status", "COMPLETED")
-                    if retry_stat == "SUCCESS" or not any(e in str(retry_out) for e in ["Error:", "Exception:", "Traceback"]):
-                        sandbox_output = retry_out
-                        sandbox_status = "SUCCESS"
-                        last_content += f"\n\n[DOCKER_SANDBOX_OUTPUT]:\n{sandbox_output}\n[STATUS: {sandbox_status}]"
-                    else:
-                        last_content += f"\n\n[DOCKER_SANDBOX_OUTPUT]:\n{retry_out}\n[STATUS: {retry_stat}]"
-                except Exception as ex_heal:
-                    logger.error(f"Self-healing error: {ex_heal}")
-                    last_content += f"\n\n[DOCKER_SANDBOX_OUTPUT]:\n{sandbox_output}\n[STATUS: {sandbox_status}]"
-            else:
-                last_content += f"\n\n[DOCKER_SANDBOX_OUTPUT]:\n{sandbox_output}\n[STATUS: {sandbox_status}]"
-        except Exception as e:
-            logger.error(f"Fallback sandbox execution error: {e}")
-            last_content += f"\n\n[SANDBOX_ERROR]: {e}\n[STATUS: CALCULATION_COMPLETED]"
+    if not tool_was_called:
+        # LLM emitted JSON tool call as text — parse and execute directly
+        tool_name, args = _parse_text_tool_call(last_content)
+        if tool_name:
+            logger.info(f"Coder Node: Intercepting text tool call '{tool_name}' — executing directly")
+            tool_result = _execute_coder_tool(tool_name, args, all_context)
+            last_content = f"Tool '{tool_name}' executed:\n{tool_result}"
+        else:
+            logger.warning("Coder Node: No native tool call and no parseable text tool call found")
 
     if "[STATUS: CALCULATION_COMPLETED]" not in last_content:
         last_content += "\n[STATUS: CALCULATION_COMPLETED]"
+
     out_msg = HumanMessage(content=last_content, name="coder_agent")
     goto = get_next_node(out_msg, "supervisor", state)
     return Command(update={"messages": [out_msg]}, goto=goto)
 
-# Reasoning Worker Agent
+
+# ============================================================================
+# REASONING AGENT
+# ============================================================================
 reasoning_agent = create_react_agent(
     reasoning_llm,
     tools=reasoning_tools,
@@ -291,19 +377,48 @@ reasoning_agent = create_react_agent(
         "• Proprietary Article Certificate (PAC) and Emergency Procurement Exception mandates\n"
         "• Delegation of Power (DoP) Financial Approval Limits for Refinery Executives (GM, ED, Director, Board)\n"
         "• Statutory Plant Codes: OISD-153, PESO SMPV Rules, API 581 Risk-Based Inspection (RBI)\n\n"
-        "AUDIT WORKFLOW:\n"
-        "1. Analyze the user's operational justification and any uploaded tender or dossier documents.\n"
-        "2. Identify the appropriate statutory framework and sanction clause.\n"
-        "3. Invoke 'audit_cvc_compliance' with the dynamic clause, equipment tag, and required DoP authority.\n"
+        "AUDIT WORKFLOW — YOU MUST CALL YOUR TOOLS, NOT DESCRIBE THEM:\n"
+        "1. Read the user's operational justification carefully — extract equipment ID, cost, statutory framework, and authority from the message.\n"
+        "2. CALL 'audit_cvc_compliance' with the dynamically extracted parameters:\n"
+        "   - equipment_id: the equipment tag or procurement item name from the user's message\n"
+        "   - estimated_cost_lakhs: the cost extracted from the user's message in lakhs INR\n"
+        "   - is_single_source: whether this is single-source procurement\n"
+        "   - has_pac: whether a Proprietary Article Certificate exists\n"
+        "   - is_emergency: whether this is an emergency procurement\n"
+        "   - applicable_cvc_clause: the specific CVC/GFR/DoP clause referenced in the user's message\n"
+        "   - required_financial_authority: the required sanctioning authority based on the cost\n"
+        "3. For RBI (Risk-Based Inspection) score calculations, CALL 'calculate_rbi_score' with parameters from the message.\n"
         "4. State clearly whether the procurement is 'STATUTORILY COMPLIANT' or 'FLAGGED VIOLATION', and append '[STATUS: COMPLIANCE_COMPLETED]'."
     )
 )
 
 def reasoning_node(state: AgentState) -> Command[Literal["supervisor", "human_approval_gate", "chief_reviewer"]]:
+    """Reasoning specialist node with smart tool-call fallback."""
+    from langchain_core.messages import ToolMessage as _TM
+    all_context = " ".join(
+        str(getattr(m, "content", "")) for m in state.messages
+        if hasattr(m, "content") and isinstance(getattr(m, "content", None), str)
+    )
     result = reasoning_agent.invoke(state)
-    last_content = result["messages"][-1].content
+    result_msgs = result.get("messages", [])
+    last_content = str(result_msgs[-1].content) if result_msgs else ""
+
+    # Check if tools were actually called natively via ReAct loop
+    tool_was_called = any(isinstance(m, _TM) for m in result_msgs)
+
+    if not tool_was_called:
+        # LLM emitted JSON tool call as text — parse and execute directly
+        tool_name, args = _parse_text_tool_call(last_content)
+        if tool_name:
+            logger.info(f"Reasoning Node: Intercepting text tool call '{tool_name}' — executing directly")
+            tool_result = _execute_reasoning_tool(tool_name, args, all_context)
+            last_content = f"Tool '{tool_name}' executed:\n{tool_result}"
+        else:
+            logger.warning("Reasoning Node: No native tool call and no parseable text tool call found")
+
     if "[STATUS: COMPLIANCE_COMPLETED]" not in last_content:
         last_content += "\n[STATUS: COMPLIANCE_COMPLETED]"
+
     out_msg = HumanMessage(content=last_content, name="reasoning_agent")
     goto = get_next_node(out_msg, "supervisor", state)
     return Command(update={"messages": [out_msg]}, goto=goto)
@@ -313,20 +428,45 @@ def reasoning_node(state: AgentState) -> Command[Literal["supervisor", "human_ap
 # 4. ADAPTIVE ROUTER & DIRECT ANSWER
 # ============================================================================
 def route_question(state: AgentState) -> str:
+    """Dynamic LLM-based intent router. Uses the lightest local model to classify
+    whether the user's query needs the full multi-agent pipeline or a simple conversational response."""
     question = state.messages[-1].content
-    q_lower = question.lower().strip()
-    
-    # Fast-path for simple conversational greetings
-    greetings = {"hi", "hello", "hey", "greetings", "good morning", "good afternoon", "good evening", "who are you", "what can you do", "help", "about"}
-    if q_lower in greetings or any(q_lower == g for g in greetings):
-        return "direct_answer"
 
-    # All actual tasks, questions, calculations, code, and document analysis route to the multi-agent supervisor
+    classification_prompt = SystemMessage(content=(
+        "You are a strict intent classifier. Classify the user message into EXACTLY one route.\n\n"
+        "RULE: When in doubt, ALWAYS choose 'supervisor'. Only choose 'direct_answer' when you "
+        "are ABSOLUTELY CERTAIN the message is pure idle chit-chat with NO actionable request.\n\n"
+        "Route 'supervisor' — ANY message that asks to DO something, including but not limited to:\n"
+        "  • Generate, create, write, build, make, produce ANYTHING (files, documents, reports, code, lists)\n"
+        "  • Calculate, compute, solve, analyze, evaluate, compare any data or math\n"
+        "  • Execute, run, test, debug any code, script, or algorithm\n"
+        "  • Inspect, read, extract, scan any document, PDF, image, or file\n"
+        "  • Audit, check, verify compliance, procurement, or statutory rules\n"
+        "  • ANY request containing a task, question needing research, or action to perform\n"
+        "  • Fibonacci, sorting, prime numbers, series, sequences — these are COMPUTATIONAL TASKS\n\n"
+        "Route 'direct_answer' — ONLY for pure idle conversation with NO task at all:\n"
+        "  • Simple greetings: hi, hello, hey, hii, namaste, etc.\n"
+        "  • Who are you / what can you do (about the system itself)\n"
+        "  • Thanks, bye, ok, cool — pure acknowledgments with no follow-up request\n\n"
+        "Respond with ONLY valid JSON, nothing else: {\"route\": \"supervisor\"} or {\"route\": \"direct_answer\"}"
+    ))
+
+    try:
+        response = router_llm.invoke([classification_prompt, HumanMessage(content=question)])
+        parsed = json.loads(response.content.strip())
+        route = parsed.get("route", "supervisor")
+        if route in ("direct_answer", "supervisor"):
+            logger.info(f"Router LLM classified '{question[:50]}...' -> {route}")
+            return route
+    except Exception as e:
+        logger.warning(f"Router LLM classification failed: {e}. Defaulting to supervisor.")
+
+    # Fallback: route to supervisor so no query is silently dropped
     return "supervisor"
 
 def direct_answer_node(state: AgentState) -> dict:
     system_prompt = (
-        "You are AegisForge-AI, a Sovereign Air-Gapped Industrial AI Assistant engineered for Indian Public Sector Undertakings (PSUs) such as Mangalore Refinery and Petrochemicals Limited (MRPL).\n"
+        "You are AegisForge-AI, a Sovereign Air-Gapped Industrial AI Assistant engineered for Indian Public Sector Undertakings (PSUs).\n"
         "You assist plant engineers, inspectors, and managers with deterministic ASME engineering calculations, statutory compliance audits (CVC / GFR 2017), scanned dossier intelligence, and secure Docker sandbox execution.\n"
         "Respond warmly, concisely, and professionally to greetings or general inquiries."
     )
@@ -354,27 +494,83 @@ def supervisor_node(state: AgentState) -> Command[Literal["vision_agent", "coder
         "CONVERSATIONAL CONTEXT & INTENT UNDERSTANDING:\n"
         "- Read the full conversation history carefully.\n"
         "- If the user's latest message is a follow-up, retry, correction, or referral (such as asking to redo, rerun, fix, or repeat an earlier request), resolve the context dynamically from previous conversation turns to determine the exact substantive task to execute.\n"
-        "- Do NOT assume or invent unrelated tasks (such as pressure vessel stresses or CVC audits) unless the user or conversation history specifically called for them.\n"
+        "- Do NOT assume or invent unrelated tasks unless the user or conversation history specifically called for them.\n"
         "- If the user provides code or asks for code/script execution, identify that code and dispatch 'coder_agent'.\n\n"
-        "AVAILABLE SPECIALIST AGENTS:\n"
-        "1. 'vision_agent': Inspects, OCRs, reads, and extracts operational, structural, or geometric parameters from any documents, PDFs, scanned sheets, or thickness grids.\n"
-        "2. 'coder_agent': Executes Python algorithms, data processing, simulations, and deterministic math in the secure air-gapped Docker sandbox.\n"
-        "3. 'reasoning_agent': Audits statutory compliance against PSU governance, vigilance rules, CVC guidelines, GFR 2017 procurement rules, and DoP limits.\n"
-        "4. 'chief_reviewer': Forensic verification and statutory sign-off. Reviews all completed specialist outputs to confirm correctness before final release.\n\n"
+        "AVAILABLE SPECIALIST AGENTS & DETERMINISTIC TOOLS:\n"
+        "1. 'coder_agent': Responsible for engineering calculations, deterministic physics, and code execution.\n"
+        "   • 'calculate_asme_stresses': MANDATORY for ASME Section VIII Div 1 UG-27 wall thickness, MAWP, and API 510 RSL calculations.\n"
+        "     Parameters: design_pressure_mpa, inside_radius_mm, allowable_stress_mpa, corrosion_allowance_mm, measured_thickness_mm, joint_efficiency.\n"
+        "   • 'lookup_material': Retrieves certified allowable stresses (S) and yield limits for refinery materials.\n"
+        "   • 'run_ffs_assessment': Evaluates Level 1 Fitness-For-Service RSF under API 579.\n"
+        "   • 'execute_in_sandbox': ONLY for non-ASME coding tasks (Fibonacci, algorithms, data processing, custom scripts, file generation like .docx).\n"
+        "2. 'reasoning_agent': Audits statutory compliance against PSU governance, CVC guidelines, GFR 2017 procurement rules, and DoP limits.\n"
+        "   Tools: 'audit_cvc_compliance', 'calculate_rbi_score', 'verify_routing_policy'.\n"
+        "3. 'vision_agent': Inspects, OCRs, reads, and extracts operational parameters from documents, PDFs, scanned sheets, or thickness grids.\n"
+        "   Tools: 'extract_inspection_data', 'analyze_thickness_grid', 'read_scanned_pdf'.\n"
+        "4. 'chief_reviewer': Forensic verification and statutory sign-off. Reviews completed specialist outputs.\n\n"
         "ROUTING & DECOMPOSITION PROTOCOL:\n"
-        "• If the task requires Python execution, scripting, or mathematical computing -> dispatch 'coder_agent'.\n"
-        "• If the task requires statutory or compliance auditing -> dispatch 'reasoning_agent'.\n"
-        "• If the task requires document/image inspection -> dispatch 'vision_agent'.\n"
-        "• Once specialist work has completed cleanly -> dispatch 'chief_reviewer' to verify and finalize.\n"
-        "• Return ONLY valid JSON in this exact structure:\n"
+        "• ASME / UG-27 / wall thickness / pressure vessel calculations -> 'coder_agent'\n"
+        "• Material allowable stress lookup -> 'coder_agent'\n"
+        "• API 579 FFS assessments -> 'coder_agent'\n"
+        "• General Python scripts, algorithms, or document file creation -> 'coder_agent'\n"
+        "• Statutory or compliance auditing -> 'reasoning_agent'\n"
+        "• Document/image/grid inspection -> 'vision_agent'\n"
+        "• Once specialist work has completed cleanly -> 'chief_reviewer'\n\n"
+        "Return ONLY valid JSON:\n"
         "{\n"
         "  \"user_intent\": \"<autonomous summary of the user's real objective>\",\n"
         "  \"subtasks\": [\"<subtask 1>\", \"<subtask 2>\", ...],\n"
         "  \"current_step\": \"<the immediate subtask to execute now>\",\n"
         "  \"next\": \"vision_agent\" | \"coder_agent\" | \"reasoning_agent\" | \"chief_reviewer\",\n"
-        "  \"instruction\": \"<detailed, self-contained instruction for the selected agent with all relevant code or parameters>\"\n"
+        "  \"instruction\": \"<detailed, self-contained instruction for the selected agent with all relevant parameters from the user's message>\"\n"
         "}"
     )
+
+    # -----------------------------------------------------------------------
+    # LOOP GUARD: If a specialist already completed in the current turn,
+    # skip re-dispatching and route directly to chief_reviewer.
+    # This prevents the supervisor from looping when an agent ran but
+    # the LLM doesn't recognize the output as "done".
+    # -----------------------------------------------------------------------
+    current_retries = getattr(state, "retry_count", 0)
+    completion_tags = {
+        "coder_agent": "[STATUS: CALCULATION_COMPLETED]",
+        "reasoning_agent": "[STATUS: COMPLIANCE_COMPLETED]",
+        "vision_agent": "[STATUS: EXTRACTION_COMPLETED]",
+    }
+    # Scan last 8 messages for a completed specialist AFTER the last supervisor dispatch
+    last_supervisor_idx = -1
+    msgs_list = list(state.messages)
+    for i in range(len(msgs_list) - 1, -1, -1):
+        if str(getattr(msgs_list[i], "name", "")).lower() == "supervisor":
+            last_supervisor_idx = i
+            break
+
+    specialist_completed = False
+    for msg in msgs_list[last_supervisor_idx + 1:]:
+        agent_name = str(getattr(msg, "name", "")).lower()
+        content_str = str(getattr(msg, "content", ""))
+        tag = completion_tags.get(agent_name, "")
+        if tag and tag in content_str:
+            specialist_completed = True
+            logger.info(f"Supervisor Loop Guard: {agent_name} completed — routing to chief_reviewer")
+            break
+
+    if specialist_completed:
+        clean_content = json.dumps({
+            "next": "chief_reviewer",
+            "instruction": "Specialist work is complete. Review and finalize the output.",
+            "user_intent": "Review and present completed specialist results to the user.",
+            "current_step": "Final review and verdict"
+        })
+        return Command(
+            update={
+                "retry_count": current_retries,
+                "messages": [HumanMessage(content=clean_content, name="supervisor")]
+            },
+            goto="chief_reviewer"
+        )
+    # -----------------------------------------------------------------------
 
     messages = [SystemMessage(content=system_prompt)] + list(state.messages)
     response = supervisor_llm.invoke(messages)
@@ -393,14 +589,39 @@ def supervisor_node(state: AgentState) -> Command[Literal["vision_agent", "coder
             user_intent = parsed.get("user_intent", "")
             current_step = parsed.get("current_step", "")
 
-            # Defensive Interceptor: If LLM emitted a tool-call-like JSON instead of routing JSON
-            if "name" in parsed:
+            # Defensive: if LLM emitted a tool-call-like JSON instead of routing JSON, map it dynamically
+            if "name" in parsed and "next" not in parsed:
                 tool_name = str(parsed.get("name", "")).lower()
-                if any(kw in tool_name for kw in ["run_code", "execute", "sandbox", "calculate", "code", "python", "script", "asme"]):
+                args_json = json.dumps(parsed.get('arguments', parsed.get('parameters', parsed)))
+                if any(kw in tool_name for kw in ["asme", "calculate_asme", "stress", "wall_thickness"]):
                     next_target = "coder_agent"
-                    instruction = f"Execute in sandbox: {json.dumps(parsed)}"
+                    instruction = f"Call calculate_asme_stresses tool with these parameters: {args_json}"
+                elif any(kw in tool_name for kw in ["material", "lookup_material"]):
+                    next_target = "coder_agent"
+                    instruction = f"Call lookup_material tool with: {args_json}"
+                elif any(kw in tool_name for kw in ["ffs", "fitness", "run_ffs_assessment"]):
+                    next_target = "coder_agent"
+                    instruction = f"Call run_ffs_assessment tool with: {args_json}"
+                elif any(kw in tool_name for kw in ["cvc", "compliance", "audit_cvc", "procurement", "gfr"]):
+                    next_target = "reasoning_agent"
+                    instruction = f"Call audit_cvc_compliance tool with: {args_json}"
+                elif any(kw in tool_name for kw in ["rbi", "risk", "calculate_rbi"]):
+                    next_target = "reasoning_agent"
+                    instruction = f"Call calculate_rbi_score tool with: {args_json}"
+                elif any(kw in tool_name for kw in ["ocr", "inspection", "extract_inspection", "drawing", "pid"]):
+                    next_target = "vision_agent"
+                    instruction = f"Call extract_inspection_data tool with: {args_json}"
+                elif any(kw in tool_name for kw in ["grid", "thickness_grid", "ultrasonic", "matrix"]):
+                    next_target = "vision_agent"
+                    instruction = f"Call analyze_thickness_grid tool with: {args_json}"
+                elif any(kw in tool_name for kw in ["pdf", "read_scanned"]):
+                    next_target = "vision_agent"
+                    instruction = f"Call read_scanned_pdf tool with: {args_json}"
+                elif any(kw in tool_name for kw in ["run_code", "execute", "sandbox", "code", "python", "script"]):
+                    next_target = "coder_agent"
+                    instruction = f"Execute in sandbox: {args_json}"
     except Exception:
-        # Fallback JSON parsing
+        # Fallback JSON parsing — find first valid JSON object in content
         s = content.find('{')
         e = content.rfind('}')
         if s != -1 and e != -1 and e > s:
@@ -451,10 +672,10 @@ def human_approval_gate(state: AgentState) -> Command[Literal["supervisor", "chi
         "message": "CRITICAL: Max retries exceeded or safety flag raised. Human engineer sign-off required.",
         "status": "Awaiting Sign-off"
     })
-    
+
     approved = user_input.get("approved", False) if isinstance(user_input, dict) else False
     feedback = user_input.get("feedback", "") if isinstance(user_input, dict) else ""
-    
+
     if approved:
         return Command(
             update={
@@ -495,8 +716,11 @@ chief_reviewer_agent = create_react_agent(
         "   - If the code executed cleanly and output is correct: issue VERDICT: 'APPROVED'.\n"
         "   - If code threw errors, syntax exceptions, or timed out: issue VERDICT: 'REJECT' and detail the error.\n\n"
         "2. For ASME Pressure Vessel Calculations:\n"
-        "   - ONLY for pressure vessel calculations: verify UG-27 required thickness (t_req), actual thickness (t_actual), safety margin (delta), MAWP, and API 510 RSL.\n"
-        "   - If verified: issue VERDICT: 'APPROVED'.\n\n"
+        "   - Verify UG-27 required thickness (t_req), actual thickness (t_actual), safety margin (delta), MAWP, and API 510 RSL.\n"
+        "   - COMPLIANCE CRITERION: The vessel is ONLY compliant if t_actual >= t_req (delta >= 0).\n"
+        "   - If t_actual < t_req (delta < 0), the vessel is in CRITICAL_BREACH / NON_COMPLIANT! Clearly state it is a safety violation requiring derating or repair.\n"
+        "   - NUMERICAL SANITY: Verify that formula t = (P * R) / (S * E - 0.6 * P) + CA was used consistently with SI units (MPa, mm).\n"
+        "   - If calculation is verified and technically sound: issue VERDICT: 'APPROVED'.\n\n"
         "3. For Statutory Procurement / Vigilance Audits:\n"
         "   - Verify compliance against CVC guidelines and GFR 2017 rules.\n"
         "   - If verified: issue VERDICT: 'APPROVED'.\n\n"
@@ -523,19 +747,13 @@ def chief_reviewer_node(state: AgentState) -> Command[Literal["supervisor", "hum
         if current_retries >= getattr(state, "max_retries", 3):
             logger.warning("Max retries exceeded upon Chief Reviewer rejection. Routing to Human Approval Gate.")
             return Command(
-                update={
-                    "retry_count": current_retries,
-                    "messages": [out_msg]
-                },
+                update={"retry_count": current_retries, "messages": [out_msg]},
                 goto="human_approval_gate"
             )
         else:
             logger.info("Looping back to Supervisor with Chief Reviewer Critique for autonomous self-correction.")
             return Command(
-                update={
-                    "retry_count": current_retries,
-                    "messages": [out_msg]
-                },
+                update={"retry_count": current_retries, "messages": [out_msg]},
                 goto="supervisor"
             )
 
@@ -550,17 +768,15 @@ def chief_reviewer_node(state: AgentState) -> Command[Literal["supervisor", "hum
 
     if not needs_publishing:
         logger.info("Chief Reviewer: Task approved and finalized. Ending pipeline.")
-        return Command(
-            update={"messages": [out_msg]},
-            goto=END
-        )
+        return Command(update={"messages": [out_msg]}, goto=END)
 
     logger.info("Chief Reviewer: Task approved. Routing to Deliverable Publisher for official documentation.")
-    return Command(
-        update={"messages": [out_msg]},
-        goto="deliverable_publisher"
-    )
+    return Command(update={"messages": [out_msg]}, goto="deliverable_publisher")
 
+
+# ============================================================================
+# DELIVERABLE PUBLISHER
+# ============================================================================
 publisher_agent = create_react_agent(
     supervisor_llm,
     tools=publisher_tools,
@@ -568,104 +784,92 @@ publisher_agent = create_react_agent(
         "You are the Sovereign Deliverable Publisher of AegisForge-AI.\n"
         "Your duty is compiling verified engineering findings into formal, tamper-evident executive documents.\n\n"
         "AVAILABLE TOOLS:\n"
-        "1. 'generate_nfa_documents': Injects verified equipment parameters, ASME stress calculations, and compliance audit results into official Word/PDF templates (e.g. NFA_Emergency_Procurement.docx).\n"
+        "1. 'generate_nfa_documents': Injects verified equipment parameters, ASME stress calculations, and compliance audit results into official Word/PDF templates.\n"
         "2. 'write_sha256_audit_seal': Hashes generated files and commits an immutable event to the SQLite cryptographic audit ledger.\n"
         "3. 'verify_zero_egress': Confirms complete air-gapped network isolation with zero external IP connections.\n\n"
         "EXECUTION INSTRUCTIONS:\n"
-        "- Call 'generate_nfa_documents' with the equipment_id and payload when a report/dossier/NFA is requested.\n"
-        "- Report the exact generated file path on disk (e.g. data/output/...) and the cryptographic SHA-256 seal.\n"
+        "- Read the full conversation history to extract: equipment_id, ASME results (t_req_mm, delta_mm, status, RSL), compliance verdict, and any user-specified names/costs.\n"
+        "- CALL 'generate_nfa_documents' with the equipment_id and payload dynamically built from conversation history.\n"
+        "- Report the exact generated file path on disk and the cryptographic SHA-256 seal.\n"
         "- Do NOT invent or hallucinate file paths — only report real artifacts produced by the tools."
     )
 )
 
-def deliverable_publisher_node(state: AgentState) -> Command[Literal[END]]:
+def deliverable_publisher_node(state: AgentState) -> Command[Literal["__end__"]]:
     result = publisher_agent.invoke(state)
     last_content = result["messages"][-1].content
 
-    # Check if deliverable was successfully generated or if fallback execution is needed
-    if ("generate_nfa" in last_content or "deliverable_publisher" in last_content or "NFA" in last_content) and "data/output" not in last_content:
+    # Fallback: if publisher agent didn't call generate_nfa_documents natively,
+    # build payload dynamically from conversation history and call it directly.
+    if "data/output" not in last_content and ".docx" not in last_content:
         try:
-            # 1. Harvest equipment ID
-            eq_id = getattr(state, "equipment_id", "")
-            if not eq_id:
-                for msg in reversed(state.messages):
-                    m_eq = re.search(r'\b(\d{1,3}-[A-Z]{1,3}-\d{2,4})\b', getattr(msg, "content", ""))
-                    if m_eq:
-                        eq_id = m_eq.group(1)
-                        break
-            if not eq_id:
-                eq_id = "11-V-102"
+            full_history_text = "\n".join([str(getattr(m, "content", "")) for m in state.messages])
 
-            # 2. Harvest all numerical and compliance values across message history
+            # Extract equipment ID dynamically
+            eq_id = "UNKNOWN-VESSEL"
+            for msg in reversed(state.messages):
+                m_eq = re.search(r'\b(\d{1,3}-[A-Z]{1,3}-\d{2,4})\b', getattr(msg, "content", ""))
+                if m_eq:
+                    eq_id = m_eq.group(1)
+                    break
+
             payload = {
                 "equipment_id": eq_id,
-                "inspector_name": "Er. S. Vyas, Lead Reliability Engineer (NDT Level III)",
-                "contractor_name": "L&T Heavy Engineering Ltd",
-                "metallurgist_name": "Chief Materials Specialist (MRPL Inspection Dept)",
-                "authority_name": "General Manager (Technical Services)",
-                "audit_quarter": "Q3-2026",
+                "audit_quarter": f"Q{((datetime.datetime.now().month - 1) // 3) + 1}-{datetime.datetime.now().year}",
                 "incident_date": datetime.datetime.now().strftime("%Y-%m-%d"),
                 "report_date": datetime.datetime.now().strftime("%Y-%m-%d"),
                 "valid_until": (datetime.datetime.now() + datetime.timedelta(days=365)).strftime("%Y-%m-%d"),
             }
 
-            full_history_text = "\n".join([str(getattr(m, "content", "")) for m in state.messages])
-
-            # Extract ASME values
-            m_treq = re.search(r'(?:t_req|t_min|required thickness)[:\s=]*([\d.]+)', full_history_text, re.IGNORECASE)
+            # Extract all values from conversation history — no hardcoded defaults
+            m_treq = re.search(r'(?:t_req|t_min|required thickness)[:\s=]*([0-9.]+)', full_history_text, re.IGNORECASE)
             if m_treq:
                 payload["t_req_mm"] = float(m_treq.group(1))
-                payload["t_min_mm"] = float(m_treq.group(1))
 
-            m_tact = re.search(r'(?:measured_thickness|t_actual|actual thickness|measured thickness)[:\s=]*([\d.]+)', full_history_text, re.IGNORECASE)
+            m_tact = re.search(r'(?:measured_thickness|t_actual|actual thickness|measured thickness)[:\s=]*([0-9.]+)', full_history_text, re.IGNORECASE)
             if m_tact:
                 payload["measured_thickness_mm"] = float(m_tact.group(1))
 
-            m_cr = re.search(r'(?:corrosion_rate|corrosion rate|CR)[:\s=]*([\d.]+)', full_history_text, re.IGNORECASE)
+            m_cr = re.search(r'(?:corrosion_rate|corrosion rate|CR)[:\s=]*([0-9.]+)', full_history_text, re.IGNORECASE)
             if m_cr:
                 payload["corrosion_rate_mm_yr"] = float(m_cr.group(1))
-            else:
-                payload["corrosion_rate_mm_yr"] = 0.75
 
-            m_rsl = re.search(r'(?:remaining_life|remaining service life|RSL)[:\s=]*([-\d.]+)', full_history_text, re.IGNORECASE)
+            m_rsl = re.search(r'(?:remaining_life|remaining service life|RSL)[:\s=]*([-0-9.]+)', full_history_text, re.IGNORECASE)
             if m_rsl:
                 payload["remaining_life_years"] = float(m_rsl.group(1))
-            else:
-                payload["remaining_life_years"] = -0.49
 
-            m_status = re.search(r'(?:CRITICAL_BREACH|CRITICAL BREACH|SAFE|BREACH)', full_history_text)
+            m_status = re.search(r'\b(CRITICAL_BREACH|CRITICAL BREACH|SAFE|BREACH)\b', full_history_text, re.IGNORECASE)
             if m_status:
                 payload["status"] = m_status.group(0).upper()
-            else:
-                payload["status"] = "CRITICAL_BREACH"
 
-            payload["audit_risk"] = "HIGH" if "BREACH" in payload["status"] else "LOW"
-            payload["sanction_clause"] = "GFR 2017 Rule 194 Emergency Direct Procurement"
-            payload["justification_clause"] = "Life-safety critical pressure vessel boundary breach requiring immediate derating & replacement."
-            payload["vendor_name"] = "L&T Heavy Engineering (OEM)"
-            payload["estimated_cost"] = "INR 18,50,000"
-            payload["executive_summary"] = (
-                f"Statutory Turnaround Inspection and Wall Thickness Verification for Vessel {eq_id}. "
-                f"Evaluation confirms minimum required thickness t_req={payload.get('t_req_mm', 138.57)}mm against measured thickness {payload.get('measured_thickness_mm', 138.20)}mm. "
-                f"Integrity status: {payload['status']}. Sanction recommended under {payload['sanction_clause']}."
-            )
+            m_cost = re.search(r'(?:cost|amount|budget|INR|Rs\.?|lakhs?)[:\s]*([0-9.,]+)', full_history_text, re.IGNORECASE)
+            if m_cost:
+                payload["estimated_cost"] = m_cost.group(0).strip()
 
-            # Invoke tool with fully populated dictionary
+            m_clause = re.search(r'(GFR\s*20\d\d[^.\n]{0,60}|CVC[^.\n]{0,60}|Rule\s*\d+[^.\n]{0,40})', full_history_text, re.IGNORECASE)
+            if m_clause:
+                payload["sanction_clause"] = m_clause.group(0).strip()
+
+            if payload.get("t_req_mm") and payload.get("measured_thickness_mm"):
+                t_req = payload["t_req_mm"]
+                t_act = payload["measured_thickness_mm"]
+                payload["executive_summary"] = (
+                    f"Statutory Turnaround Inspection and Wall Thickness Verification for Vessel {eq_id}. "
+                    f"Required thickness t_req={t_req:.2f}mm vs measured {t_act:.2f}mm. "
+                    f"Integrity status: {payload.get('status', 'EVALUATED')}."
+                )
+
             doc_res = doc_generator.generate_nfa_documents.invoke({
                 "template_type": "ASME_Turnaround_Inspection.docx",
                 "base_name": f"{eq_id}_Statutory_NFA",
                 "payload": payload
             })
             last_content += f"\n\n[PUBLISHED DELIVERABLE]:\n{doc_res}"
-            result["messages"][-1] = HumanMessage(content=last_content, name="deliverable_publisher")
         except Exception as e:
-            logger.error(f"Fallback publisher error: {e}")
+            logger.error(f"Publisher fallback error: {e}")
 
     out_msg = HumanMessage(content=last_content, name="deliverable_publisher")
-    return Command(
-        update={"messages": [out_msg]},
-        goto=END
-    )
+    return Command(update={"messages": [out_msg]}, goto=END)
 
 
 # ============================================================================

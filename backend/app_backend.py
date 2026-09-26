@@ -5,6 +5,9 @@ Primary service gateway connecting UI layers (Streamlit, Web APIs) and CLI runti
 to sovereign air-gapped domain services and multi-agent pipelines.
 """
 
+import os
+import re
+import json
 from pathlib import Path
 from typing import Optional, Union, Dict, Any
 
@@ -82,7 +85,7 @@ class AegisForgeBackend:
         ca: float = 4.0,
         t_actual: float = 138.20,
         cr: float = 0.75,
-        equipment_id: str = "11-V-102",
+        equipment_id: str = "VESSEL-001",
     ) -> Dict[str, Any]:
         """Runs ASME Section VIII Div 1 UG-27 wall thickness calculation."""
         calc = self.engineering.calculate_asme_ug27(
@@ -151,6 +154,77 @@ class AegisForgeBackend:
             override_model=override_model
         )
 
+    # -------------------------------------------------------------------------
+    # Internal helpers
+    # -------------------------------------------------------------------------
+    def _find_docx_path(self, content: str) -> Optional[str]:
+        """Extracts and validates a .docx file path from agent output content."""
+        m_docx = re.search(
+            r'([A-Za-z]:[^\s\n\'"]+\.docx|/output/[^\s\n\'"]+\.docx|[a-zA-Z0-9_./\\-]+\.docx)',
+            content
+        )
+        if not m_docx:
+            return None
+        candidate = m_docx.group(1)
+        if candidate.startswith("/output/"):
+            candidate = os.path.join("data", "output", candidate[len("/output/"):])
+        candidate_path = Path(candidate)
+        if not candidate_path.is_absolute():
+            candidate_path = Path(os.getcwd()) / candidate
+        return str(candidate_path) if candidate_path.exists() else None
+
+    def _find_sha256(self, content: str) -> Optional[str]:
+        """Extracts a SHA-256 hash from agent output content."""
+        m_sha = re.search(r'\b([a-fA-F0-9]{64})\b', content)
+        return m_sha.group(1) if m_sha else None
+
+    def _classify_step(self, msg) -> Dict[str, Any]:
+        """
+        Inspect a LangGraph message and return a structured step dict with:
+        - agent: who emitted it
+        - content: the text content
+        - step_type: 'tool_call' | 'tool_result' | 'reasoning' | 'directive'
+        - tool_name: name of the tool (if applicable)
+        """
+        from langchain_core.messages import AIMessage, ToolMessage, HumanMessage
+
+        name = getattr(msg, "name", None) or getattr(msg, "type", None) or type(msg).__name__
+        content = getattr(msg, "content", str(msg))
+        if isinstance(content, list):
+            # AIMessage content can be a list of dicts for multi-modal
+            content = " ".join(
+                part.get("text", "") if isinstance(part, dict) else str(part)
+                for part in content
+            )
+
+        step_type = "reasoning"
+        tool_name = None
+
+        # Detect tool invocation: AIMessage with tool_calls
+        if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
+            step_type = "tool_call"
+            tool_name = msg.tool_calls[0].get("name", "") if msg.tool_calls else None
+
+        # Detect tool result: ToolMessage
+        elif isinstance(msg, ToolMessage):
+            step_type = "tool_result"
+            tool_name = getattr(msg, "name", "tool")
+            name = tool_name  # use tool name as the "agent" label for clarity
+
+        # Supervisor directive JSON
+        elif isinstance(msg, HumanMessage) and str(name).lower() == "supervisor":
+            step_type = "directive"
+
+        return {
+            "agent": str(name),
+            "content": str(content),
+            "step_type": step_type,
+            "tool_name": tool_name,
+        }
+
+    # -------------------------------------------------------------------------
+    # Multi-Agent Chat (non-streaming)
+    # -------------------------------------------------------------------------
     def chat(
         self,
         prompt: str,
@@ -158,7 +232,7 @@ class AegisForgeBackend:
         thread_id: str = "default_session",
     ) -> Dict[str, Any]:
         """
-        Full conversational multi-agent workbench interaction (Like Claude / Codex for Industrial PSUs).
+        Full conversational multi-agent workbench interaction.
         Ingests user prompts, handles file attachments, coordinates specialists, and returns structured outputs.
         """
         full_prompt = prompt
@@ -172,51 +246,42 @@ class AegisForgeBackend:
         config = {"configurable": {"thread_id": thread_id}}
         res = app.invoke({"messages": [("user", full_prompt)]}, config=config)
 
-        # Parse message history to extract steps and deliverables for THIS TURN ONLY
         steps = []
         final_answer = ""
         doc_path = None
         sha256 = None
 
         all_msgs = res.get("messages", [])
-        
-        # Find the start of the current turn (latest human message)
+
+        # Find the start of the current turn (latest human message from user)
         latest_human_idx = 0
         for idx in range(len(all_msgs) - 1, -1, -1):
             msg = all_msgs[idx]
             msg_type = getattr(msg, "type", "")
-            if msg_type in ["human", "user"] or isinstance(msg, tuple) and msg[0] in ["human", "user"]:
+            if msg_type in ["human", "user"] or (isinstance(msg, tuple) and msg[0] in ["human", "user"]):
                 latest_human_idx = idx
                 break
 
-        # Only process messages generated in this turn
         current_turn_msgs = all_msgs[latest_human_idx:]
 
         for msg in current_turn_msgs:
-            name = getattr(msg, "name", None) or getattr(msg, "type", None) or type(msg).__name__
-            content = getattr(msg, "content", str(msg))
-            name_str = str(name).lower()
+            name_str = str(getattr(msg, "name", None) or getattr(msg, "type", None) or "").lower()
+            content = str(getattr(msg, "content", str(msg)))
 
             if name_str in ["chief_reviewer", "direct_answer"]:
                 final_answer = content
 
-            # Keep intermediate agent reasoning in steps (exclude raw user prompt and standalone greetings)
-            if name_str not in ["human", "user"] and content.strip() != full_prompt.strip() and not (name_str == "direct_answer" and not final_answer):
-                steps.append({"agent": str(name), "content": str(content)})
+            # Exclude raw user prompt echo
+            if name_str not in ["human", "user"] and content.strip() != full_prompt.strip():
+                step = self._classify_step(msg)
+                steps.append(step)
 
-            # Check if deliverable generated
-            import re
-            m_docx = re.search(r'([A-Za-z]:[^\s\n\'"]+\.docx)', content)
-            if m_docx and Path(m_docx.group(1)).exists():
-                doc_path = m_docx.group(1)
-            m_sha = re.search(r'\b([a-fA-F0-9]{64})\b', content)
-            if m_sha:
-                sha256 = m_sha.group(1)
+            doc_path = doc_path or self._find_docx_path(content)
+            sha256 = sha256 or self._find_sha256(content)
 
         if not final_answer and steps:
             final_answer = steps[-1]["content"]
 
-        # If it was a simple direct answer with no intermediate tool agents, omit steps to keep UI clean
         if len(steps) == 1 and steps[0]["agent"].lower() == "direct_answer":
             steps = []
 
@@ -228,6 +293,9 @@ class AegisForgeBackend:
             "sha256_hash": sha256,
         }
 
+    # -------------------------------------------------------------------------
+    # Multi-Agent Chat (streaming — live tool call trace)
+    # -------------------------------------------------------------------------
     def chat_stream(
         self,
         prompt: str,
@@ -236,7 +304,17 @@ class AegisForgeBackend:
     ):
         """
         Live streaming generator for multi-agent collaboration.
-        Yields agent step events in real-time as each specialist executes.
+
+        Uses LangGraph stream_mode='updates' with subgraphs=True so that
+        intermediate steps *inside* create_react_agent subgraphs are visible:
+        - Supervisor directives
+        - Tool invocations (AIMessage with tool_calls)
+        - Tool results (ToolMessage)
+        - Agent reasoning and final answers
+
+        Yields events:
+          {"type": "step", "step": {...}, "steps": [...]}
+          {"type": "done", "final_answer": "...", "steps": [...], ...}
         """
         full_prompt = prompt
         if attached_file:
@@ -253,33 +331,80 @@ class AegisForgeBackend:
         doc_path = None
         sha256 = None
 
-        for event in app.stream({"messages": [("user", full_prompt)]}, config=config, stream_mode="updates"):
-            for node_name, node_update in event.items():
-                msgs = node_update.get("messages", []) if isinstance(node_update, dict) else []
-                for msg in msgs:
-                    name = getattr(msg, "name", None) or node_name
-                    content = getattr(msg, "content", str(msg))
-                    name_str = str(name).lower()
+        # stream_mode="updates" + subgraphs=True:
+        # Each event is a 2-tuple: (namespace_tuple, update_dict)
+        # namespace_tuple is () for the outer graph, ("node_name:uuid",) for subgraphs
+        # update_dict is {"node_name": {"messages": [...]}} 
+        for event in app.stream(
+            {"messages": [("user", full_prompt)]},
+            config=config,
+            stream_mode="updates",
+            subgraphs=True
+        ):
+            # Unpack the 2-tuple from subgraph streaming
+            if isinstance(event, tuple) and len(event) == 2:
+                namespace, update = event
+            else:
+                namespace = ()
+                update = event
 
+            if not isinstance(update, dict):
+                continue
+
+            for node_name, node_update in update.items():
+                msgs = []
+                if isinstance(node_update, dict):
+                    msgs = node_update.get("messages", [])
+                elif hasattr(node_update, "get"):
+                    msgs = node_update.get("messages", [])
+
+                for msg in msgs:
+                    name_str = str(getattr(msg, "name", None) or getattr(msg, "type", None) or node_name).lower()
+                    content = str(getattr(msg, "content", str(msg)))
+                    if isinstance(getattr(msg, "content", None), list):
+                        content = " ".join(
+                            part.get("text", "") if isinstance(part, dict) else str(part)
+                            for part in msg.content
+                        )
+
+                    # Skip pure user message echoes
+                    if content.strip() == full_prompt.strip() or not content.strip():
+                        continue
+
+                    # Skip raw human/user messages
+                    if name_str in ["human", "user"]:
+                        continue
+
+                    # Track final answer (direct_answer and chief_reviewer are final)
                     if name_str in ["chief_reviewer", "direct_answer"]:
                         final_answer = content
 
-                    if name_str not in ["human", "user"] and content.strip() != full_prompt.strip():
-                        step_data = {"agent": str(name), "content": str(content)}
+                    # Only add to trace if it's NOT a direct_answer (those are shown as
+                    # final_answer only — no trace expander for simple conversations)
+                    if name_str != "direct_answer":
+                        step_data = self._classify_step(msg)
+
+                        # Attach namespace context so frontend can show which agent context it belongs to
+                        if namespace:
+                            parent_agent = str(namespace[0]).split(":")[0] if namespace else ""
+                            if parent_agent and step_data["agent"].lower() in ["ai", "tool", "aichat", ""]:
+                                step_data["agent"] = parent_agent
+
                         steps.append(step_data)
+
+                        # Track deliverable paths and hashes
+                        doc_path = doc_path or self._find_docx_path(content)
+                        sha256 = sha256 or self._find_sha256(content)
+
                         yield {
                             "type": "step",
                             "step": step_data,
                             "steps": list(steps)
                         }
-
-                    import re
-                    m_docx = re.search(r'([A-Za-z]:[^\s\n\'"]+\.docx)', content)
-                    if m_docx and Path(m_docx.group(1)).exists():
-                        doc_path = m_docx.group(1)
-                    m_sha = re.search(r'\b([a-fA-F0-9]{64})\b', content)
-                    if m_sha:
-                        sha256 = m_sha.group(1)
+                    else:
+                        # Still track deliverables from direct_answer content
+                        doc_path = doc_path or self._find_docx_path(content)
+                        sha256 = sha256 or self._find_sha256(content)
 
         if not final_answer and steps:
             final_answer = steps[-1]["content"]
@@ -295,4 +420,3 @@ class AegisForgeBackend:
             "docx_path": doc_path,
             "sha256_hash": sha256,
         }
-
