@@ -49,3 +49,5 @@ psutil>=5.9.0
 # Development & Notebook Support
 ipykernel>=6.0.0
 docxtpl>=0.16.0
+
+langfuse
