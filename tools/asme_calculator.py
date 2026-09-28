@@ -123,15 +123,37 @@ def calculate_asme_stresses(
             except Exception as ex:
                 logger.debug(f"Dynamic parameter extraction skipped: {ex}")
 
-        # Final defensive fallback defaults if still undefined
-        p_val = float(p) if p is not None else 14.5
-        r_val = float(r) if r is not None else 1200.0
-        s_val = float(s) if s is not None else 138.0
-        e_val = float(e) if e is not None else 1.0
-        ca_val = float(ca) if ca is not None else 4.0
-        t_val = float(t_meas) if t_meas is not None else 138.2
-        cr_val = float(cr) if cr is not None else 0.75
-        
+        # Final defensive check — NEVER silently use hardcoded defaults (Fix #1)
+        # Only corrosion_rate can default to a safe minimal value.
+        missing = [name for name, val in [
+            ("design_pressure_mpa",  p),
+            ("inside_radius_mm",     r),
+            ("allowable_stress_mpa", s),
+            ("corrosion_allowance_mm", ca),
+            ("measured_thickness_mm",  t_meas),
+        ] if val is None]
+
+        if missing:
+            logger.error(f"ASME calculation aborted — missing required parameters: {missing}")
+            return {
+                "status": "PARAMETER_MISSING",
+                "error": (
+                    f"Cannot compute ASME UG-27 — missing required parameters: {missing}. "
+                    "Please provide them explicitly in your request or upload a dossier containing "
+                    "this data."
+                ),
+                "missing_parameters": missing,
+            }
+
+        p_val  = float(p)
+        r_val  = float(r)
+        s_val  = float(s)
+        e_val  = float(e) if e is not None else 1.0
+        ca_val = float(ca)
+        t_val  = float(t_meas)
+        # Corrosion rate defaults to 0.1 mm/yr (minimal conservative rate) if not provided
+        cr_val = float(cr) if cr is not None else 0.1
+
         inp = InspectionInput(
             equipment_id=equipment_id or "EQUIPMENT-001",
             design_pressure_mpa=p_val,
@@ -147,4 +169,5 @@ def calculate_asme_stresses(
     except Exception as e:
         logger.error(f"Error in calculate_asme_stresses: {e}")
         return {"status": "error", "error": str(e)}
+
 

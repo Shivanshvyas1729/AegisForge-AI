@@ -100,12 +100,31 @@ class DockerSecureSandbox:
         
         return code_string.strip()
 
+    # Banned builtin call names — cannot be imported, but can be called directly (Fix #18)
+    _BANNED_CALL_NAMES = frozenset({
+        '__import__', 'eval', 'exec', 'compile', 'open', 'breakpoint'
+    })
+    _BANNED_ATTR_NAMES = frozenset({
+        'import_module', 'exec_module', 'load_module'
+    })
+
     def _check_code_safety(self, code_string: str) -> tuple[bool, str]:
-        """AST Scanner: Detect malicious imports before even touching Docker."""
+        """
+        AST Scanner: Detect malicious imports AND dynamic import bypasses
+        before even touching Docker. (Fix #18)
+
+        Blocked patterns:
+          - import os / from subprocess import run
+          - __import__('os')
+          - eval("import socket")
+          - exec("import sys")
+          - importlib.import_module('subprocess')
+        """
         code_string = self.sanitize_code(code_string)
         try:
             tree = ast.parse(code_string)
             for node in ast.walk(tree):
+                # Direct import statements
                 if isinstance(node, ast.Import):
                     for alias in node.names:
                         if alias.name.split('.')[0] in self.banned_imports:
@@ -113,6 +132,20 @@ class DockerSecureSandbox:
                 elif isinstance(node, ast.ImportFrom):
                     if node.module and node.module.split('.')[0] in self.banned_imports:
                         return False, f"CRITICAL SECURITY BLOCK: Import from '{node.module}' is forbidden."
+
+                # Dynamic calls: __import__, eval, exec, compile, open  (Fix #18)
+                elif isinstance(node, ast.Call):
+                    func = node.func
+                    if isinstance(func, ast.Name) and func.id in self._BANNED_CALL_NAMES:
+                        return False, (
+                            f"CRITICAL SECURITY BLOCK: Call to '{func.id}()' is forbidden. "
+                            "Dynamic code execution and file access are not allowed in the sandbox."
+                        )
+                    # importlib.import_module / importlib.exec_module
+                    if isinstance(func, ast.Attribute) and func.attr in self._BANNED_ATTR_NAMES:
+                        return False, (
+                            f"CRITICAL SECURITY BLOCK: Dynamic import via '.{func.attr}()' is forbidden."
+                        )
             return True, "Code is safe."
         except SyntaxError as e:
             return False, f"Syntax Error in AI generated code: {e}"

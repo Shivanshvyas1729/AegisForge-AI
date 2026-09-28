@@ -32,30 +32,40 @@ from config.settings import (
 )
 
 # Detailed metadata for UI cards
+# Fix #22: These entries now match the models actually used in pipeline.py
 MODEL_METADATA = {
-    "deepseek-r1:1.5b": {
-        "title": "DeepSeek-R1 (1.5B)",
-        "role": "Reasoning & ASME Compliance",
-        "category": "reasoning",
-        "size_est": "~1.1 GB",
+    "laya:421m": {
+        "title": "Laya (421M) — Sovereign Router",
+        "role": "Ultra-fast Task Classification",
+        "category": "routing",
+        "size_est": "~260 MB",
         "backend": "ollama",
-        "desc": "Chain-of-thought engine for ASME Section VIII $t_{min}$ validation and PSU Note for Approval synthesis."
+        "mandatory": True,
+        "desc": "MANDATORY: Sovereign Air-Gapped Router. Classifies engineering intent in <0.3s. Must be present for the pipeline to run.",
     },
-    "qwen2.5-coder:1.5b": {
-        "title": "Qwen2.5-Coder (1.5B)",
-        "role": "Code & Automation",
-        "category": "coding",
-        "size_est": "~1.0 GB",
+    "llama3.1:8b": {
+        "title": "Llama-3.1 (8B)",
+        "role": "Supervisor / Reasoning / Reviewer",
+        "category": "reasoning",
+        "size_est": "~4.7 GB",
         "backend": "ollama",
-        "desc": "Fast code generation for SCADA, Modbus CRC-16, and industrial automation scripts."
+        "desc": "Core orchestration and statutory compliance reasoning engine. Used by Supervisor, Reasoning Agent, and Chief Reviewer nodes.",
+    },
+    "qwen2.5-coder:7b": {
+        "title": "Qwen2.5-Coder (7B)",
+        "role": "Deterministic Coder Agent",
+        "category": "coding",
+        "size_est": "~4.2 GB",
+        "backend": "ollama",
+        "desc": "Precision code generation and ASME calculation orchestration. Calls certified deterministic tools for UG-27, API 579.",
     },
     "llama3.2:3b": {
         "title": "Llama-3.2 (3B)",
-        "role": "Fast Text & Summaries",
-        "category": "general",
+        "role": "Vision / Fast Summaries",
+        "category": "vision",
         "size_est": "~2.0 GB",
         "backend": "ollama",
-        "desc": "High-speed executive briefings, Q3 presentation summaries, and general conversational QA."
+        "desc": "Vision agent backbone + fast conversational responses and executive briefings.",
     },
     "moondream": {
         "title": "Moondream (VLM)",
@@ -63,16 +73,7 @@ MODEL_METADATA = {
         "category": "vision",
         "size_est": "~1.7 GB",
         "backend": "ollama",
-        "desc": "Lightweight vision-language model for reading tags, equipment bubbles, and P&ID diagrams."
-    },
-    "qwen2.5:0.5b": {
-        "title": "Qwen2.5 (0.5B) - Semantic Router",
-        "role": "Instant Task Classification",
-        "category": "routing",
-        "size_est": "~398 MB",
-        "backend": "ollama",
-        "mandatory": True,
-        "desc": "MANDATORY: Ultra-lightweight AI router. Classifies user intent behind the scenes instantly (0.2s) without simple keyword guessing. Must be downloaded to use the workbench."
+        "desc": "Lightweight vision-language model for reading equipment tags, P&ID diagrams, and schematic drawings.",
     },
     "easyocr": {
         "title": "EasyOCR (CRAFT + CRNN)",
@@ -80,9 +81,10 @@ MODEL_METADATA = {
         "category": "vision",
         "size_est": "~98 MB",
         "backend": "easyocr",
-        "desc": "Zero-GPU offline OCR model running fully in-process on CPU to extract text from blueprints."
-    }
+        "desc": "Zero-GPU offline OCR model running fully in-process on CPU to extract text from inspection blueprints.",
+    },
 }
+
 
 
 def find_ollama_executable() -> Optional[str]:

@@ -102,8 +102,9 @@ def audit_cvc_compliance(
     estimated_cost_lakhs: float = 0.0,
     is_single_source: bool = True,
     has_pac: bool = False,
-    is_emergency: bool = True,
-    applicable_cvc_clause: str = "Statutory Emergency Exception under CVC / GFR / DoP Guidelines",
+    is_emergency: bool = False,           # Fix #2: was True — defaulted every call to emergency
+    vendor_is_blacklisted: bool = False,  # Fix #2: was never forwarded to ProcurementRequest
+    applicable_cvc_clause: str = "Statutory Exception under CVC / GFR / DoP Guidelines",
     dop_authority: str = "Director (Refineries)",
     required_financial_authority: str = "Director (Refineries)",
     **kwargs: Any
@@ -121,7 +122,7 @@ def audit_cvc_compliance(
             or (amount_inr / 100000.0 if amount_inr > 0 else 0.0)
             or (float(kwargs.get("amount", 0)) / 100000.0 if kwargs.get("amount") else 0.0)
         )
-        auth = kwargs.get("authority") or required_financial_authority or dop_authority or "Competent Financial Authority"
+        auth   = kwargs.get("authority") or required_financial_authority or dop_authority or "Competent Financial Authority"
         clause = kwargs.get("clause") or kwargs.get("circular") or applicable_cvc_clause or "Statutory Exception"
 
         request = ProcurementRequest(
@@ -130,6 +131,7 @@ def audit_cvc_compliance(
             is_single_source=is_single_source,
             has_pac=has_pac,
             is_emergency=is_emergency,
+            vendor_is_blacklisted=vendor_is_blacklisted,   # Fix #2: now forwarded correctly
             applicable_cvc_clause=clause,
             required_financial_authority=auth
         )
@@ -141,4 +143,5 @@ def audit_cvc_compliance(
     except Exception as e:
         logger.error(f"Error in audit_cvc_compliance: {e}")
         return {"status": "error", "compliance_status": "ERROR", "error": str(e)}
+
 

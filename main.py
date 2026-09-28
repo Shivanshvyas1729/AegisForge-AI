@@ -34,6 +34,10 @@ except Exception:
 
 from backend import AegisForgeBackend
 
+# Fix #21: initialize directories and env vars once at startup
+from config.settings import initialize as _settings_init
+_settings_init()
+
 
 class AegisForgeCentralEngine(AegisForgeBackend):
     """

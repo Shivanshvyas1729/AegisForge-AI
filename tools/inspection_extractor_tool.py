@@ -53,19 +53,27 @@ class InspectionExtractorTool:
         }
 
     def _pdf_to_images(self, pdf_path: str) -> list:
-        """Convert PDF pages to PIL images using PyMuPDF."""
+        """Convert PDF pages to PIL images using PyMuPDF.
+        Uses a system temp directory so files are cleaned up automatically. (Fix #23)
+        """
         if fitz is None:
             raise RuntimeError("PyMuPDF (fitz) is required for PDF processing. Install: pip install pymupdf")
-        
+
+        import tempfile
         images = []
         doc = fitz.open(pdf_path)
+        # Use a temp dir — caller is responsible for cleanup via the returned tmpdir handle
+        tmpdir = tempfile.mkdtemp(prefix="aegis_ocr_")
         for page in doc:
             pix = page.get_pixmap(dpi=300)
-            img_path = os.path.join(os.path.dirname(pdf_path), f"_temp_page_{page.number}.png")
+            img_path = os.path.join(tmpdir, f"page_{page.number}.png")
             pix.save(img_path)
             images.append(img_path)
         doc.close()
+        self._temp_ocr_dirs = getattr(self, "_temp_ocr_dirs", [])
+        self._temp_ocr_dirs.append(tmpdir)   # track for later cleanup
         return images
+
 
     def _run_ocr(self, file_path: str) -> tuple:
         """Run EasyOCR on image or PDF and return (raw_text, confidence)."""

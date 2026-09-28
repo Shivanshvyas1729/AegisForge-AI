@@ -62,22 +62,31 @@ VECTOR_STORAGE_DIR = DATA_DIR / "vector_storage"
 QDRANT_STORAGE_DIR = VECTOR_STORAGE_DIR / "qdrant_db"
 EXTRACTED_IMAGES_DIR = VECTOR_STORAGE_DIR / "extracted_images"
 
-# Ensure all essential internal directories exist
-for directory in [
-    MODEL_POOL_DIR,
-    EASYOCR_DIR,
-    OLLAMA_MODELS_DIR,
-    UPLOADS_DIR,
-    OUTPUT_DIR,
-    VECTOR_STORAGE_DIR,
-    QDRANT_STORAGE_DIR,
-    EXTRACTED_IMAGES_DIR,
-]:
-    directory.mkdir(parents=True, exist_ok=True)
+def initialize():
+    """
+    Initialize the project environment: create required directories and set
+    environment variables. Call this ONCE from main.py / app.py startup,
+    NOT at import time. (Fix #21)
+    """
+    for directory in [
+        MODEL_POOL_DIR,
+        EASYOCR_DIR,
+        OLLAMA_MODELS_DIR,
+        UPLOADS_DIR,
+        OUTPUT_DIR,
+        VECTOR_STORAGE_DIR,
+        QDRANT_STORAGE_DIR,
+        EXTRACTED_IMAGES_DIR,
+    ]:
+        directory.mkdir(parents=True, exist_ok=True)
 
-# Enforce project-contained model locations via environment variables
-os.environ.setdefault("OLLAMA_MODELS", str(OLLAMA_MODELS_DIR))
-os.environ.setdefault("EASYOCR_MODULE_PATH", str(EASYOCR_DIR))
+    # Lock Ollama and EasyOCR to project-local dirs
+    os.environ.setdefault("OLLAMA_MODELS", str(OLLAMA_MODELS_DIR))
+    os.environ.setdefault("EASYOCR_MODULE_PATH", str(EASYOCR_DIR))
+
+
+# Ensure log directory exists at import time ONLY (needed before setup_logging)
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Ollama Endpoint Configuration (Always use 127.0.0.1 to avoid Windows IPv6 localhost connection delays)
 _raw_host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")

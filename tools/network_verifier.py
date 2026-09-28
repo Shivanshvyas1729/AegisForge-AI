@@ -20,29 +20,43 @@ class NetworkVerifier:
             self.ledger = AuditLedger()
 
     def verify_zero_egress(self) -> NetworkTelemetryReport:
+        """
+        Checks ALL system-level inet connections (not just this process) for
+        external egress. This catches Docker, Ollama, and Streamlit subprocess
+        connections that psutil.Process(pid) would miss. (Fix #20)
+        """
         pid = psutil.Process().pid
-        # Scan all active inet connections belonging to this process
-        connections = psutil.Process(pid).connections(kind='inet')
-        
+
+        # Use net_connections for system-wide check (Fix #20)
+        try:
+            all_connections = psutil.net_connections(kind='inet')
+        except (psutil.AccessDenied, AttributeError):
+            # Fallback to per-process check if system-wide is denied (non-admin)
+            all_connections = psutil.Process(pid).connections(kind='inet')
+
         external_conns = []
         local_conns = []
-        
-        for conn in connections:
-            if conn.status == 'ESTABLISHED':
-                remote_ip = conn.raddr.ip if conn.raddr else None
-                if remote_ip:
-                    if remote_ip in self.allowed_ips or remote_ip.startswith("127."):
-                        local_conns.append(f"{conn.laddr.ip}:{conn.laddr.port} -> {remote_ip}:{conn.raddr.port}")
-                    else:
-                        external_conns.append(f"EXTERNAL EGRESS DETECTED: {conn.laddr.ip}:{conn.laddr.port} -> {remote_ip}:{conn.raddr.port}")
-        
+
+        for conn in all_connections:
+            if conn.status == 'ESTABLISHED' and conn.raddr:
+                remote_ip = conn.raddr.ip
+                if remote_ip in self.allowed_ips or remote_ip.startswith("127."):
+                    local_conns.append(
+                        f"{conn.laddr.ip}:{conn.laddr.port} -> {remote_ip}:{conn.raddr.port}"
+                    )
+                else:
+                    external_conns.append(
+                        f"EXTERNAL EGRESS DETECTED: {conn.laddr.ip}:{conn.laddr.port} "
+                        f"-> {remote_ip}:{conn.raddr.port}"
+                    )
+
         is_air_gapped = len(external_conns) == 0
-        
+
         if is_air_gapped:
             status = "SECURE: Zero Egress Detected. Sovereign Air-Gap Verified."
         else:
             status = "CRITICAL BREACH: Unauthorized external data exfiltration detected!"
-            
+
         report = NetworkTelemetryReport(
             timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             process_id=pid,
@@ -51,7 +65,7 @@ class NetworkVerifier:
             local_connections=local_conns,
             verification_status=status
         )
-        
+
         # Mandated by architecture.md: Cryptographically audit every security check
         if self.use_audit_trail:
             ledger_status = "APPROVED" if is_air_gapped else "BLOCKED_BY_SECURITY"

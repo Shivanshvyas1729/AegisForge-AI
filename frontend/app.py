@@ -18,12 +18,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import importlib
-import backend
-import backend.app_backend
-importlib.reload(backend.app_backend)
-importlib.reload(backend)
-from backend import get_backend
+# Fix #24: do NOT reload on every Streamlit re-run — use session_state singleton
+if "_backend_module" not in st.session_state:
+    import backend
+    import backend.app_backend
+    from backend import get_backend
+    st.session_state["_backend_module"] = get_backend
 
 # Page Configuration
 st.set_page_config(
@@ -36,7 +36,8 @@ st.set_page_config(
 # Premium Industrial Design System (Tailored CSS)
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+    /* Fix #16: Google Fonts CDN removed — using system font stack to preserve air-gap */
+    /* To use custom fonts, embed them as base64 data URIs in frontend/assets/fonts/ */
 
     html, body, [class*="css"] {
         font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -171,8 +172,11 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize Sovereign Backend Service Gateway
-backend = get_backend(PROJECT_ROOT)
+# Fix #24: initialize backend exactly once per browser session (not per re-run)
+if "backend" not in st.session_state:
+    get_backend = st.session_state["_backend_module"]
+    st.session_state["backend"] = get_backend(PROJECT_ROOT)
+backend = st.session_state["backend"]
 
 # ============================================================================
 # SIDEBAR: HARDWARE TELEMETRY & SANDBOX CONTROLS
@@ -211,13 +215,22 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("### 🧠 Sovereign Model Registry")
-    models_info = {
-        "Fast Router": "llama3.2:3b",
-        "Deterministic Math": "qwen2.5-coder:7b",
-        "Statutory Reasoning": "llama3.1:8b / deepseek-r1:8b",
-        "Multimodal Vision": "moondream / EasyOCR",
-        "Chief Reviewer": "llama3.2:3b",
-    }
+    # Fix #17: import real model names from pipeline instead of hardcoding
+    try:
+        from agent_orchestrator.models import (
+            ROUTER_MODEL, SUPERVISOR_MODEL, CODER_MODEL,
+            VISION_MODEL, REVIEWER_MODEL,
+        )
+        models_info = {
+            "Fast Router":       ROUTER_MODEL,
+            "Supervisor":        SUPERVISOR_MODEL,
+            "Deterministic Math": CODER_MODEL,
+            "Statutory Reasoning": SUPERVISOR_MODEL,
+            "Multimodal Vision":  f"{VISION_MODEL} / EasyOCR",
+            "Chief Reviewer":    REVIEWER_MODEL,
+        }
+    except ImportError:
+        models_info = {"Models": "(loading...)"}
     for role, model in models_info.items():
         st.markdown(f"• **{role}:** `{model}`")
 
