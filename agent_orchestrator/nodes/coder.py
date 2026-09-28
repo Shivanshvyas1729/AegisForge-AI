@@ -53,16 +53,21 @@ coder_agent = create_react_agent(
         "- FOR MATERIAL LOOKUPS: CALL 'lookup_material'.\n"
         "- FOR FITNESS-FOR-SERVICE: CALL 'run_ffs_assessment'.\n"
         "- FOR GENERAL CODING (Fibonacci, sorting, data processing, Word docs): CALL 'execute_in_sandbox'.\n"
-        "  • Provide clean, self-contained Python in 'code_string'.\n"
-        "  • NEVER use interactive input() calls.\n"
+        "  • SANDBOX RUNTIME: Python 3.9 (Alpine Linux, network-isolated, 256MB RAM).\n"
+        "  • INSTALLED PACKAGES: pandas, numpy, python-docx, and Python 3.9 standard library (math, json, re, csv).\n"
+        "  • IMPORTS: ALWAYS explicitly import any module you use at the top (e.g. 'import pandas as pd', 'import math'). NEVER use 'pd.' without 'import pandas as pd'.\n"
+        "  • MULTIPLE SEQUENCES / UNEQUAL LISTS: If calculating multiple series with different lengths (e.g. Fibonacci numbers up to 10 has 11 elements, Factorials up to 7 has 8 elements), NEVER combine them into a single pd.DataFrame({'Fibonacci': ..., 'Factorial': ...}) as pandas will raise ValueError('All arrays must be of the same length')! Instead, print each sequence clearly under its own heading (e.g. print Fibonacci first, then print Factorials right below it), or create two separate DataFrames.\n"
+        "  • SECURITY CONSTRAINTS: Forbidden imports (AST-blocked): 'os', 'sys', 'subprocess', 'shutil', 'socket', 'requests'.\n"
+        "  • CODING STANDARDS: Write clean, self-contained Python 3.9 code. NEVER use interactive input() calls.\n"
+        "  • PANDAS GUIDELINE: Use modern pandas APIs (never use deprecated/removed 'df.append()'; build DataFrames from a list of dicts: rows.append({...}) then pd.DataFrame(rows), or use pd.concat()).\n"
         "  • Save files to '/output/' inside sandbox.\n"
         "- ALWAYS append '[STATUS: CALCULATION_COMPLETED]' to signal completion."
     )
 )
 
 
-def _get_next_node(state: AgentState) -> str:
-    if state.get("retry_count", 0) >= state.get("max_retries", 3):
+def _get_next_node(state: AgentState, retries: int = 0) -> str:
+    if retries >= state.get("max_retries", 3):
         return "human_approval_gate"
     return "supervisor"
 
@@ -115,14 +120,25 @@ def coder_node(
         else:
             logger.warning("Coder Node: No native tool call and no parseable text tool call found")
 
-    if "[STATUS: CALCULATION_COMPLETED]" not in last_content:
+    has_error = any(tag in last_content for tag in ["[STATUS: ERROR]", "Traceback", "[TOOL_ERROR]", "[STATUS: BLOCKED_BY_AST]", "[STATUS: TIMEOUT]"])
+    if not has_error and "[STATUS: CALCULATION_COMPLETED]" not in last_content:
         last_content += "\n[STATUS: CALCULATION_COMPLETED]"
 
+    retries = state.get("retry_count", 0)
+    if has_error:
+        retries += 1
+        logger.warning(f"Coder Node execution failed ({retries}/{state.get('max_retries', 3)})")
+    elif "[STATUS: CALCULATION_COMPLETED]" in last_content:
+        retries = 0
+
     out_msg = HumanMessage(content=last_content, name="coder_agent")
-    update = {"messages": [out_msg]}
+    update = {
+        "messages": [out_msg],
+        "retry_count": retries,
+    }
     if asme_result:
         update["last_asme_result"] = asme_result
     if eq_id:
         update["equipment_id"] = eq_id
 
-    return Command(update=update, goto=_get_next_node(state))
+    return Command(update=update, goto=_get_next_node(state, retries))

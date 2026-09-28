@@ -66,10 +66,25 @@ def chief_reviewer_node(
     is_rejected = any(rej in reviewer_content.upper() for rej in _REJECT_MARKERS)
     current_retries = state.get("retry_count", 0)
 
-    if is_rejected:
+    # Check if calculation / specialist work actually completed without code errors
+    has_asme_result = bool(state.get("last_asme_result"))
+    has_completed_tag = any(
+        any(tag in str(getattr(m, "content", "")) for tag in ["[STATUS: CALCULATION_COMPLETED]", "[STATUS: COMPLIANCE_COMPLETED]"])
+        for m in state.get("messages", [])
+    )
+    has_execution_error = any(
+        any(err in str(getattr(m, "content", "")) for err in ["[STATUS: ERROR]", "Traceback (most recent call last):", "[TOOL_ERROR]"])
+        for m in state.get("messages", [])[-3:]
+    )
+
+    # If the mathematical calculation / compliance audit ran successfully, a "REJECT" verdict
+    # means the physical vessel or procurement failed compliance — it is a legitimate technical
+    # conclusion, NOT an execution bug! Finalize immediately without looping.
+    # However, if the code actually crashed or encountered a runtime error, loop back for self-healing.
+    if is_rejected and (has_execution_error or not (has_asme_result or has_completed_tag)):
         current_retries += 1
         logger.warning(
-            f"Chief Reviewer REJECTED output. Retry {current_retries}/{state.get('max_retries', 3)}."
+            f"Chief Reviewer REJECTED execution output. Retry {current_retries}/{state.get('max_retries', 3)}."
         )
         if current_retries >= state.get("max_retries", 3):
             logger.warning("Max retries on rejection — routing to Human Approval Gate.")

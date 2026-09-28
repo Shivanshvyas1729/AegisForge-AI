@@ -92,18 +92,52 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
-from typing import Any
+from typing import Any, Optional, Union
+from pydantic import BaseModel, ConfigDict, Field
 
-@tool
+
+def _to_bool(val: Any, default: bool = False) -> bool:
+    if val is None:
+        return default
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return bool(val)
+    if isinstance(val, str):
+        return val.strip().lower() in ("true", "1", "yes", "y", "t")
+    return bool(val)
+
+
+class CvcComplianceInput(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    request_id: str = Field(default="REQ-001", description="Procurement request identifier")
+    equipment_id: str = Field(default="PROCUREMENT-ITEM", description="Equipment tag or identifier")
+    amount_inr: float = Field(default=0.0, description="Total amount in Indian Rupees")
+    estimated_cost_lakhs: float = Field(default=0.0, description="Estimated cost in Lakhs")
+    is_single_source: Union[bool, str] = Field(default=True, description="Whether procurement is single-source")
+    has_pac: Union[bool, str] = Field(default=False, description="Whether Proprietary Article Certificate is held")
+    is_emergency: Union[bool, str] = Field(default=False, description="Whether this is an emergency life-safety procurement")
+    vendor_is_blacklisted: Union[bool, str] = Field(default=False, description="Whether vendor is blacklisted")
+    applicable_cvc_clause: str = Field(
+        default="Statutory Exception under CVC / GFR / DoP Guidelines",
+        description="Applicable circular or statutory clause"
+    )
+    dop_authority: str = Field(default="Director (Refineries)", description="Delegation of Power sanction authority")
+    required_financial_authority: str = Field(default="Director (Refineries)", description="Competent Financial Authority")
+    kwargs: Optional[Any] = Field(default=None, description="Optional extra arguments dictionary")
+
+
+@tool(args_schema=CvcComplianceInput)
 def audit_cvc_compliance(
     request_id: str = "REQ-001",
     equipment_id: str = "PROCUREMENT-ITEM",
     amount_inr: float = 0.0,
     estimated_cost_lakhs: float = 0.0,
-    is_single_source: bool = True,
-    has_pac: bool = False,
-    is_emergency: bool = False,           # Fix #2: was True — defaulted every call to emergency
-    vendor_is_blacklisted: bool = False,  # Fix #2: was never forwarded to ProcurementRequest
+    is_single_source: Union[bool, str] = True,
+    has_pac: Union[bool, str] = False,
+    is_emergency: Union[bool, str] = False,
+    vendor_is_blacklisted: Union[bool, str] = False,
     applicable_cvc_clause: str = "Statutory Exception under CVC / GFR / DoP Guidelines",
     dop_authority: str = "Director (Refineries)",
     required_financial_authority: str = "Director (Refineries)",
@@ -128,10 +162,10 @@ def audit_cvc_compliance(
         request = ProcurementRequest(
             equipment_id=eq_id,
             estimated_cost_lakhs=float(cost_lakhs),
-            is_single_source=is_single_source,
-            has_pac=has_pac,
-            is_emergency=is_emergency,
-            vendor_is_blacklisted=vendor_is_blacklisted,   # Fix #2: now forwarded correctly
+            is_single_source=_to_bool(is_single_source, default=True),
+            has_pac=_to_bool(has_pac, default=False),
+            is_emergency=_to_bool(is_emergency, default=False),
+            vendor_is_blacklisted=_to_bool(vendor_is_blacklisted, default=False),
             applicable_cvc_clause=clause,
             required_financial_authority=auth
         )

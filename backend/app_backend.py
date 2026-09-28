@@ -205,11 +205,29 @@ class AegisForgeBackend:
             step_type = "tool_call"
             tool_name = msg.tool_calls[0].get("name", "") if msg.tool_calls else None
 
+        # Also detect text JSON tool calls emitted by open-weight models (e.g. {"name": "calculate_asme_stresses", ...})
+        elif str(content).strip().startswith("{") and '"name"' in str(content) and ('"arguments"' in str(content) or '"parameters"' in str(content)):
+            try:
+                parsed_c = json.loads(str(content).strip())
+                if "name" in parsed_c and ("arguments" in parsed_c or "parameters" in parsed_c):
+                    step_type = "tool_call"
+                    tool_name = parsed_c.get("name", "")
+            except Exception:
+                pass
+
         # Detect tool result: ToolMessage
         elif isinstance(msg, ToolMessage):
             step_type = "tool_result"
             tool_name = getattr(msg, "name", "tool")
             name = tool_name  # use tool name as the "agent" label for clarity
+
+        # Also detect executed tool results wrapped in message content (e.g. Tool 'calculate_asme_stresses' executed:)
+        elif "tool '" in str(content).lower() and "executed:" in str(content).lower():
+            step_type = "tool_result"
+            try:
+                tool_name = str(content).split("'")[1]
+            except Exception:
+                tool_name = "Deterministic Tool"
 
         # Supervisor directive JSON
         elif isinstance(msg, HumanMessage) and str(name).lower() == "supervisor":

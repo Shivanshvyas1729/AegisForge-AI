@@ -70,8 +70,24 @@ logger = logging.getLogger(__name__)
 
 
 from typing import Optional, Any
+from pydantic import BaseModel, ConfigDict, Field
 
-@tool
+
+class AsmeStressInput(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    equipment_id: str = Field(default="VESSEL-001", description="Equipment tag or identifier")
+    design_pressure_mpa: Optional[float] = Field(default=None, description="Design pressure in MPa")
+    inside_radius_mm: Optional[float] = Field(default=None, description="Inside radius in mm")
+    allowable_stress_mpa: Optional[float] = Field(default=None, description="Allowable stress in MPa")
+    joint_efficiency: Optional[float] = Field(default=1.0, description="Joint efficiency E (0.0 to 1.0)")
+    corrosion_allowance_mm: Optional[float] = Field(default=None, description="Corrosion allowance in mm")
+    measured_thickness_mm: Optional[float] = Field(default=None, description="Measured wall thickness in mm")
+    corrosion_rate_mm_yr: Optional[float] = Field(default=None, description="Corrosion rate in mm/year")
+    kwargs: Optional[Any] = Field(default=None, description="Optional extra arguments dictionary")
+
+
+@tool(args_schema=AsmeStressInput)
 def calculate_asme_stresses(
     equipment_id: str = "VESSEL-001",
     design_pressure_mpa: Optional[float] = None,

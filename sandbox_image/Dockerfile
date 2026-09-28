@@ -20,6 +20,9 @@ RUN pip install --no-cache-dir \
     pandas \
     numpy
 
+# Create writable output directory for sandboxuser
+RUN mkdir -p /output && chmod 777 /output
+
 # Set strict permissions (optional security hardening)
 RUN adduser -D sandboxuser
 USER sandboxuser

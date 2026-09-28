@@ -127,3 +127,77 @@ class RAG:
             )
 
         return "\n\n".join(context_parts)
+
+
+import os
+import glob
+import re
+import logging
+from langchain_core.tools import tool
+
+logger = logging.getLogger("AegisForge.RAG")
+
+
+@tool
+def search_local_knowledge(query: str, top_k: int = 3) -> str:
+    """
+    Searches the air-gapped refinery knowledge base (CVC circulars, OISD standards, SOPs, and GFR rules).
+    Retrieves certified policy clauses and technical guidelines from data/knowledge_base/.
+    """
+    logger.info(f"Executing tool: search_local_knowledge (Query: {query})")
+    print(f"\n--- EXECUTING TOOL: search_local_knowledge (Query: {query}) ---\n")
+
+    workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    kb_dirs = [
+        os.path.join(workspace_root, "data", "knowledge_base"),
+        os.path.join(workspace_root, "data", "sample_reports"),
+        os.path.join(workspace_root, "data", "data_sample", "01_approval_notes"),
+    ]
+
+    files = []
+    for d in kb_dirs:
+        if os.path.exists(d):
+            files.extend(glob.glob(os.path.join(d, "*.*")))
+
+    query_terms = set(re.findall(r'\w+', query.lower()))
+    matches = []
+
+    for f in files:
+        ext = os.path.splitext(f)[1].lower()
+        text = ""
+        try:
+            if ext == ".pdf":
+                import pypdf
+                reader = pypdf.PdfReader(f)
+                text = "\n".join([p.extract_text() or "" for p in reader.pages])
+            elif ext in (".txt", ".md", ".json", ".csv"):
+                with open(f, "r", encoding="utf-8", errors="ignore") as fp:
+                    text = fp.read()
+        except Exception as e:
+            logger.debug(f"Failed reading {f}: {e}")
+            continue
+
+        if text.strip():
+            score = sum(1 for term in query_terms if term in text.lower())
+            if score > 0:
+                matches.append({
+                    "file": os.path.basename(f),
+                    "score": score,
+                    "content": text.strip()
+                })
+
+    matches.sort(key=lambda x: x["score"], reverse=True)
+    top_matches = matches[:top_k]
+
+    if not top_matches:
+        return f"[KNOWLEDGE_BASE_SEARCH]: No matching documents found for query: '{query}'."
+
+    results = []
+    for idx, m in enumerate(top_matches, start=1):
+        results.append(
+            f"--- Document {idx}: {m['file']} (Relevance Score: {m['score']}) ---\n"
+            f"{m['content']}\n"
+        )
+
+    return "\n".join(results)
+

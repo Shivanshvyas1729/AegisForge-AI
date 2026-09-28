@@ -97,6 +97,27 @@ def _run_in_subprocess(code: str, title: str = "") -> str:
             pass
 
 
+def _clean_tool_args(args: dict) -> dict:
+    """Sanitize arguments parsed from LLM JSON calls."""
+    if not isinstance(args, dict):
+        return {}
+    cleaned = dict(args)
+    if "kwargs" in cleaned:
+        kw = cleaned["kwargs"]
+        if isinstance(kw, str):
+            try:
+                parsed = json.loads(kw)
+                cleaned["kwargs"] = parsed if isinstance(parsed, dict) else None
+            except Exception:
+                cleaned.pop("kwargs", None)
+    # Convert string booleans to actual booleans
+    bool_keys = ["is_single_source", "has_pac", "is_emergency", "vendor_is_blacklisted"]
+    for k in bool_keys:
+        if k in cleaned and isinstance(cleaned[k], str):
+            cleaned[k] = cleaned[k].strip().lower() in ("true", "1", "yes", "y", "t")
+    return cleaned
+
+
 def execute_coder_tool(tool_name: str, args: dict, all_context: str = "") -> str:
     """
     Execute a coder tool by name with given args.
@@ -109,6 +130,7 @@ def execute_coder_tool(tool_name: str, args: dict, all_context: str = "") -> str
         docker_sandbox,
     )
 
+    args = _clean_tool_args(args)
     name_lower = tool_name.lower()
 
     try:
@@ -177,6 +199,7 @@ def execute_reasoning_tool(tool_name: str, args: dict, all_context: str = "") ->
         routing_guard,
     )
 
+    args = _clean_tool_args(args)
     name_lower = tool_name.lower()
     try:
         if any(kw in name_lower for kw in ["cvc", "compliance", "audit", "procurement"]):
@@ -208,6 +231,13 @@ def execute_reasoning_tool(tool_name: str, args: dict, all_context: str = "") ->
         elif "routing" in name_lower or "verify" in name_lower:
             res = routing_guard.verify_routing_policy.invoke(args, config=LANGFUSE_CONFIG)
             return f"[ROUTING_RESULT]:\n{res}"
+
+        elif any(kw in name_lower for kw in ["knowledge", "search", "rag", "sop", "circular", "rule", "statutory_audit"]):
+            from tools import rag
+            query = args.get("query") or args.get("search_query") or args.get("question") or all_context[:200]
+            top_k = int(args.get("top_k", 3))
+            res = rag.search_local_knowledge.invoke({"query": query, "top_k": top_k}, config=LANGFUSE_CONFIG)
+            return f"[KNOWLEDGE_SEARCH_RESULT]:\n{res}"
 
     except Exception as e:
         logger.error(f"Reasoning tool error for '{tool_name}': {e}")

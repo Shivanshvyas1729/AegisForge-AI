@@ -26,12 +26,14 @@ from tools import (
     compliance_auditor,
     risk_based_inspection_tool,
     routing_guard,
+    rag,
 )
 
 reasoning_tools = [
     compliance_auditor.audit_cvc_compliance,
     risk_based_inspection_tool.calculate_rbi_score,
     routing_guard.verify_routing_policy,
+    rag.search_local_knowledge,
 ]
 
 reasoning_agent = create_react_agent(

@@ -89,20 +89,34 @@ class DockerSecureSandbox:
                 lines = lines[:-1]
             code_string = "\n".join(lines)
         
-        # Unescape literal \n if raw string was passed
+        # If it parses cleanly as valid Python AST, keep it as is!
+        # Do not corrupt escaped characters inside string literals (e.g. \n, \t, regex).
+        try:
+            ast.parse(code_string)
+            return code_string.strip()
+        except SyntaxError:
+            pass
+
+        # If not parseable and literal \n is present (e.g. single-line raw string payload)
         if r'\n' in code_string and '\n' not in code_string:
             try:
-                code_string = code_string.encode('utf-8').decode('unicode_escape')
+                candidate = code_string.encode('utf-8').decode('unicode_escape')
+                ast.parse(candidate)
+                return candidate.strip()
             except Exception:
-                code_string = code_string.replace(r'\n', '\n').replace(r'\t', '    ')
-        elif r'\n' in code_string:
-            code_string = code_string.replace(r'\n', '\n').replace(r'\t', '    ')
+                pass
+            candidate = code_string.replace(r'\n', '\n').replace(r'\t', '    ')
+            try:
+                ast.parse(candidate)
+                return candidate.strip()
+            except Exception:
+                pass
         
         return code_string.strip()
 
-    # Banned builtin call names — cannot be imported, but can be called directly (Fix #18)
+    # Banned builtin call names — dynamic execution bypasses (Fix #18)
     _BANNED_CALL_NAMES = frozenset({
-        '__import__', 'eval', 'exec', 'compile', 'open', 'breakpoint'
+        '__import__', 'eval', 'exec', 'compile', 'breakpoint'
     })
     _BANNED_ATTR_NAMES = frozenset({
         'import_module', 'exec_module', 'load_module'
@@ -133,13 +147,13 @@ class DockerSecureSandbox:
                     if node.module and node.module.split('.')[0] in self.banned_imports:
                         return False, f"CRITICAL SECURITY BLOCK: Import from '{node.module}' is forbidden."
 
-                # Dynamic calls: __import__, eval, exec, compile, open  (Fix #18)
+                # Dynamic calls: __import__, eval, exec, compile, breakpoint  (Fix #18)
                 elif isinstance(node, ast.Call):
                     func = node.func
                     if isinstance(func, ast.Name) and func.id in self._BANNED_CALL_NAMES:
                         return False, (
                             f"CRITICAL SECURITY BLOCK: Call to '{func.id}()' is forbidden. "
-                            "Dynamic code execution and file access are not allowed in the sandbox."
+                            "Dynamic code execution is not allowed in the sandbox."
                         )
                     # importlib.import_module / importlib.exec_module
                     if isinstance(func, ast.Attribute) and func.attr in self._BANNED_ATTR_NAMES:
@@ -397,7 +411,12 @@ class SandboxInput(BaseModel):
 
 @tool(args_schema=SandboxInput)
 def execute_in_sandbox(code_string: str, task_title: str = "") -> dict:
-    """Executes python code in a secure sandbox. Optionally provide a short task_title."""
+    """
+    Executes Python 3.9 code in an air-gapped, isolated Docker sandbox.
+    Runtime: Python 3.9 (Alpine Linux, 256MB RAM cap, zero network).
+    Pre-installed libraries: pandas, numpy, python-docx, math, json, re, csv.
+    Forbidden imports (AST-blocked): os, sys, subprocess, shutil, socket, requests.
+    """
     print(f"\n--- EXECUTING TOOL: execute_in_sandbox ---\n")
     logger.info(f"Executing tool: execute_in_sandbox (Title: {task_title or 'Auto-Detect'})")
     try:

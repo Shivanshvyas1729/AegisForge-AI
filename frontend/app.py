@@ -322,8 +322,28 @@ with tab1:
             st.success(f"✅ **Attached for Multi-Agent Analysis:** `{attached_file.name}` ({len(attached_file.getbuffer()):,} bytes) — *Send your message below to process it!*")
 
     # -----------------------------------------------------------------------
-    # _render_trace_step: shared helper for history & live trace rendering
+    # BADGE_MAP & _render_trace_step: shared helpers for trace rendering
     # -----------------------------------------------------------------------
+    BADGE_MAP = {
+        "SUPERVISOR": "🧠 Chief Orchestrator",
+        "CODER_AGENT": "🧮 ASME Mechanics & Computing Agent",
+        "REASONING_AGENT": "⚖️ Statutory Compliance & CVC Auditor",
+        "VISION_AGENT": "👁️ Vision & Blueprint Inspector",
+        "CHIEF_REVIEWER": "🛡️ Chief Technical Reviewer",
+        "DELIVERABLE_PUBLISHER": "📑 Certified Deliverable Publisher",
+        "DIRECT_ANSWER": "⚡ Sovereign Fast-Path",
+        # Tool names when displayed as step agent or tool header
+        "CALCULATE_ASME_STRESSES": "🧮 ASME UG-27 Stress Engine",
+        "LOOKUP_MATERIAL": "📚 Material Allowable Stress Registry",
+        "RUN_FFS_ASSESSMENT": "🔬 API 579 Fitness-For-Service",
+        "EXECUTE_IN_SANDBOX": "🐳 Air-Gapped Docker Sandbox",
+        "AUDIT_CVC_COMPLIANCE": "⚖️ CVC Statutory Audit Tool",
+        "CALCULATE_RBI_SCORE": "📊 Risk-Based Inspection (RBI)",
+        "EXTRACT_INSPECTION_DATA": "📑 Dossier OCR Extractor",
+        "ANALYZE_THICKNESS_GRID": "📊 Ultrasonic Thickness Analyzer",
+        "READ_SCANNED_PDF": "📑 Scanned Blueprint Reader",
+    }
+
     def _render_trace_step(step: dict, badge_map: dict):
         """Render a single agent trace step with proper icon, label, and formatting."""
         import json as _j
@@ -332,10 +352,11 @@ with tab1:
         content = str(step.get("content", ""))
         step_type = step.get("step_type", "reasoning")
         tool_name = step.get("tool_name", "")
+        tool_display = badge_map.get(str(tool_name).upper(), f"`{tool_name}`") if tool_name else ""
 
         if step_type == "tool_call":
             # Agent is invoking a tool
-            st.markdown(f"**{label}** 🔧 **Tool Called:** `{tool_name}`")
+            st.markdown(f"**{label}** 🔧 **Invoking Tool:** {tool_display or '`' + str(tool_name) + '`'}")
             # Try to show tool arguments if content has them
             if content.strip().startswith("{"):
                 try:
@@ -348,7 +369,7 @@ with tab1:
 
         elif step_type == "tool_result":
             # Tool returned a result
-            st.markdown(f"**📊 Tool Result:** `{tool_name}`")
+            st.markdown(f"**📊 Certified Tool Result:** {tool_display or '`' + str(tool_name) + '`'}")
             if content.strip().startswith("{"):
                 try:
                     result = _j.loads(content)
@@ -366,9 +387,10 @@ with tab1:
                 intent_str = parsed_j.get("user_intent", "")
                 inst_str = parsed_j.get("instruction", "")
                 next_str = parsed_j.get("next", "")
+                next_label = badge_map.get(str(next_str).upper(), f"`{next_str}`")
                 st.info(
                     f"🎯 **Intent:** {intent_str}\n\n"
-                    f"📋 **Directive to `{next_str}`:** {inst_str}"
+                    f"📋 **Directive to {next_label}:** {inst_str}"
                 )
             except Exception:
                 st.code(content[:700], language="text")
@@ -383,9 +405,10 @@ with tab1:
                         intent_str = parsed_j.get("user_intent", "")
                         inst_str = parsed_j.get("instruction", "")
                         next_str = parsed_j.get("next", "")
+                        next_label = badge_map.get(str(next_str).upper(), f"`{next_str}`")
                         st.info(
                             f"🎯 **Intent:** {intent_str}\n\n"
-                            f"📋 **Directive to `{next_str}`:** {inst_str}"
+                            f"📋 **Directive to {next_label}:** {inst_str}"
                         )
                     else:
                         st.json(parsed_j)
@@ -399,17 +422,6 @@ with tab1:
 
         is_latest = (idx == len(st.session_state["chat_messages"]) - 1)
         with st.chat_message(msg["role"], avatar="🛡️" if msg["role"] == "assistant" else "👤"):
-            # Multi-Agent Pipeline Badges
-            badge_map = {
-                "SUPERVISOR": "🧠 Supervisor",
-                "CODER_AGENT": "💻 Coder Agent",
-                "REASONING_AGENT": "⚖️ Reasoning Agent",
-                "VISION_AGENT": "👁️ Vision Agent",
-                "CHIEF_REVIEWER": "🛡️ Chief Reviewer",
-                "DELIVERABLE_PUBLISHER": "📑 Publisher",
-                "DIRECT_ANSWER": "⚡ Sovereign AI"
-            }
-
             if msg.get("steps"):
                 agents_seen = []
                 for s in msg["steps"]:
@@ -417,14 +429,14 @@ with tab1:
                     if a_name and a_name not in agents_seen and a_name not in ["HUMAN", "USER"]:
                         agents_seen.append(a_name)
                 
-                pipeline_badges = " ➔ ".join([badge_map.get(a, f"🤖 {a}") for a in agents_seen])
+                pipeline_badges = " ➔ ".join([BADGE_MAP.get(a, f"🤖 {a}") for a in agents_seen])
                 if pipeline_badges:
                     st.markdown(f"🏷️ **Active Team:** {pipeline_badges}")
 
                 # Render multi-agent collaboration trace (expanded for latest message)
                 with st.expander("🔍 Multi-Agent Collaboration Trace & Tool Executions", expanded=is_latest):
                     for step in msg["steps"]:
-                        _render_trace_step(step, badge_map)
+                        _render_trace_step(step, BADGE_MAP)
 
             st.markdown(msg["content"])
 
@@ -505,7 +517,7 @@ with tab1:
                         steps_accumulated = event.get("steps", [])
                         # Render live step into the active status container
                         with status_container:
-                            _render_trace_step(step, badge_map)
+                            _render_trace_step(step, BADGE_MAP)
 
                     elif event["type"] == "done":
                         chat_res = event
