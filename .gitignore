@@ -125,6 +125,9 @@ model_pool/models/*
 .ollama/
 OllamaSetup.exe
 
+# ── Self-hosted Langfuse container setup ──
+langfuse/
+
 # ==============================================================================
 # Safety: Never ignore source code, notebooks, and docs
 # ==============================================================================

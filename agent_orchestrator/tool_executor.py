@@ -198,15 +198,15 @@ def execute_reasoning_tool(tool_name: str, args: dict, all_context: str = "") ->
                 )
                 if m_clause:
                     args["applicable_cvc_clause"] = m_clause.group(0).strip()
-            res = compliance_auditor.audit_cvc_compliance.invoke(args)
+            res = compliance_auditor.audit_cvc_compliance.invoke(args, config=LANGFUSE_CONFIG)
             return f"[COMPLIANCE_RESULT]:\n{json.dumps(res, indent=2, default=str)}"
 
         elif any(kw in name_lower for kw in ["rbi", "risk"]):
-            res = risk_based_inspection_tool.calculate_rbi_score.invoke(args)
+            res = risk_based_inspection_tool.calculate_rbi_score.invoke(args, config=LANGFUSE_CONFIG)
             return f"[RBI_RESULT]:\n{res}"
 
         elif "routing" in name_lower or "verify" in name_lower:
-            res = routing_guard.verify_routing_policy.invoke(args)
+            res = routing_guard.verify_routing_policy.invoke(args, config=LANGFUSE_CONFIG)
             return f"[ROUTING_RESULT]:\n{res}"
 
     except Exception as e:
@@ -231,13 +231,13 @@ def execute_vision_tool(tool_name: str, args: dict) -> str:
     name_lower = tool_name.lower()
     try:
         if any(kw in name_lower for kw in ["extract", "inspection"]):
-            res = inspection_extractor_tool.extract_inspection_data.invoke(args)
+            res = inspection_extractor_tool.extract_inspection_data.invoke(args, config=LANGFUSE_CONFIG)
             return f"[EXTRACTION_RESULT]:\n{res}"
         elif any(kw in name_lower for kw in ["thickness", "grid", "analyze"]):
-            res = thickness_grid_analyzer.analyze_thickness_grid.invoke(args)
+            res = thickness_grid_analyzer.analyze_thickness_grid.invoke(args, config=LANGFUSE_CONFIG)
             return f"[GRID_ANALYSIS_RESULT]:\n{res}"
         elif any(kw in name_lower for kw in ["pdf", "read", "scanned"]):
-            res = file_io.read_scanned_pdf.invoke(args)
+            res = file_io.read_scanned_pdf.invoke(args, config=LANGFUSE_CONFIG)
             return f"[PDF_CONTENT]:\n{str(res)[:2000]}"
     except Exception as e:
         logger.error(f"Vision tool error for '{tool_name}': {e}")
