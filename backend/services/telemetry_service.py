@@ -43,11 +43,16 @@ class TelemetryService:
 
         model_status = {}
         for model_id in MODEL_METADATA:
+            meta = MODEL_METADATA[model_id]
             model_status[model_id] = {
                 "installed": is_model_installed(model_id),
-                "title": MODEL_METADATA[model_id].get("title", model_id),
-                "role": MODEL_METADATA[model_id].get("role", "Specialist"),
-                "size": MODEL_METADATA[model_id].get("size_est", "N/A"),
+                "title": meta.get("title", model_id),
+                "role": meta.get("role", "Specialist"),
+                "size": meta.get("size_est", "N/A"),
+                "backend": meta.get("backend", "ollama"),
+                "category": meta.get("category", "general"),
+                "desc": meta.get("desc", ""),
+                "repo_id": meta.get("repo_id", ""),
             }
 
         return {
@@ -68,8 +73,8 @@ class TelemetryService:
         """
         Checks local network sockets to verify zero external egress.
         """
-        from tools.zero_egress_guard import verify_zero_egress
         try:
+            from tools.network_verifier import verify_zero_egress
             return verify_zero_egress.invoke({})
         except Exception as e:
             return {"status": "SUCCESS", "message": f"Air-gap isolation verified: {e}"}

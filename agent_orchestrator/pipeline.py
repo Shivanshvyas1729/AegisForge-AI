@@ -29,13 +29,16 @@ from langgraph.checkpoint.memory import MemorySaver
 
 # --- LANGFUSE INTEGRATION ---
 try:
-    from langfuse.callback import CallbackHandler
+    try:
+        from langfuse.langchain import CallbackHandler
+    except ImportError:
+        from langfuse.callback import CallbackHandler
     langfuse_handler = CallbackHandler()
     LANGFUSE_CONFIG = {"callbacks": [langfuse_handler]}
     logger.info("Langfuse tracking enabled successfully.")
-except ImportError:
+except Exception as e:
     LANGFUSE_CONFIG = {}
-    logger.warning("Langfuse not installed. Tracing disabled.")
+    logger.warning(f"Langfuse not enabled. Tracing disabled: {e}")
 # ----------------------------
 
 # Import Tools
