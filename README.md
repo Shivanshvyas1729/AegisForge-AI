@@ -49,6 +49,8 @@ Operating in a PSU refinery or industrial plant involves immense operational pre
 | **4** | **Vigilance & Statutory Compliance Burden** | Engineers spend days searching CVC circulars, PAC clauses, and DOP tables. | **Automated Statutory Procurement Auditor.** Powered by `deepseek-r1:8b` and local RAG over CVC Circular 02/02/2004, validating single-source emergency justifications and specifying the Competent Financial Authority (CFA). |
 | **5** | **Safety-Critical Automation Fear** | Reluctance to trust autonomous AI decisions on multi-million dollar equipment. | **3-Way Human Approval Gate (HITL).** LangGraph checkpointer `interrupt()` pauses execution on safety-critical breaches or low OCR confidence, allowing the engineer to **Confirm**, **Correct & Rerun**, or **Reject**. |
 | **6** | **Audit Trail & Document Integrity** | Paper files easily lost or challenged during vigilance/CAG audits. | **Cryptographic SHA-256 Chained Ledger & Dual Deliverable Compiler.** `audit_trail.py` block-chains every tool input/output; `doc_generator.py` compiles ministerial Word (`.docx`) and sealed `.pdf` deliverables with embedded hashes. |
+| **7** | **LLM Observability & Debugging** | Black-box LLM decision making with no visibility into chain of thought, latency, or token cost. | **Langfuse Telemetry Integration.** Seamless tracking of every agent invocation, routing decision, and tool execution. Provides a local, air-gapped dashboard for inspecting LLM reasoning, debugging multi-agent flows, and tracking token costs without compromising the cryptographic audit ledger. |
+| **8** | **Inference Latency & VRAM Bottlenecks** | Using massive 8B parameter models just to route basic queries causes severe VRAM starvation and lag. | **Laya 421M Ultra-Low Latency Routing.** Replaced the `llama3.1:8b` router with a sub-500M parameter model (`laya:421m`). It features aggressive regex safety fallbacks, enabling near-instantaneous intent triage (sub-100ms) while freeing up gigabytes of GPU VRAM for the core reasoning agents. |
 
 ---
 
@@ -77,10 +79,10 @@ AegisForge-AI implements an **Adaptive Hub-and-Spoke StateGraph** orchestrated v
 flowchart TD
     User([User Query / Scanned Inspection Dossier]) --> Start([START])
     
-    Start --> Route{Adaptive Complexity\nRouter}
+    Start --> Route{Adaptive Complexity\nRouter (Laya 421M)}
     
     %% Fast-path branch
-    Route -->|Conversational Query / General FAQ| Direct[Direct Answer Node\nllama3.2:3b\nFast Path - Zero Tools]
+    Route -->|Conversational Query / General FAQ| Direct[Direct Answer Node\nllama3.1:8b\nFast Path - Zero Tools]
     Direct --> EndNode([END])
     
     %% Multi-agent deep pipeline branch

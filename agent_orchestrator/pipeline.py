@@ -27,6 +27,17 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.types import Command, interrupt
 from langgraph.checkpoint.memory import MemorySaver
 
+# --- LANGFUSE INTEGRATION ---
+try:
+    from langfuse.callback import CallbackHandler
+    langfuse_handler = CallbackHandler()
+    LANGFUSE_CONFIG = {"callbacks": [langfuse_handler]}
+    logger.info("Langfuse tracking enabled successfully.")
+except ImportError:
+    LANGFUSE_CONFIG = {}
+    logger.warning("Langfuse not installed. Tracing disabled.")
+# ----------------------------
+
 # Import Tools
 from tools import (
     api_579_ffs_tool,
@@ -65,7 +76,7 @@ reasoning_llm = ChatOllama(model="llama3.1:8b", temperature=0)
 vision_llm = ChatOllama(model="llama3.2:3b", temperature=0, format="json")
 reviewer_llm = ChatOllama(model="llama3.1:8b", temperature=0)
 conversational_llm = ChatOllama(model="llama3.1:8b", temperature=0.3)
-router_llm = ChatOllama(model="llama3.1:8b", temperature=0, format="json")
+router_llm = ChatOllama(model="laya:421m", temperature=0, format="json")
 
 
 # ============================================================================
@@ -268,7 +279,7 @@ vision_agent = create_react_agent(
 def vision_node(state: AgentState) -> Command[Literal["supervisor", "human_approval_gate", "chief_reviewer"]]:
     """Vision specialist node with smart tool-call fallback."""
     from langchain_core.messages import ToolMessage as _TM
-    result = vision_agent.invoke(state)
+    result = vision_agent.invoke(state, config=LANGFUSE_CONFIG)
     result_msgs = result.get("messages", [])
     last_content = str(result_msgs[-1].content) if result_msgs else ""
 
@@ -337,7 +348,7 @@ def coder_node(state: AgentState) -> Command[Literal["supervisor", "human_approv
         str(getattr(m, "content", "")) for m in state.messages
         if hasattr(m, "content") and isinstance(getattr(m, "content", None), str)
     )
-    result = coder_agent.invoke(state)
+    result = coder_agent.invoke(state, config=LANGFUSE_CONFIG)
     result_msgs = result.get("messages", [])
     last_content = str(result_msgs[-1].content) if result_msgs else ""
 
@@ -399,7 +410,7 @@ def reasoning_node(state: AgentState) -> Command[Literal["supervisor", "human_ap
         str(getattr(m, "content", "")) for m in state.messages
         if hasattr(m, "content") and isinstance(getattr(m, "content", None), str)
     )
-    result = reasoning_agent.invoke(state)
+    result = reasoning_agent.invoke(state, config=LANGFUSE_CONFIG)
     result_msgs = result.get("messages", [])
     last_content = str(result_msgs[-1].content) if result_msgs else ""
 
@@ -433,31 +444,24 @@ def route_question(state: AgentState) -> str:
     question = state.messages[-1].content
 
     classification_prompt = SystemMessage(content=(
-        "You are a strict intent classifier. Classify the user message into EXACTLY one route.\n\n"
-        "RULE: When in doubt, ALWAYS choose 'supervisor'. Only choose 'direct_answer' when you "
-        "are ABSOLUTELY CERTAIN the message is pure idle chit-chat with NO actionable request.\n\n"
-        "Route 'supervisor' — ANY message that asks to DO something, including but not limited to:\n"
-        "  • Generate, create, write, build, make, produce ANYTHING (files, documents, reports, code, lists)\n"
-        "  • Calculate, compute, solve, analyze, evaluate, compare any data or math\n"
-        "  • Execute, run, test, debug any code, script, or algorithm\n"
-        "  • Inspect, read, extract, scan any document, PDF, image, or file\n"
-        "  • Audit, check, verify compliance, procurement, or statutory rules\n"
-        "  • ANY request containing a task, question needing research, or action to perform\n"
-        "  • Fibonacci, sorting, prime numbers, series, sequences — these are COMPUTATIONAL TASKS\n\n"
-        "Route 'direct_answer' — ONLY for pure idle conversation with NO task at all:\n"
-        "  • Simple greetings: hi, hello, hey, hii, namaste, etc.\n"
-        "  • Who are you / what can you do (about the system itself)\n"
-        "  • Thanks, bye, ok, cool — pure acknowledgments with no follow-up request\n\n"
-        "Respond with ONLY valid JSON, nothing else: {\"route\": \"supervisor\"} or {\"route\": \"direct_answer\"}"
+        "You are a binary intent classifier. Classify the user message into EXACTLY one route.\n"
+        "Rule 1: Is the user ONLY saying a basic greeting like 'hi', 'hello', 'thanks', or 'bye'? If YES, output: {\"route\": \"direct_answer\"}\n"
+        "Rule 2: For LITERALLY ANYTHING ELSE (calculating, coding, asking a question, analyzing), output: {\"route\": \"supervisor\"}\n"
+        "Respond ONLY with valid JSON. Example: {\"route\": \"supervisor\"}"
     ))
 
     try:
-        response = router_llm.invoke([classification_prompt, HumanMessage(content=question)])
-        parsed = json.loads(response.content.strip())
-        route = parsed.get("route", "supervisor")
-        if route in ("direct_answer", "supervisor"):
-            logger.info(f"Router LLM classified '{question[:50]}...' -> {route}")
-            return route
+        response = router_llm.invoke([classification_prompt, HumanMessage(content=question)], config=LANGFUSE_CONFIG)
+        content = str(response.content).strip().lower()
+        
+        # Robust Fallback for small models (Laya 421m) hallucinating JSON
+        if "direct_answer" in content and "supervisor" not in content:
+            route = "direct_answer"
+        else:
+            route = "supervisor"
+            
+        logger.info(f"Router LLM (Laya) classified '{question[:50]}...' -> {route}")
+        return route
     except Exception as e:
         logger.warning(f"Router LLM classification failed: {e}. Defaulting to supervisor.")
 
@@ -480,7 +484,7 @@ def direct_answer_node(state: AgentState) -> dict:
         latest_user_msg = state.messages[-1].content
 
     messages = [SystemMessage(content=system_prompt), HumanMessage(content=latest_user_msg)]
-    answer = conversational_llm.invoke(messages).content
+    answer = conversational_llm.invoke(messages, config=LANGFUSE_CONFIG).content
     return {"messages": [AIMessage(content=answer, name="direct_answer")]}
 
 
@@ -573,7 +577,7 @@ def supervisor_node(state: AgentState) -> Command[Literal["vision_agent", "coder
     # -----------------------------------------------------------------------
 
     messages = [SystemMessage(content=system_prompt)] + list(state.messages)
-    response = supervisor_llm.invoke(messages)
+    response = supervisor_llm.invoke(messages, config=LANGFUSE_CONFIG)
     content = response.content.strip()
 
     next_target = "chief_reviewer"
@@ -733,7 +737,7 @@ chief_reviewer_agent = create_react_agent(
 )
 
 def chief_reviewer_node(state: AgentState) -> Command[Literal["supervisor", "human_approval_gate", "deliverable_publisher", "__end__"]]:
-    result = chief_reviewer_agent.invoke(state)
+    result = chief_reviewer_agent.invoke(state, config=LANGFUSE_CONFIG)
     reviewer_content = result["messages"][-1].content
     out_msg = HumanMessage(content=reviewer_content, name="chief_reviewer")
 
@@ -796,7 +800,7 @@ publisher_agent = create_react_agent(
 )
 
 def deliverable_publisher_node(state: AgentState) -> Command[Literal["__end__"]]:
-    result = publisher_agent.invoke(state)
+    result = publisher_agent.invoke(state, config=LANGFUSE_CONFIG)
     last_content = result["messages"][-1].content
 
     # Fallback: if publisher agent didn't call generate_nfa_documents natively,
