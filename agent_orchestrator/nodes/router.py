@@ -32,6 +32,14 @@ _TECHNICAL_INDICATORS = {
     # Standards, Codes & Regulatory Frameworks
     "asme", "ug-27", "ug-28", "ug27", "ug28", "api", "api 579", "api-579", "ffs",
     "section viii", "div 1", "div 2", "gfr", "cvc", "rbi",
+    "cmr", "cmr 2017", "dgms", "unfc", "unfc-111", "unfc-122", "unfc-333",
+    # Mining & Geological parameters & components
+    "borehole", "lithology", "seam", "coal", "stripping ratio", "overburden", "ob removal",
+    "ash content", "moisture", "gcv", "calorific", "barakar", "raniganj", "formation",
+    "geological reserve", "mineable reserve", "proved reserve", "drilling", "core log",
+    "parliamentary", "parliament", "pq", "lok sabha", "rajya sabha", "ministry of coal",
+    "cmpdi", "cil", "ecl", "bccl", "ccl", "wcl", "secl", "mcl", "ncl", "colliery",
+    "word cloud", "topic cloud", "topic model", "dossier", "production grid",
     # Engineering parameters & components
     "mawp", "design pressure", "wall thickness", "corrosion allowance", "corrosion rate",
     "allowable stress", "joint efficiency", "inside radius", "outside radius",
@@ -41,26 +49,27 @@ _TECHNICAL_INDICATORS = {
     # Engineering tasks, audits & tools
     "calculate", "computation", "evaluate", "audit", "compliance", "tender",
     "procurement", "sandbox", "python script", "docker", "inspection", "thickness grid",
-    "mtc", "dossier", "ocr", "extract", "simulate",
+    "mtc", "ocr", "extract", "simulate",
     # Units
-    "mpa", "kpa", "psi", "bar", "mm/yr", "n/mm2",
+    "mpa", "kpa", "psi", "bar", "mm/yr", "n/mm2", "bcm", "tonnes", "mt", "kcal/kg",
 }
 
 _CLASSIFICATION_PROMPT = SystemMessage(content=(
-    "You are an intent router for AegisForge-AI, an engineering and compliance platform.\n"
+    "You are an intent router for AegisForge-Mining, a sovereign geological, mining, and reporting workbench for CMPDI/CIL.\n"
     "Classify the user message into EXACTLY one route: 'supervisor' or 'direct_answer'.\n\n"
     "Rules:\n"
     "- 'direct_answer': ONLY for simple casual greetings or pleasantries (e.g. 'hello', 'how are you', 'thank you', 'bye').\n"
-    "- 'supervisor': For ANY engineering task, calculation, coding, technical question, or problem solving.\n\n"
+    "- 'supervisor': For ANY geological, mining, stripping ratio, reserve calculation, parliamentary inquiry, coding, or audit task.\n\n"
     "Examples:\n"
     "User: Hello there!\n"
     "{\"route\": \"direct_answer\"}\n"
-    "User: Evaluate ASME Section VIII Div 1 compliance.\n"
+    "User: Calculate stripping ratio for 50,000 BCM OB and 20,000 tonnes coal.\n"
     "{\"route\": \"supervisor\"}\n"
-    "User: Can you check the wall thickness?\n"
+    "User: Answer this Parliamentary Question on coal production shortfall.\n"
     "{\"route\": \"supervisor\"}\n\n"
     "Respond ONLY with valid JSON: {\"route\": \"supervisor\"} or {\"route\": \"direct_answer\"}."
 ))
+
 
 
 def route_question(state: AgentState) -> str:

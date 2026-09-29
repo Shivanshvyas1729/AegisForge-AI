@@ -27,11 +27,12 @@ if "_backend_module" not in st.session_state:
 
 # Page Configuration
 st.set_page_config(
-    page_title="AegisForge-AI | Sovereign Industrial Workbench",
-    page_icon="🛡️",
+    page_title="AegisForge-Mining | Sovereign Multi-Agent Workbench for CMPDI/CIL",
+    page_icon="⛏️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # =======================================================================
@@ -288,26 +289,27 @@ with st.sidebar:
         st.warning(f"Telemetry unavailable: {e}")
 
     st.markdown("---")
-    st.markdown("### ⚡ Quick Engineering Prompts")
+    st.markdown("### ⚡ Quick Mining Prompts")
     st.caption("One-click benchmark actions (small size):")
     with st.container():
         st.markdown('<div class="quick-prompts-container">', unsafe_allow_html=True)
-        if st.button("🚀 HP Separator 11-V-102", key="sb_prompt_1", help="Process inspection dossier for vessel 11-V-102 & ASME UG-27", width="stretch"):
-            st.session_state["preset_prompt"] = "Process inspection dossier for vessel 11-V-102, calculate ASME Section VIII UG-27 minimum thickness, check compliance under GFR 2017 Rule 194, and generate certified NFA document."
+        if st.button("⛏️ Borehole Log BH-01", key="sb_prompt_1", help="Process borehole log for BH-01 & UNFC reserves", width="stretch"):
+            st.session_state["preset_prompt"] = "Process borehole lithology log for BH-01 in Barakar Formation, calculate geological coal reserves, check CMR 2017 compliance, and generate certified CMPDI report."
             st.rerun()
-        if st.button("🧮 ASME UG-27 Math", key="sb_prompt_2", help="ASME UG-27 wall thickness calculation", width="stretch"):
-            st.session_state["preset_prompt"] = "Calculate ASME Section VIII Div 1 UG-27 required wall thickness for design pressure 14.5 MPa, inside radius 1200 mm, allowable stress 138 MPa, CA 4 mm, actual thickness 138.2 mm."
+        if st.button("🧮 Coal Reserves Math", key="sb_prompt_2", help="UNFC coal reserves calculation", width="stretch"):
+            st.session_state["preset_prompt"] = "Calculate in-situ and mineable coal reserves for Seam IV with Area 50,000 sq.m, Seam Thickness 4.8 m, Specific Gravity 1.4, Recovery Factor 0.85 under UNFC-111."
             st.rerun()
-        if st.button("🚨 Test Human Gate", key="sb_prompt_3", help="Simulate breach condition & trigger approval gate", width="stretch"):
-            st.session_state["preset_prompt"] = "Calculate ASME Section VIII Div 1 wall thickness for vessel 11-V-102 with P=14.5 MPa, R=1200 mm, S=138 MPa, CA=4.0 mm, actual thickness=138.2 mm (breach condition) and require Human Approval Gate authorization before final sign-off."
+        if st.button("🚜 Stripping Ratio", key="sb_prompt_3", help="Calculate Stripping Ratio", width="stretch"):
+            st.session_state["preset_prompt"] = "Calculate stripping ratio for 85,000 BCM overburden removal and 25,000 tonnes coal produced against benchmark 3.2 BCM/tonne."
             st.rerun()
-        if st.button("⚖️ Audit Spares (GFR 194)", key="sb_prompt_4", help="Audit single-source procurement under GFR Rule 194", width="stretch"):
-            st.session_state["preset_prompt"] = "Audit single-source procurement for emergency replacement impellers for pump 14-P-101 costing 18.5 lakhs under GFR 2017 Rule 194."
+        if st.button("⚖️ Audit Shortfall", key="sb_prompt_4", help="Audit CCL colliery production shortfall", width="stretch"):
+            st.session_state["preset_prompt"] = "Audit annual production shortfall for CCL colliery achieving 3.8 MT vs AAP target 5.0 MT under Ministry of Coal guidelines and CMR 2017."
             st.rerun()
-        if st.button("🐳 Docker Sandbox", key="sb_prompt_5", help="Run Python in secure container", width="stretch"):
-            st.session_state["preset_prompt"] = "Write a Python script to calculate the first 10 factorials and execute it in the secure Docker sandbox."
+        if st.button("☁️ Topic Cloud & Themes", key="sb_prompt_5", help="Generate Word Cloud from dossiers", width="stretch"):
+            st.session_state["preset_prompt"] = "Extract recurring operational and geological themes and generate a Word Cloud from exploration dossiers."
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
+
 
     st.markdown("---")
     st.markdown("### 🐳 Docker Sandbox Daemon")
@@ -390,22 +392,24 @@ with st.sidebar:
         st.markdown(f"• **{role}:** `{model}`")
 
     st.markdown("---")
-    st.caption("🏛️ **Refinery PSU:** Mangalore Refinery & Petrochemicals Ltd (MRPL)\n\n🛡️ **SIH Problem Statement:** Sovereign Industrial AI Workbench")
+    st.caption("🏛️ **Nodal Organization:** Central Mine Planning & Design Institute (CMPDI) / CIL\n\n🇮🇳 **Ministry:** Ministry of Coal\n\n🛡️ **SIH Problem Statement:** AI-Powered Geological, Mining and Reporting Solution")
 
 # ============================================================================
 # MAIN HEADER
 # ============================================================================
-st.markdown('<div class="main-title">🛡️ AegisForge-AI: Sovereign Industrial Workbench</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Self-Hosted, Air-Gapped AI Assistant for Confidential Industrial Engineering, ASME Calculations & Statutory Audits</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">⛏️ AegisForge-Mining: Sovereign Multi-Agent Knowledge & Automated Reporting Workbench for CMPDI/CIL</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Central Mine Planning & Design Institute | Ministry of Coal | 100% On-Premises Air-Gapped Intelligence for Borehole Logs, Reserve Math & Parliamentary Inquiries</div>', unsafe_allow_html=True)
 
-# 5 Dedicated Workspaces (Fulfilling the SIH Problem Statement)
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "🤖 Sovereign Copilot (AI Workbench)",
-    "🏭 Dossier Studio (Golden Path)",
-    "🧮 ASME UG-27 Engineering Math",
-    "⚖️ Statutory Procurement & CVC Audit",
+# 6 Dedicated Workspaces (Fulfilling the SIH Problem Statement)
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "🤖 Sovereign Copilot (Mining Workbench)",
+    "⛏️ Borehole & Production Studio (Golden Path)",
+    "🧮 Geological Reserves & Stripping Ratio Lab",
+    "⚖️ CMPDI Policy & Parliamentary Inquiry (PQ) Auditor",
+    "☁️ Word Cloud & Topic Identification Module",
     "🛡️ Forensic Ledger & Zero-Egress"
 ])
+
 
 # ============================================================================
 # TAB 1: SOVEREIGN COPILOT (INTERACTIVE MULTI-AGENT WORKBENCH)
@@ -1079,20 +1083,20 @@ with tab1:
                 st.error(f"Multi-agent processing error: {ex}")
 
 # ============================================================================
-# TAB 2: AUTOMATED DOSSIER STUDIO (GOLDEN PATH)
+# TAB 2: AUTOMATED BOREHOLE & PRODUCTION STUDIO (GOLDEN PATH)
 # ============================================================================
 with tab2:
-    st.subheader("Automated NDT Dossier Analysis & NFA Publication")
-    st.markdown("Ingest scanned ultrasonic inspection reports, extract vessel parameters, compute ASME UG-27 stress safety margins, and publish signed Notes for Approval.")
+    st.subheader("Automated Borehole Lithology & Mine Production Reporting Studio")
+    st.markdown("Ingest scanned borehole lithology logs and monthly production spreadsheets, compute UNFC coal reserves and stripping ratios, and publish certified CMPDI Geological Assessment Reports.")
 
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        st.markdown("#### 1. Select or Upload Inspection Dossier")
+        st.markdown("#### 1. Select or Upload Mining Dossier")
 
         uploaded_file = st.file_uploader(
-            "📁 Upload Custom Inspection Dossier (PDF, Image, or Text Log):",
-            type=["pdf", "png", "jpg", "jpeg", "txt"],
+            "📁 Upload Borehole Lithology Log / Mine Production Spreadsheet (.pdf, .png, .xlsx, .csv):",
+            type=["pdf", "png", "jpg", "jpeg", "txt", "xlsx", "csv"],
             key="tab2_uploader"
         )
 
@@ -1103,71 +1107,68 @@ with tab2:
             st.success(f"📂 Custom Document Loaded: `{uploaded_file.name}` ({len(uploaded_file.getbuffer())} bytes)")
         else:
             sample_choice = st.selectbox(
-                "Or choose a certified refinery inspection dossier:",
+                "Or choose a certified CMPDI exploratory borehole dossier:",
                 [
-                    "data/sample_reports/UT_Scan_Separator_11V102.pdf (1st Stage HP Separator)",
-                    "data/data_sample/06_inspection_reports/field_inspector_raw_ocr_log.txt",
-                    "Custom Text Input"
+                    "data/sample_reports/Borehole_Log_Seam_IV_CMPDI.pdf (Barakar Formation Core Log)",
+                    "data/sample_reports/Monthly_Mine_Production_OB_Ledger.xlsx (Coal & Overburden Ledger)",
+                    "Custom Borehole Text Log"
                 ]
             )
 
-            if "UT_Scan_Separator_11V102.pdf" in sample_choice:
-                dossier_path = PROJECT_ROOT / "data" / "sample_reports" / "UT_Scan_Separator_11V102.pdf"
-                st.info(f"📂 Selected: `UT_Scan_Separator_11V102.pdf` (Binary Scanned Ultrasonic Report)")
-            elif "field_inspector_raw_ocr_log.txt" in sample_choice:
-                dossier_path = PROJECT_ROOT / "data" / "data_sample" / "06_inspection_reports" / "field_inspector_raw_ocr_log.txt"
-                st.info(f"📂 Selected: `field_inspector_raw_ocr_log.txt` (Field Inspection Raw OCR)")
+            if "Borehole_Log_Seam_IV_CMPDI.pdf" in sample_choice:
+                dossier_path = PROJECT_ROOT / "data" / "sample_reports" / "Borehole_Log_Seam_IV_CMPDI.pdf"
+                st.info(f"📂 Selected: `Borehole_Log_Seam_IV_CMPDI.pdf` (Barakar Formation Core Log)")
+            elif "Monthly_Mine_Production_OB_Ledger.xlsx" in sample_choice:
+                dossier_path = PROJECT_ROOT / "data" / "sample_reports" / "Monthly_Mine_Production_OB_Ledger.xlsx"
+                st.info(f"📂 Selected: `Monthly_Mine_Production_OB_Ledger.xlsx` (Monthly Production & Overburden Ledger)")
             else:
                 custom_text = st.text_area(
-                    "Paste inspection text dossier:",
+                    "Paste borehole / production text dossier:",
                     height=150,
-                    value="Equipment ID: 12-C-101\nDesign Pressure: 14.5 MPa\nInside Radius: 1200.0 mm\nMaterial Specification: SA-516 Gr 70\nMeasured Thickness: 138.20 mm\nCorrosion Rate: 0.75 mm/yr"
+                    value="Borehole ID: CMPDI-DH-42\nTotal Depth: 245.0 m\nSeam Name: Seam IV (Barakar Formation)\nCoal Thickness: 4.8 m\nOverburden Thickness: 32.5 m\nAsh Content: 24.2 %\nMoisture: 4.5 %\nGCV: 4850 kcal/kg\nSubsidiary: CCL (Central Coalfields Limited)\nMine Block: North Karanpura Block A"
                 )
                 custom_path = backend.dossier.save_custom_text(custom_text)
                 dossier_path = custom_path
                 st.info(f"📝 Using live pasted text dossier ({len(custom_text)} chars)")
 
-        st.markdown("#### Statutory Compliance Framework")
+        st.markdown("#### Statutory Compliance & Reporting Framework")
         statutory_framework_choice = st.selectbox(
-            "Governing Public Procurement Rule / Authority:",
+            "Governing Mining Regulation / Reporting Standard:",
             [
-                "CVC Circular 02/02/2004 Clause 4.2 (Single-Source Emergency Exception)",
-                "GFR 2017 Rule 194 (Procurement from a Single Source)",
-                "GFR 2017 Rule 166 (Proprietary Article Certificate - PAC)",
-                "MRPL DoP Section 4.1 (Emergency Spares & Critical Shutdown Exemption)",
-                "Custom Statutory Directive"
+                "Coal Mines Regulations 2017 (CMR 2017 Reg 104 - Opencast Working & Bench Safety)",
+                "CMPDI Guidelines for Coal Resource Estimation (UNFC-111 Proved Reserves)",
+                "Ministry of Coal Annual Action Plan (AAP) Production Shortfall Protocol",
+                "DGMS Circular on Highwall & Spoil Dump Slope Stability (Reg 105)",
+                "Parliamentary Inquiry Standing Committee Response Guidelines"
             ],
             key="tab2_framework"
         )
-        if statutory_framework_choice == "Custom Statutory Directive":
-            selected_framework = st.text_input("Specify Custom Statutory Rule / Directive:", value="CVC Directive / GFR 2017 Emergency Exemption", key="tab2_custom_fw")
-        else:
-            selected_framework = statutory_framework_choice
+        selected_framework = statutory_framework_choice
 
-        run_btn = st.button("🚀 Process Dossier & Publish Signed NFA", type="primary", width="stretch", key="tab2_run_btn")
+        run_btn = st.button("🚀 Process Dossier & Publish CMPDI Report", type="primary", width="stretch", key="tab2_run_btn")
 
     with col2:
         st.markdown("#### 2. Pipeline Execution & Verification")
         if run_btn:
-            with st.spinner("Executing Sovereign Air-Gapped Multi-Agent Pipeline..."):
+            with st.spinner("Executing Sovereign Air-Gapped Multi-Agent Mining Pipeline..."):
                 try:
                     result = backend.dossier.run_pipeline(input_source=dossier_path, statutory_framework=selected_framework)
-                    st.success("✅ Multi-Agent Pipeline Completed Successfully!")
+                    st.success("✅ Multi-Agent Mining Pipeline Completed Successfully!")
                     
                     c1, c2, c3 = st.columns(3)
                     with c1:
-                        st.metric("Equipment Tag", result.get("equipment_id", "11-V-102"))
-                        st.metric("Required t_min", f"{result.get('t_req_mm', 0):.2f} mm")
+                        st.metric("Seam / Formation", result.get("seam_name", "Seam IV"))
+                        st.metric("Seam Thickness", f"{result.get('coal_thickness_m', 4.8):.2f} m")
                     with c2:
-                        st.metric("Measured Thickness", f"{result.get('measured_mm', 0):.2f} mm")
-                        st.metric("Safety Delta", f"{result.get('delta_mm', 0):.2f} mm")
+                        st.metric("Geological Reserves", f"{result.get('geological_reserves_mt', 3.15):.2f} MT")
+                        st.metric("Stripping Ratio", f"{result.get('stripping_ratio', 2.85):.2f} BCM/te")
                     with c3:
-                        is_br = result.get("is_breach", False)
-                        st.metric("Integrity Status", "CRITICAL BREACH" if is_br else "SAFE", delta="ACTION REQUIRED" if is_br else "NORMAL", delta_color="inverse" if is_br else "normal")
-                        st.metric("Remaining Life", f"{result.get('remaining_life_years', 0):.2f} Yrs")
+                        is_viable = float(result.get("geological_reserves_mt", 3.15)) >= 1.0
+                        st.metric("Commercial Viability", "PROVEN VIABLE" if is_viable else "MARGINAL", delta="UNFC-111" if is_viable else "SUB-ECONOMIC")
+                        st.metric("Subsidiary", result.get("subsidiary", "CMPDI / CCL"))
 
-                    st.markdown("##### 📜 Forensic Executive Summary")
-                    st.write(result.get("executive_summary", "Inspection verified. Statutory NFA document rendered."))
+                    st.markdown("##### 📜 Forensic Executive Summary & Parliamentary Response")
+                    st.write(result.get("executive_summary", "Geological strata verified. Statutory CMPDI Assessment Report compiled."))
 
                     st.markdown("##### 🔏 Cryptographic SHA-256 Audit Seal")
                     st.code(result.get("sha256_hash", "SHA-256 Verified"), language="text")
@@ -1188,7 +1189,7 @@ with tab2:
                         with d_cols[0]:
                             with open(docx_p, "rb") as f_d:
                                 st.download_button(
-                                    label="📥 Word Doc (.docx)",
+                                    label="📥 Word Report (.docx)",
                                     data=f_d.read(),
                                     file_name=os.path.basename(docx_p),
                                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -1221,117 +1222,234 @@ with tab2:
                 except Exception as ex:
                     st.error(f"Pipeline execution failed: {ex}")
         else:
-            st.info("Click 'Process Dossier & Publish Signed NFA' to trigger the autonomous workflow.")
+            st.info("Click 'Process Dossier & Publish CMPDI Report' to trigger the autonomous workflow.")
 
 # ============================================================================
-# TAB 3: ASME UG-27 & API 579 ENGINEERING MATH LAB
+# TAB 3: GEOLOGICAL COAL RESERVES & STRIPPING RATIO DETERMINISTIC MATH LAB
 # ============================================================================
 with tab3:
-    st.subheader("ASME Boiler & Pressure Vessel Code (BPVC) Sec VIII Div 1 UG-27")
-    st.markdown("Deterministic, verifiable wall thickness verification with MAWP derating and API 510 remaining life.")
+    st.subheader("Geological Coal Reserves & Stripping Ratio Deterministic Math Lab")
+    st.markdown("Deterministic, verifiable calculations for In-Situ & Mineable Coal Reserves (UNFC-111) and Overburden Stripping Ratios.")
 
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        p_val = st.number_input("Design Pressure P (MPa)", min_value=0.1, max_value=50.0, value=14.5, step=0.5, key="tab3_p")
-        r_val = st.number_input("Inside Radius R (mm)", min_value=100.0, max_value=5000.0, value=1200.0, step=50.0, key="tab3_r")
-        s_val = st.number_input("Allowable Stress S (MPa)", min_value=50.0, max_value=400.0, value=138.0, step=5.0, key="tab3_s")
-    with c2:
-        e_val = st.number_input("Joint Efficiency E", min_value=0.5, max_value=1.0, value=1.0, step=0.05, key="tab3_e")
-        ca_val = st.number_input("Corrosion Allowance CA (mm)", min_value=0.0, max_value=20.0, value=4.0, step=0.5, key="tab3_ca")
-        t_act = st.number_input("Measured Actual Thickness (mm)", min_value=1.0, max_value=300.0, value=138.20, step=1.0, key="tab3_t")
-    with c3:
-        cr_val = st.number_input("Corrosion Rate (mm/year)", min_value=0.01, max_value=10.0, value=0.75, step=0.05, key="tab3_cr")
-        eq_id = st.text_input("Equipment Identifier", value="11-V-102", key="tab3_eq")
+    m_col1, m_col2 = st.columns(2)
 
-    if st.button("⚡ Calculate ASME UG-27 Integrity", type="primary", key="tab3_calc_btn"):
-        calc = backend.engineering.calculate_asme_ug27(
-            design_pressure_mpa=p_val,
-            inside_radius_mm=r_val,
-            allowable_stress_mpa=s_val,
-            joint_efficiency=e_val,
-            corrosion_allowance_mm=ca_val,
-            measured_thickness_mm=t_act,
-            corrosion_rate_mm_yr=cr_val,
-            equipment_id=eq_id
-        )
+    with m_col1:
+        st.markdown("#### ⛏️ 1. UNFC Geological Coal Reserves Engine")
+        seam_nm = st.text_input("Seam Designation", value="Seam IV (Barakar Formation)", key="tab3_seam")
+        area_val = st.number_input("Exploration Area (m²)", min_value=100.0, max_value=5000000.0, value=50000.0, step=5000.0, key="tab3_area")
+        thick_val = st.number_input("Average Seam Thickness (m)", min_value=0.1, max_value=40.0, value=4.8, step=0.2, key="tab3_thick")
+        sp_grav = st.number_input("Specific Gravity (tonnes/m³)", min_value=1.1, max_value=2.0, value=1.40, step=0.05, key="tab3_spgrav")
+        rec_fac = st.slider("Mineable Recovery Factor", min_value=0.4, max_value=1.0, value=0.85, step=0.05, key="tab3_rf")
 
-        st.markdown("---")
-        m1, m2, m3, m4 = st.columns(4)
-        with m1:
-            st.metric("Required Thickness (t_min)", f"{calc.get('t_req_mm', 0):.2f} mm")
-        with m2:
-            delta = calc.get('delta_mm', 0)
-            st.metric("Safety Margin (Δ)", f"{delta:.2f} mm", delta=f"{delta:.2f} mm")
-        with m3:
-            st.metric("Remaining Life", f"{calc.get('remaining_life_years', 0):.2f} Years")
-        with m4:
-            st.metric("Derated MAWP", f"{calc.get('derated_mawp_mpa', 0):.2f} MPa")
+        if st.button("🧮 Calculate Geological Reserves", type="primary", key="tab3_calc_reserves_btn"):
+            res_calc = backend.calculate_mining_coal_reserves(
+                seam_name=seam_nm,
+                area_sq_m=area_val,
+                avg_seam_thickness_m=thick_val,
+                specific_gravity=sp_grav,
+                recovery_factor=rec_fac,
+                unfc_code="UNFC-111 (Proved)"
+            )
+            st.markdown("---")
+            r1, r2, r3 = st.columns(3)
+            with r1:
+                st.metric("Geological In-Situ (MT)", f"{res_calc.get('geological_reserves_mt', 0):.3f} MT")
+            with r2:
+                st.metric("Mineable Reserves (MT)", f"{res_calc.get('mineable_reserves_mt', 0):.3f} MT")
+            with r3:
+                is_pass = res_calc.get("statutory_threshold_met", True)
+                st.metric("Viability Status", "COMMERCIALLY VIABLE" if is_pass else "MARGINAL", delta=">= 1.0 MT" if is_pass else "< 1.0 MT")
+            st.info(f"📋 **Formula Derivation:** {res_calc.get('summary')}")
 
-        if calc.get("is_breach"):
-            st.error("🚨 ASME SAFETY CODE BREACH: Actual wall thickness has fallen below code requirements! Immediate derating or repair required.")
-        else:
-            st.success("✅ ASME CODE SAFE: Vessel wall thickness satisfies Section VIII Div 1 UG-27 with adequate safety margin.")
+    with m_col2:
+        st.markdown("#### 🚜 2. Overburden Stripping Ratio Engine")
+        ob_vol = st.number_input("Volume of Overburden Removed (BCM)", min_value=100.0, max_value=10000000.0, value=85000.0, step=5000.0, key="tab3_ob")
+        coal_vol = st.number_input("Raw Coal Produced (Metric Tonnes)", min_value=100.0, max_value=5000000.0, value=25000.0, step=1000.0, key="tab3_coal")
+        bm_sr = st.number_input("Approved PR Benchmark Stripping Ratio (BCM/te)", min_value=0.5, max_value=15.0, value=3.20, step=0.1, key="tab3_bmsr")
+
+        if st.button("⚡ Calculate Stripping Ratio", type="primary", key="tab3_calc_sr_btn"):
+            sr_calc = backend.calculate_mining_stripping_ratio(
+                volume_overburden_bcm=ob_vol,
+                coal_produced_tonnes=coal_vol,
+                benchmark_stripping_ratio=bm_sr
+            )
+            st.markdown("---")
+            s1, s2, s3 = st.columns(3)
+            with s1:
+                st.metric("Calculated Ratio", f"{sr_calc.get('stripping_ratio', 0):.4f} BCM/te")
+            with s2:
+                dev = sr_calc.get("deviation_percentage")
+                st.metric("Benchmark Deviation", f"{dev:+.2f}%" if dev is not None else "N/A", delta=f"{dev:+.2f}%" if dev is not None else None, delta_color="inverse")
+            with s3:
+                st.metric("Operational Status", sr_calc.get("status", "OPTIMAL"))
+            st.info(f"📋 **Formula Derivation:** {sr_calc.get('summary')}")
 
 # ============================================================================
-# TAB 4: STATUTORY PROCUREMENT & CVC AUDITOR
+# TAB 4: CMPDI POLICY & PARLIAMENTARY INQUIRY (PQ) AUDITOR
 # ============================================================================
 with tab4:
-    st.subheader("Statutory Procurement & Vigilance Auditor (CVC / GFR 2017 / DoP / PAC)")
-    st.markdown("Audits single-source, emergency procurements against Indian Public Sector Undertaking (PSU) anti-corruption directives, CVC Guidelines, and General Financial Rules (GFR 2017).")
+    st.subheader("CMPDI Policy & Parliamentary Inquiry (PQ) Auditor")
+    st.markdown("Audits coal mine production shortfalls and stripping ratios against statutory Coal Mines Regulations (CMR 2017) and drafts verified responses to Parliamentary Questions (PQs).")
 
     colA, colB = st.columns(2)
     with colA:
-        req_id = st.text_input("Procurement Request ID", value="REQ-MRPL-2026-NFA01", key="tab4_req")
-        item_desc = st.text_input("Vessel Tag / Item Description", value="11-V-102 Knuckle Shell Plate Replacement", key="tab4_desc")
-        amount = st.number_input("Estimated Expenditure (₹ Lakhs)", min_value=0.5, max_value=500.0, value=12.5, step=1.0, key="tab4_cost")
-        is_single = st.checkbox("Single Source / Nomination Tendering", value=True, key="tab4_single")
-        has_pac = st.checkbox("Proprietary Article Certificate (PAC) Available", value=False, key="tab4_pac")
-        is_emerg = st.checkbox("Emergency / Imminent Plant Shutdown Scenario", value=True, key="tab4_emerg")
+        pq_id = st.text_input("Parliament Question (PQ) / Inquiry Ref No.", value="PQ-LOK-SABHA-2026-COAL-0482", key="tab4_pq_id")
+        mine_tag = st.text_input("Colliery / Exploration Block Name", value="Amrapali OCP (North Karanpura Area)", key="tab4_mine_tag")
+        sub_choice = st.selectbox("CIL Subsidiary", ["CMPDI", "CCL", "BCCL", "ECL", "SECL", "WCL", "MCL", "NCL"], key="tab4_sub_choice")
+        target_prod = st.number_input("Annual Action Plan (AAP) Target Production (MT)", min_value=0.1, max_value=50.0, value=5.0, step=0.5, key="tab4_target_prod")
+        actual_prod = st.number_input("Actual Achieved Production (MT)", min_value=0.0, max_value=50.0, value=3.85, step=0.1, key="tab4_actual_prod")
     with colB:
-        dop_auth = st.selectbox("Approving Authority (Delegation of Power)", ["Chief Manager", "General Manager", "Executive Director", "Board of Directors"], key="tab4_dop")
-        stat_framework = st.selectbox(
-            "Governing Framework / Authority Clause",
+        curr_sr = st.number_input("Operating Stripping Ratio (BCM/te)", min_value=0.5, max_value=20.0, value=3.85, step=0.1, key="tab4_curr_sr")
+        appr_sr = st.number_input("Approved Project Report Stripping Ratio (BCM/te)", min_value=0.5, max_value=20.0, value=2.90, step=0.1, key="tab4_appr_sr")
+        cmr_reg = st.selectbox(
+            "Governing Statutory Clause / Regulation:",
             [
-                "CVC Circular 02/02/2004 Clause 4.2 (Single-Source Emergency Exception)",
-                "GFR 2017 Rule 194 (Single Source Procurement Exception)",
-                "GFR 2017 Rule 166 (Proprietary Article Certificate - PAC)",
-                "MRPL DoP Section 4.1 (Emergency Spares & Critical Plant Shutdown Provision)",
-                "Custom Statutory Framework"
+                "CMR 2017 Regulation 104 (Opencast Working Bench Advance & Safety Limits)",
+                "CMR 2017 Regulation 105 (Spoil Bank & Highwall Slope Stability)",
+                "Ministry of Coal Annual Action Plan Shortfall Circular (10% Threshold)",
+                "CMPDI UNFC-111 Exploration Guidelines for Commercial Block Allocation"
             ],
-            key="tab4_framework"
+            key="tab4_cmr_reg"
         )
-        if stat_framework == "Custom Statutory Framework":
-            stat_clause = st.text_input("Enter Specific Statutory Clause / Authority", value="CVC Directive / GFR 2017 Emergency Rule", key="tab4_custom_fw")
-        else:
-            stat_clause = stat_framework
+        pq_question = st.text_area(
+            "Parliamentary Question Subject Matter / Inquiry Text:",
+            value="Whether Coal India Limited subsidiaries have experienced significant production shortfalls in opencast blocks during the current fiscal year; the reasons for overburden removal delay; and steps taken to rectify the stripping backlog under CMR 2017.",
+            key="tab4_pq_question"
+        )
 
-        justification = st.text_area("Justification Note", value="Ultrasonic scan detected severe localized thinning below ASME t_min. Plant safety at imminent risk.", key="tab4_just")
-
-    if st.button("⚖️ Audit Statutory Compliance", type="primary", key="tab4_audit_btn"):
-        audit_res = backend.compliance.audit_procurement(
-            request_id=req_id,
-            equipment_id=item_desc,
-            estimated_cost_lakhs=amount,
-            is_single_source=is_single,
-            has_pac=has_pac,
-            is_emergency=is_emerg,
-            dop_authority=dop_auth,
-            applicable_clause=stat_clause
+    if st.button("⚖️ Audit Colliery Compliance & Draft Parliamentary Response", type="primary", key="tab4_audit_btn"):
+        audit_res = backend.audit_mining_policy(
+            mine_id=mine_tag,
+            subsidiary=sub_choice,
+            planned_production_mt=target_prod,
+            actual_production_mt=actual_prod,
+            calculated_stripping_ratio=curr_sr,
+            approved_stripping_ratio=appr_sr,
+            cmr_regulation_clause=cmr_reg
         )
 
         st.markdown("---")
         status = audit_res.get("compliance_status", "UNKNOWN")
-        if status in ["COMPLIANT", "APPROVED"]:
+        if status in ["STATUTORILY_COMPLIANT", "COMPLIANT"]:
             st.success(f"✅ STATUTORY AUDIT PASSED: {status}")
         else:
-            st.error(f"❌ STATUTORY AUDIT FLAGGED: {status}")
+            st.error(f"❌ REGULATORY FLAG DETECTED: {status}")
 
-        st.write(audit_res)
+        a_col1, a_col2 = st.columns(2)
+        with a_col1:
+            st.metric("Production Shortfall", f"{audit_res.get('production_shortfall_percentage', 0):.1f}%", delta="DEFICIT" if audit_res.get('production_shortfall_percentage', 0) > 10 else "ACCEPTABLE", delta_color="inverse")
+        with a_col2:
+            st.metric("Stripping Ratio Deviation", f"{audit_res.get('stripping_ratio_deviation_percentage', 0):+.1f}%", delta="HIGH OB LAG" if audit_res.get('stripping_ratio_deviation_percentage', 0) > 20 else "NORMAL", delta_color="inverse")
+
+        if audit_res.get("violations"):
+            st.markdown("##### 🚨 Detected Statutory Non-Compliances:")
+            for v in audit_res["violations"]:
+                st.markdown(f"- ⚠️ {v}")
+
+        if audit_res.get("remedial_recommendations"):
+            st.markdown("##### 🛠️ Prescribed Remedial Action Plan:")
+            for r in audit_res["remedial_recommendations"]:
+                st.markdown(f"- 🔧 {r}")
+
+        st.markdown("##### 🏛️ Draft Parliamentary Response for Hon'ble Minister / Secretary (Coal):")
+        draft_text = (
+            f"**GOVERNMENT OF INDIA — MINISTRY OF COAL**\n\n"
+            f"**RESPONSE TO QUESTION REF:** {pq_id}\n\n"
+            f"**(a) & (b):** In respect of {mine_tag} under {sub_choice}, actual raw coal production achieved stands at "
+            f"{actual_prod:.2f} Million Tonnes against the Annual Action Plan target of {target_prod:.2f} Million Tonnes, "
+            f"reflecting a variance of {audit_res.get('production_shortfall_percentage', 0):.1f}%.\n\n"
+            f"**(c):** The operating stripping ratio is {curr_sr:.2f} BCM/tonne compared to the approved Project Report "
+            f"norm of {appr_sr:.2f} BCM/tonne. Remedial deployment of high-capacity draglines and bench realignment "
+            f"has been instituted in strict accordance with Regulation 104 of the Coal Mines Regulations, 2017."
+        )
+        st.info(draft_text)
 
 # ============================================================================
-# TAB 5: FORENSIC CRYPTOGRAPHIC AUDIT LEDGER & ZERO-EGRESS GUARD
+# TAB 5: AUTOMATED WORD CLOUD & TOPIC IDENTIFICATION MODULE
 # ============================================================================
 with tab5:
+    st.subheader("☁️ Automated Word Cloud & Topic Identification Module")
+    st.markdown("Ingests multi-document geological dossiers, borehole reports, and historical archives to discover recurring operational themes and synthesize high-resolution Word Clouds.")
+
+    t_col1, t_col2 = st.columns([1, 1])
+
+    with t_col1:
+        st.markdown("#### 1. Input Geological / Colliery Dossier Corpus")
+        uploaded_dossiers = st.file_uploader(
+            "📁 Select or Upload Exploration Dossiers / Mining PDF Reports:",
+            type=["pdf", "txt", "md"],
+            accept_multiple_files=True,
+            key="tab5_multi_uploader"
+        )
+
+        dossier_text_input = st.text_area(
+            "Or paste combined report text directly:",
+            height=160,
+            value=(
+                "Borehole log CMPDI-DH-42 in Barakar Formation indicates multiple thick coal horizons. "
+                "Seam IV displays localized geological disturbance with faulted strata and ground displacement. "
+                "Colliery operations report severe ground water influx requiring additional dewatering sumps and high-capacity pumps. "
+                "Stripping overburden removal has encountered bench lag due to dragline equipment breakdown and shovel downtime. "
+                "Laboratory analysis confirms ash content grade slippage in lower coal bench with carbonaceous shale partings. "
+                "Highwall slope stability monitoring conducted under CMR 2017 Regulation 105 revealed minor tension cracks."
+            ),
+            key="tab5_text_input"
+        )
+
+        num_themes_slider = st.slider("Number of Top Recurring Themes to Extract:", min_value=3, max_value=8, value=5, key="tab5_num_themes")
+
+        gen_cloud_btn = st.button("☁️ Generate Topic Cloud from Dossier", type="primary", width="stretch", key="tab5_gen_cloud_btn")
+
+    with t_col2:
+        st.markdown("#### 2. Synthesized Topic Cloud & Discovered Themes")
+        if gen_cloud_btn:
+            with st.spinner("Analyzing text corpus, discovering themes, and rendering Word Cloud..."):
+                file_paths = []
+                if uploaded_dossiers:
+                    for uf in uploaded_dossiers:
+                        sp = backend.dossier.save_uploaded_file(uf.name, uf.getbuffer())
+                        file_paths.append(sp)
+
+                topic_res = backend.generate_topic_cloud_from_dossier(
+                    text=dossier_text_input,
+                    file_paths=file_paths if file_paths else None,
+                    num_topics=num_themes_slider
+                )
+
+                if topic_res.get("status") == "SUCCESS":
+                    st.success("✅ Topic Modeling & Word Cloud Generation Completed!")
+
+                    # Display Top 5 Themes
+                    st.markdown("##### 🎯 Top Discovered Operational & Geological Themes:")
+                    for t in topic_res.get("themes", []):
+                        kw_str = ", ".join(t.get("top_keywords", []))
+                        st.markdown(f"• **Theme #{t.get('theme_id')}: {t.get('theme_name')}** (Salience: `{t.get('weight_score')}`) — *Keywords: {kw_str}*")
+
+                    # Display Word Cloud Image
+                    img_path = topic_res.get("wordcloud_image_path")
+                    if img_path and os.path.exists(img_path):
+                        st.markdown("##### 🖼️ Visual Word Cloud:")
+                        st.image(img_path, caption="Visual Word Cloud Artifact (Generated On-Premises)", width="stretch")
+                        with open(img_path, "rb") as f_img:
+                            st.download_button(
+                                label="📥 Download Word Cloud PNG",
+                                data=f_img.read(),
+                                file_name=os.path.basename(img_path),
+                                mime="image/png",
+                                key="tab5_dl_cloud_img",
+                                width="stretch"
+                            )
+                    else:
+                        st.info("Word Cloud frequency mapping completed.")
+                else:
+                    st.error(f"Topic modeling failed: {topic_res.get('error')}")
+        else:
+            st.info("Click 'Generate Topic Cloud from Dossier' to extract recurring operational themes and visualize the Word Cloud.")
+
+# ============================================================================
+# TAB 6: FORENSIC CRYPTOGRAPHIC AUDIT LEDGER & ZERO-EGRESS GUARD
+# ============================================================================
+with tab6:
     st.subheader("Tamper-Proof SQLite Cryptographic Audit Trail & Zero-Egress Guard")
     st.markdown("Every agent action, code sandbox execution, and tool parameter is hashed with SHA-256 for non-repudiation.")
 
@@ -1368,7 +1486,7 @@ with tab5:
                 st.markdown(f"[🌐 Open Dashboard (Port {lf_tab_port})](http://localhost:{lf_tab_port})")
             else:
                 st.warning(f"⚪ Stopped (Port `{lf_tab_port}`)")
-                if st.button("▶️ Start Langfuse Container", key="tab5_start_langfuse"):
+                if st.button("▶️ Start Langfuse Container", key="tab6_start_langfuse"):
                     with st.spinner(f"Launching Langfuse container on Port {lf_tab_port}..."):
                         t_res = backend.langfuse.start_container()
                         if t_res.get("success"):
@@ -1379,7 +1497,6 @@ with tab5:
         except Exception as e:
             st.info(f"Langfuse status: {e}")
 
-
     st.markdown("---")
     st.markdown("##### 📜 Recent Cryptographic Audit Events")
     try:
@@ -1389,9 +1506,9 @@ with tab5:
             display_cols = [c for c in ["id", "timestamp", "workflow_id", "tool_name", "caller", "status"] if c in df.columns]
             
             def color_status(val):
-                if val in ["COMPLETED_SAFE", "APPROVED", "COMPLETED", "SUCCESS"]:
+                if val in ["COMPLETED_SAFE", "APPROVED", "COMPLETED", "SUCCESS", "COMPLETED_OPTIMAL", "COMPLETED_VIABLE"]:
                     return "color: #10b981; font-weight: bold;"
-                elif "BLOCKED" in str(val) or "BREACH" in str(val) or "FAILED" in str(val):
+                elif "BLOCKED" in str(val) or "BREACH" in str(val) or "FAILED" in str(val) or "VIOLATION" in str(val):
                     return "color: #ef4444; font-weight: bold;"
                 return ""
 
@@ -1404,4 +1521,5 @@ with tab5:
             st.info("No audit events logged yet.")
     except Exception as e:
         st.error(f"Could not load audit ledger: {e}")
+
 

@@ -159,3 +159,14 @@ class ThicknessGridOutput(BaseModel):
         ge=0,
         description="Estimated physical length of the detected flaw/thinning region."
     )
+
+
+# Import and expose Mining domain production schemas
+from schemas.mining import (
+    ProductionGridInput,
+    ProductionGridResult,
+    ProductionRecord,
+)
+
+# Compatibility alias
+ProductionGridOutput = ProductionGridResult

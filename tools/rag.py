@@ -141,8 +141,11 @@ logger = logging.getLogger("AegisForge.RAG")
 @tool
 def search_local_knowledge(query: str, top_k: int = 3) -> str:
     """
-    Searches the air-gapped refinery knowledge base (CVC circulars, OISD standards, SOPs, and GFR rules).
-    Retrieves certified policy clauses and technical guidelines from data/knowledge_base/.
+    Searches the air-gapped sovereign mining knowledge base:
+    - Coal Mines Regulations 2017 (CMR 2017 Reg 104, 105, 106)
+    - CMPDI Geological Reporting & UNFC Coal Reserves Guidelines (UNFC-111, UNFC-122)
+    - Ministry of Coal Parliamentary Questions (PQs) precedents and standing reporting templates
+    - CIL subsidiary operational mandates (ECL, BCCL, CCL, WCL, SECL, MCL, NCL)
     """
     logger.info(f"Executing tool: search_local_knowledge (Query: {query})")
     print(f"\n--- EXECUTING TOOL: search_local_knowledge (Query: {query}) ---\n")
@@ -158,6 +161,7 @@ def search_local_knowledge(query: str, top_k: int = 3) -> str:
     for d in kb_dirs:
         if os.path.exists(d):
             files.extend(glob.glob(os.path.join(d, "*.*")))
+
 
     query_terms = set(re.findall(r'\w+', query.lower()))
     matches = []

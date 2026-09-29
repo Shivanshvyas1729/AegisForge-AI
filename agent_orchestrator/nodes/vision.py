@@ -18,12 +18,18 @@ from agent_orchestrator.tool_executor import parse_text_tool_call, execute_visio
 logger = logging.getLogger("AegisForge.Vision")
 
 from tools import (
+    geological_extractor_tool,
+    production_grid_analyzer,
+    topic_modeler,
     inspection_extractor_tool,
     thickness_grid_analyzer,
     file_io,
 )
 
 vision_tools = [
+    geological_extractor_tool.extract_geological_data,
+    production_grid_analyzer.analyze_production_grid,
+    topic_modeler.generate_topic_cloud_and_themes,
     inspection_extractor_tool.extract_inspection_data,
     thickness_grid_analyzer.analyze_thickness_grid,
     file_io.read_scanned_pdf,
@@ -33,23 +39,27 @@ vision_agent = create_react_agent(
     vision_llm,
     tools=vision_tools,
     prompt=(
-        "You are the Lead Vision & Document Intelligence Agent for AegisForge-AI.\n"
-        "Your mission is to extract structured operational, geometric, material, and regulatory data "
-        "from ANY user-provided PDF, engineering drawing, P&ID schematic, inspection photo, or coordinate grid.\n\n"
+        "You are the Lead Vision & Geological Document Intelligence Agent for AegisForge-Mining (Ministry of Coal / CMPDI).\n"
+        "Your mission is to extract structured geological, borehole, stratigraphical, production, and topic data "
+        "from ANY user-provided borehole lithology log, drill core record, mine production spreadsheet, or exploration dossier.\n\n"
         "HANDLING USER DOCUMENTS:\n"
         "- Inspect the user query and message history for target file paths (e.g. in 'data/', 'data/uploads/', 'sample_data/').\n"
-        "- Use 'read_scanned_pdf' or 'extract_inspection_data' for PDFs and images.\n"
-        "- Use 'analyze_thickness_grid' for ultrasonic thickness coordinate matrices (.csv, .xlsx).\n\n"
+        "- Use 'extract_geological_data' for scanned borehole logs, core strata charts, and geological PDFs/images.\n"
+        "- Use 'analyze_production_grid' for monthly coal production and overburden removal spreadsheets (.csv, .xlsx).\n"
+        "- Use 'generate_topic_cloud_and_themes' for extracting recurring themes and generating word clouds from exploration dossiers.\n\n"
         "DYNAMIC EXTRACTION TARGETS:\n"
-        "• Equipment Tag / ID (e.g. 11-V-102, 22-C-101, P-204)\n"
-        "• Design Pressure P (MPa) & Inside Radius R (mm)\n"
-        "• Material Specification (MOC, e.g. 2.25Cr-1Mo, SA-387 Gr 22, SA-516 Gr 70)\n"
-        "• Measured Wall Thickness t_actual (mm) & Corrosion Rate CR (mm/yr)\n"
-        "• Statutory Context (Tender type, estimated budget, emergency justification)\n\n"
+        "• Borehole ID / Drillhole Number (e.g., BH-01, CMPDI-DH-42)\n"
+        "• Seam Name / Coal Horizon (e.g., Seam IV, Barakar Top)\n"
+        "• Seam Thickness (m) & Total Borehole Depth (m)\n"
+        "• Overburden Thickness (m) & Parting (m)\n"
+        "• Ash Content %, Moisture %, and Gross Calorific Value (GCV)\n"
+        "• Formation (Barakar Formation, Raniganj Formation, Damuda Group)\n"
+        "• Subsidiary / Coalfield (CMPDI, ECL, BCCL, CCL, WCL, SECL, MCL, NCL)\n\n"
         "MANDATORY: You MUST call one of your tools. Do not describe what you would do — call the tool.\n"
         "When extraction is complete, present the extracted data clearly and append '[STATUS: EXTRACTION_COMPLETED]'."
     )
 )
+
 
 
 def _get_next_node(state: AgentState, default: str) -> str:

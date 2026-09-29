@@ -66,6 +66,49 @@ class EngineeringService:
             "assessment_level": assessment_level
         })
 
+    def calculate_stripping_ratio(
+        self,
+        volume_overburden_bcm: float,
+        coal_produced_tonnes: float,
+        benchmark_stripping_ratio: Optional[float] = None,
+        mine_name: Optional[str] = None,
+        seam_name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Calculates deterministic Stripping Ratio = Volume OB (BCM) / Coal Produced (Tonnes)."""
+        from tools.mining_math_core import calculate_stripping_ratio
+        return calculate_stripping_ratio.invoke({
+            "volume_overburden_bcm": float(volume_overburden_bcm),
+            "coal_produced_tonnes": float(coal_produced_tonnes),
+            "benchmark_stripping_ratio": float(benchmark_stripping_ratio) if benchmark_stripping_ratio else None,
+            "mine_name": mine_name,
+            "seam_name": seam_name
+        })
+
+    def calculate_coal_reserves(
+        self,
+        seam_name: str,
+        area_sq_m: float,
+        avg_seam_thickness_m: float,
+        specific_gravity: float = 1.4,
+        recovery_factor: float = 0.85,
+        unfc_code: str = "UNFC-111",
+        block_name: Optional[str] = None,
+        subsidiary: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Calculates statutory geological reserves and mineable reserves under UNFC-111 norms."""
+        from tools.mining_math_core import calculate_coal_reserves
+        return calculate_coal_reserves.invoke({
+            "seam_name": seam_name,
+            "area_sq_m": float(area_sq_m),
+            "avg_seam_thickness_m": float(avg_seam_thickness_m),
+            "specific_gravity": float(specific_gravity),
+            "recovery_factor": float(recovery_factor),
+            "unfc_code": unfc_code,
+            "block_name": block_name,
+            "subsidiary": subsidiary
+        })
+
+
     def lookup_material_stress(
         self,
         material_grade: str,

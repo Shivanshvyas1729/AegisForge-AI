@@ -124,6 +124,7 @@ def execute_coder_tool(tool_name: str, args: dict, all_context: str = "") -> str
     Falls back to subprocess if Docker is unavailable.
     """
     from tools import (
+        mining_math_core,
         asme_calculator,
         api_579_ffs_tool,
         material_lookup_tool,
@@ -134,8 +135,19 @@ def execute_coder_tool(tool_name: str, args: dict, all_context: str = "") -> str
     name_lower = tool_name.lower()
 
     try:
+        # --- calculate_coal_reserves ---
+        if any(kw in name_lower for kw in ["reserve", "coal_reserve", "seam"]):
+            res = mining_math_core.calculate_coal_reserves.invoke(args, config=LANGFUSE_CONFIG)
+            return f"[COAL_RESERVE_RESULT]:\n{json.dumps(res, indent=2, default=str)}"
+
+        # --- calculate_stripping_ratio ---
+        elif any(kw in name_lower for kw in ["stripping", "stripping_ratio", "overburden_ratio"]):
+            res = mining_math_core.calculate_stripping_ratio.invoke(args, config=LANGFUSE_CONFIG)
+            return f"[STRIPPING_RATIO_RESULT]:\n{json.dumps(res, indent=2, default=str)}"
+
         # --- execute_in_sandbox ---
-        if any(kw in name_lower for kw in ["sandbox", "execute", "run_code"]):
+        elif any(kw in name_lower for kw in ["sandbox", "execute", "run_code"]):
+
             code = (args.get("code_string") or args.get("code") or
                     args.get("code_str", ""))
             title = (args.get("task_title") or args.get("title") or
@@ -210,7 +222,12 @@ def execute_reasoning_tool(tool_name: str, args: dict, all_context: str = "") ->
     args = _clean_tool_args(args)
     name_lower = tool_name.lower()
     try:
-        if any(kw in name_lower for kw in ["cvc", "compliance", "audit", "procurement"]):
+        # --- audit_mining_compliance ---
+        if any(kw in name_lower for kw in ["mining_compliance", "mining_audit", "shortfall", "aap", "cmr"]):
+            res = compliance_auditor.audit_mining_compliance.invoke(args, config=LANGFUSE_CONFIG)
+            return f"[MINING_COMPLIANCE_RESULT]:\n{json.dumps(res, indent=2, default=str)}"
+
+        elif any(kw in name_lower for kw in ["cvc", "compliance", "audit", "procurement"]):
             if not args.get("equipment_id") and all_context:
                 m_eq = re.search(
                     r'\b(\d{1,3}-[A-Z]{1,3}-\d{2,4}|pump\s+[A-Z0-9-]+|vessel\s+[A-Z0-9-]+)',
@@ -240,7 +257,7 @@ def execute_reasoning_tool(tool_name: str, args: dict, all_context: str = "") ->
             res = routing_guard.verify_routing_policy.invoke(args, config=LANGFUSE_CONFIG)
             return f"[ROUTING_RESULT]:\n{res}"
 
-        elif any(kw in name_lower for kw in ["knowledge", "search", "rag", "sop", "circular", "rule", "statutory_audit"]):
+        elif any(kw in name_lower for kw in ["knowledge", "search", "rag", "sop", "circular", "rule", "statutory_audit", "parliament", "pq"]):
             from tools import rag
             query = args.get("query") or args.get("search_query") or args.get("question") or all_context[:200]
             top_k = int(args.get("top_k", 3))
@@ -261,6 +278,9 @@ def execute_reasoning_tool(tool_name: str, args: dict, all_context: str = "") ->
 def execute_vision_tool(tool_name: str, args: dict) -> str:
     """Execute a vision tool by name."""
     from tools import (
+        geological_extractor_tool,
+        production_grid_analyzer,
+        topic_modeler,
         inspection_extractor_tool,
         thickness_grid_analyzer,
         file_io,
@@ -268,7 +288,20 @@ def execute_vision_tool(tool_name: str, args: dict) -> str:
 
     name_lower = tool_name.lower()
     try:
-        if any(kw in name_lower for kw in ["extract", "inspection"]):
+        # --- extract_geological_data ---
+        if any(kw in name_lower for kw in ["geological", "borehole", "lithology", "seam"]):
+            res = geological_extractor_tool.extract_geological_data.invoke(args, config=LANGFUSE_CONFIG)
+            return f"[GEOLOGICAL_EXTRACTION_RESULT]:\n{res}"
+        # --- analyze_production_grid ---
+        elif any(kw in name_lower for kw in ["production_grid", "production", "overburden_grid"]):
+            res = production_grid_analyzer.analyze_production_grid.invoke(args, config=LANGFUSE_CONFIG)
+            return f"[PRODUCTION_GRID_RESULT]:\n{res}"
+        # --- generate_topic_cloud_and_themes ---
+        elif any(kw in name_lower for kw in ["topic", "wordcloud", "word_cloud", "theme"]):
+            res = topic_modeler.generate_topic_cloud_and_themes.invoke(args, config=LANGFUSE_CONFIG)
+            return f"[TOPIC_MODEL_RESULT]:\n{res}"
+        # --- legacy extraction fallback ---
+        elif any(kw in name_lower for kw in ["extract", "inspection"]):
             res = inspection_extractor_tool.extract_inspection_data.invoke(args, config=LANGFUSE_CONFIG)
             return f"[EXTRACTION_RESULT]:\n{res}"
         elif any(kw in name_lower for kw in ["thickness", "grid", "analyze"]):
@@ -281,3 +314,4 @@ def execute_vision_tool(tool_name: str, args: dict) -> str:
         logger.error(f"Vision tool error for '{tool_name}': {e}")
         return f"[TOOL_ERROR]: {e}"
     return f"[UNKNOWN_TOOL]: {tool_name}"
+

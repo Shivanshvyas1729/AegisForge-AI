@@ -72,3 +72,17 @@ class RbiIntervalResult(BaseModel):
     risk_category: Optional[str] = None
     recommended_interval_months: Optional[int] = None
     statutory_verdict: Optional[str] = None
+
+
+# Import and expose Mining domain math and audit schemas
+from schemas.mining import (
+    StrippingRatioInput,
+    StrippingRatioResult,
+    GeologicalReservesInput,
+    GeologicalReservesResult,
+    MiningAuditInput,
+    MiningAuditVerdict,
+    ParliamentaryInquiryInput,
+    ParliamentaryInquiryResult,
+)
+

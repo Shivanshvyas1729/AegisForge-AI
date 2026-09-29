@@ -23,3 +23,17 @@ class ThicknessGridResult(BaseModel):
     mean_loss_percentage: Optional[float] = None
     flaw_length_mm: Optional[float] = None
     outlier_points: Optional[List[Dict[str, object]]] = None
+
+
+# Import and expose Mining domain schemas
+try:
+    from schemas.mining import (
+        GeologicalExtractionResult,
+        ProductionGridResult,
+        BoreholeLayer,
+        ProductionRecord,
+    )
+except ImportError:
+    GeologicalExtractionResult = InspectionExtractionResult
+    ProductionGridResult = ThicknessGridResult
+

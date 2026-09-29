@@ -86,15 +86,15 @@ class AegisForgeBackend:
     def run_golden_path(
         self,
         input_source: Optional[Union[str, Path]] = None,
-        output_name: str = "IOCL_Emergency_Approval_Note.docx",
+        output_name: str = "CMPDI_Geological_Assessment_Report.docx",
         model_name: str = "llama3.2:3b",
-        statutory_framework: str = "CVC Circular 02/02/2004 Clause 4.2 / GFR 2017 Rule 194 Emergency Exception",
+        statutory_framework: str = "CMR 2017 Regulation 104 / UNFC-111 Norms",
     ) -> Dict[str, Any]:
-        """Executes the full automated NDT dossier to signed NFA workflow."""
+        """Executes the full automated borehole/mining dossier to signed CMPDI report workflow."""
         return self.dossier.run_pipeline(
             input_source=input_source,
             statutory_framework=statutory_framework,
-            template_name="NFA_Emergency_Procurement.docx"
+            template_name="CMPDI_Official_Report"
         )
 
     def calculate_asme(
@@ -130,6 +130,85 @@ class AegisForgeBackend:
             "design_pressure_bar": p * 10.0,
             "status": calc.get("status", "UNKNOWN"),
         }
+
+    # -------------------------------------------------------------------------
+    # Sovereign Mining Domain APIs (CMPDI / Coal India Limited)
+    # -------------------------------------------------------------------------
+    def calculate_mining_stripping_ratio(
+        self,
+        volume_overburden_bcm: float,
+        coal_produced_tonnes: float,
+        benchmark_stripping_ratio: Optional[float] = None,
+        mine_name: Optional[str] = None,
+        seam_name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Calculates deterministic Stripping Ratio = Volume OB (BCM) / Coal Produced (Tonnes)."""
+        return self.engineering.calculate_stripping_ratio(
+            volume_overburden_bcm=volume_overburden_bcm,
+            coal_produced_tonnes=coal_produced_tonnes,
+            benchmark_stripping_ratio=benchmark_stripping_ratio,
+            mine_name=mine_name,
+            seam_name=seam_name
+        )
+
+    def calculate_mining_coal_reserves(
+        self,
+        seam_name: str,
+        area_sq_m: float,
+        avg_seam_thickness_m: float,
+        specific_gravity: float = 1.4,
+        recovery_factor: float = 0.85,
+        unfc_code: str = "UNFC-111",
+        block_name: Optional[str] = None,
+        subsidiary: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Calculates statutory geological reserves and mineable reserves under UNFC-111 norms."""
+        return self.engineering.calculate_coal_reserves(
+            seam_name=seam_name,
+            area_sq_m=area_sq_m,
+            avg_seam_thickness_m=avg_seam_thickness_m,
+            specific_gravity=specific_gravity,
+            recovery_factor=recovery_factor,
+            unfc_code=unfc_code,
+            block_name=block_name,
+            subsidiary=subsidiary
+        )
+
+    def generate_topic_cloud_from_dossier(
+        self,
+        text: Optional[str] = None,
+        file_paths: Optional[list] = None,
+        num_topics: int = 5
+    ) -> Dict[str, Any]:
+        """Generates visual Word Cloud PNG and extracts top 5 recurring themes from mining dossiers."""
+        from tools.topic_modeler import TopicModeler
+        modeler = TopicModeler()
+        return modeler.analyze_dossier(text=text, file_paths=file_paths, num_topics=num_topics).model_dump()
+
+    def audit_mining_policy(
+        self,
+        mine_id: str,
+        subsidiary: str,
+        planned_production_mt: float,
+        actual_production_mt: float,
+        calculated_stripping_ratio: float,
+        approved_stripping_ratio: float,
+        statutory_reserves_mt: Optional[float] = None,
+        cmr_regulation_clause: str = "CMR 2017 Reg 104"
+    ) -> Dict[str, Any]:
+        """Audits coal mine production shortfalls and stripping ratios against CMR 2017 and AAP targets."""
+        from tools.compliance_auditor import audit_mining_compliance
+        return audit_mining_compliance.invoke({
+            "mine_id": mine_id,
+            "subsidiary": subsidiary,
+            "planned_production_mt": planned_production_mt,
+            "actual_production_mt": actual_production_mt,
+            "calculated_stripping_ratio": calculated_stripping_ratio,
+            "approved_stripping_ratio": approved_stripping_ratio,
+            "statutory_reserves_mt": statutory_reserves_mt,
+            "cmr_regulation_clause": cmr_regulation_clause
+        })
+
 
     def audit_compliance(
         self,
