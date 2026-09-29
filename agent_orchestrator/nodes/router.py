@@ -188,14 +188,48 @@ def human_approval_gate(
     Human-in-the-loop gate. Triggered when max retries exceeded or safety
     flag raised. Resets retry_count to 0 on both approve and reject (Fix #5).
     """
+    retries = state.get("retry_count", 0)
+    max_r = state.get("max_retries", 3)
+    asme = state.get("last_asme_result") or {}
+    equipment_id = state.get("equipment_id") or asme.get("equipment_id") or "Industrial Asset"
+
+    if retries >= max_r:
+        reason = f"Execution threshold reached ({retries}/{max_r} retries). Manual engineering review required to prevent divergence."
+    elif asme.get("is_breach"):
+        delta = asme.get("delta_mm", 0.0)
+        mawp = asme.get("derated_mawp_mpa", 0.0)
+        t_req = asme.get("t_req_mm", 0.0)
+        t_act = asme.get("measured_thickness_mm", 0.0)
+        reason = (
+            f"Mandatory Safety Interlock: Wall thickness deficit detected for {equipment_id}. "
+            f"Measured thickness ({t_act:.2f} mm) is below required thickness ({t_req:.2f} mm) "
+            f"by {abs(delta):.2f} mm. Derated MAWP is {mawp:.2f} MPa. Operational sign-off required."
+        )
+    else:
+        reason = f"Operational sign-off required for {equipment_id} prior to final review."
+
+    logger.warning(f"Human Approval Gate Triggered for {equipment_id}: {reason}")
+
     user_input = interrupt({
-        "message": "CRITICAL: Max retries exceeded or safety flag raised. "
-                   "Human engineer sign-off required.",
-        "status": "Awaiting Sign-off"
+        "message": reason,
+        "status": "Awaiting Sign-off",
+        "equipment_id": equipment_id,
+        "retry_count": retries,
+        "asme_result": asme
     })
 
-    approved = user_input.get("approved", False) if isinstance(user_input, dict) else False
-    feedback = user_input.get("feedback", "")  if isinstance(user_input, dict) else ""
+    approved = False
+    feedback = ""
+    if isinstance(user_input, dict):
+        approved = bool(user_input.get("approved", False))
+        feedback = str(user_input.get("feedback", ""))
+    elif isinstance(user_input, bool):
+        approved = user_input
+    elif isinstance(user_input, str):
+        approved = user_input.strip().lower() in ["approved", "approve", "yes", "true", "1"]
+        feedback = user_input
+
+    logger.info(f"Human Approval Gate resolved: approved={approved}, feedback='{feedback}'")
 
     if approved:
         return Command(
@@ -204,7 +238,8 @@ def human_approval_gate(
                 "human_feedback": feedback,
                 "retry_count": 0,   # Fix #5 — always reset on gate exit
                 "messages": [HumanMessage(
-                    content=f"Human Engineer Approved: {feedback}", name="HumanGate"
+                    content=f"Human Engineer Sign-Off: APPROVED. Engineering Directives: {feedback or 'Verified and authorized by Competent Authority.'}",
+                    name="HumanGate"
                 )]
             },
             goto="chief_reviewer"
@@ -216,7 +251,8 @@ def human_approval_gate(
                 "human_feedback": feedback,
                 "retry_count": 0,   # Fix #5
                 "messages": [HumanMessage(
-                    content=f"Human Engineer Rejected/Re-routed: {feedback}", name="HumanGate"
+                    content=f"Human Engineer Sign-Off: REJECTED / RE-ROUTED. Directives: {feedback or 'Re-evaluate parameters and re-audit.'}",
+                    name="HumanGate"
                 )]
             },
             goto="supervisor"

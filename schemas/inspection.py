@@ -14,6 +14,8 @@ class InspectionInput(BaseModel):
 
 
 class AsmeResult(BaseModel):
+    equipment_id: Optional[str] = None
+    measured_thickness_mm: Optional[float] = None
     t_req_mm: float
     delta_mm: float
     is_breach: bool

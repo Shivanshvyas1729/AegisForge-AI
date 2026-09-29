@@ -177,10 +177,34 @@ class DossierService:
             ),
         }
 
-        doc_res = generate_nfa_documents.invoke({
-            "template_type": template_name,
-            "base_name": f"{eq_id}_Statutory_NFA",
-            "payload": payload
+        md_content = (
+            f"# MANGALORE REFINERY & PETROCHEMICALS LTD\n"
+            f"**Document:** Statutory Notes for Approval (NFA)\n"
+            f"**Equipment ID:** `{eq_id}`\n"
+            f"**Date:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} IST\n\n"
+            f"---\n\n"
+            f"## 1. Forensic Executive Summary\n"
+            f"{payload['executive_summary']}\n\n"
+            f"## 2. Quantitative Verification Matrix (ASME Section VIII Div 1 UG-27)\n\n"
+            f"| Parameter | Standard Baseline | Measured / Evaluated | Status |\n"
+            f"| :--- | :--- | :--- | :--- |\n"
+            f"| Required Thickness (t_req) | Statutory UG-27 | {calc.get('t_req_mm', 0):.2f} mm | Evaluated |\n"
+            f"| Measured Thickness (t_act) | Ultrasonic NDT | {t_act:.2f} mm | {'DEFICIT' if calc.get('is_breach') else 'COMPLIANT'} |\n"
+            f"| Safety Margin (Delta) | ASME UG-27 | {calc.get('delta_mm', 0):.2f} mm | {'DEFICIT' if calc.get('is_breach') else 'SAFE'} |\n"
+            f"| Remaining Service Life | API 510 | {calc.get('remaining_life_years', 0):.2f} Years | Evaluated |\n\n"
+            f"## 3. Statutory Procurement Compliance Audit\n"
+            f"- **Framework Clause:** {audit.get('sanction_clause', statutory_framework)}\n"
+            f"- **Compliance Verdict:** **{audit.get('compliance_status')}**\n"
+            f"- **Audit Risk Level:** {'HIGH (Deficit condition requires executive sign-off)' if calc.get('is_breach') else 'LOW (Compliant)'}\n"
+        )
+
+        from tools.deliverable_publisher_tool import deliverable_publisher_tool
+        doc_res = deliverable_publisher_tool.invoke({
+            "markdown_content": md_content,
+            "equipment_id": eq_id,
+            "output_filename": f"{eq_id}_Statutory_NFA",
+            "generate_docx": True,
+            "generate_pdf": True,
         })
 
         return {
@@ -193,17 +217,12 @@ class DossierService:
             "status": calc.get("status", "UNKNOWN"),
             "audit_status": audit.get("compliance_status", "UNKNOWN"),
             "sanction_clause": audit.get("sanction_clause", statutory_framework),
-            "executive_summary": (
-                f"ASME Section VIII Div 1 UG-27 verification for {eq_id}: "
-                f"Required thickness = {calc.get('t_req_mm', 0):.2f}mm, Measured = {t_act:.2f}mm, "
-                f"Safety Margin Δ = {calc.get('delta_mm', 0):.2f}mm ({calc.get('status')}). "
-                f"Remaining Service Life = {calc.get('remaining_life_years', 0):.2f} years. "
-                f"Statutory Audit ({audit.get('sanction_clause', statutory_framework)}): {audit.get('compliance_status')}."
-            ),
+            "executive_summary": payload["executive_summary"],
             "docx_path": doc_res.get("docx_path", ""),
-            "sha256_hash": doc_res.get("document_hash", doc_res.get("sha256_hash", "")),
-            "pdf_path": doc_res.get("pdf_path"),
-            "pdf_sha256": doc_res.get("pdf_sha256"),
+            "pdf_path": doc_res.get("pdf_path", ""),
+            "md_path": doc_res.get("md_path", ""),
+            "sha256_hash": doc_res.get("sha256_hash", ""),
+            "preview_markdown": md_content,
             "generated_at": datetime.datetime.now().isoformat(),
         }
 

@@ -19,15 +19,15 @@ from langchain_ollama import ChatOllama
 logger = logging.getLogger("AegisForge.Models")
 
 # ============================================================================
-# MODEL NAME CONSTANTS — import these everywhere (app.py sidebar, downloader)
+# MODEL NAME CONSTANTS — configurable via environment variables
 # ============================================================================
-ROUTER_MODEL      = "laya:421m"
-SUPERVISOR_MODEL  = "llama3.1:8b"
-CODER_MODEL       = "qwen2.5-coder:7b"
-REASONING_MODEL   = "llama3.1:8b"
-VISION_MODEL      = "llama3.2:3b"
-REVIEWER_MODEL    = "llama3.1:8b"
-CONVERSATIONAL_MODEL = "llama3.1:8b"
+ROUTER_MODEL         = os.getenv("ROUTER_MODEL", "laya:421m")
+SUPERVISOR_MODEL     = os.getenv("SUPERVISOR_MODEL", "llama3.1:8b")
+CODER_MODEL          = os.getenv("CODER_MODEL", "qwen2.5-coder:7b")
+REASONING_MODEL      = os.getenv("REASONING_MODEL", "llama3.1:8b")
+VISION_MODEL         = os.getenv("VISION_MODEL", "llama3.2:3b")
+REVIEWER_MODEL       = os.getenv("REVIEWER_MODEL", "llama3.1:8b")
+CONVERSATIONAL_MODEL = os.getenv("CONVERSATIONAL_MODEL", "llama3.1:8b")
 
 # Models that must be installed for the pipeline to function
 REQUIRED_MODELS = [
@@ -43,14 +43,15 @@ os.environ.setdefault("OLLAMA_MAX_LOADED_MODELS", "1")
 
 # ============================================================================
 # LLM INSTANCES (configured with bounded context to prevent VRAM stack overflows)
+# Explicitly named so Langfuse and telemetry traces show the exact model & agent role
 # ============================================================================
-supervisor_llm     = ChatOllama(model=SUPERVISOR_MODEL,      temperature=0,   format="json", num_ctx=4096)
-coder_llm          = ChatOllama(model=CODER_MODEL,           temperature=0,   num_ctx=4096)
-reasoning_llm      = ChatOllama(model=REASONING_MODEL,       temperature=0,   num_ctx=4096)
-vision_llm         = ChatOllama(model=VISION_MODEL,          temperature=0,   format="json", num_ctx=2048)
-reviewer_llm       = ChatOllama(model=REVIEWER_MODEL,        temperature=0,   num_ctx=4096)
-conversational_llm = ChatOllama(model=CONVERSATIONAL_MODEL,  temperature=0.3, num_ctx=2048)
-router_llm         = ChatOllama(model=ROUTER_MODEL,          temperature=0,   format="json", num_ctx=2048)
+supervisor_llm     = ChatOllama(model=SUPERVISOR_MODEL,      temperature=0,   format="json", num_ctx=4096, name=f"{SUPERVISOR_MODEL} (Supervisor)").with_config({"run_name": f"{SUPERVISOR_MODEL} (Supervisor)"})
+coder_llm          = ChatOllama(model=CODER_MODEL,           temperature=0,   num_ctx=4096,                 name=f"{CODER_MODEL} (Coder Agent)").with_config({"run_name": f"{CODER_MODEL} (Coder Agent)"})
+reasoning_llm      = ChatOllama(model=REASONING_MODEL,       temperature=0,   num_ctx=4096,                 name=f"{REASONING_MODEL} (Reasoning Agent)").with_config({"run_name": f"{REASONING_MODEL} (Reasoning Agent)"})
+vision_llm         = ChatOllama(model=VISION_MODEL,          temperature=0,   format="json", num_ctx=2048, name=f"{VISION_MODEL} (Vision Agent)").with_config({"run_name": f"{VISION_MODEL} (Vision Agent)"})
+reviewer_llm       = ChatOllama(model=REVIEWER_MODEL,        temperature=0,   num_ctx=4096,                 name=f"{REVIEWER_MODEL} (Chief Reviewer)").with_config({"run_name": f"{REVIEWER_MODEL} (Chief Reviewer)"})
+conversational_llm = ChatOllama(model=CONVERSATIONAL_MODEL,  temperature=0.3, num_ctx=2048,                 name=f"{CONVERSATIONAL_MODEL} (Direct Answer)").with_config({"run_name": f"{CONVERSATIONAL_MODEL} (Direct Answer)"})
+router_llm         = ChatOllama(model=ROUTER_MODEL,          temperature=0,   format="json", num_ctx=2048, name=f"{ROUTER_MODEL} (Laya Router)").with_config({"run_name": f"{ROUTER_MODEL} (Laya Router)"})
 
 # ============================================================================
 # LANGFUSE INTEGRATION (optional)

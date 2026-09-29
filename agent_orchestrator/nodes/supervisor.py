@@ -45,7 +45,8 @@ _SYSTEM_PROMPT = (
     "   • 'execute_in_sandbox': ONLY for non-ASME coding tasks.\n"
     "2. 'reasoning_agent': Statutory compliance audits (CVC, GFR 2017, DoP, PAC, RBI).\n"
     "3. 'vision_agent': OCR, PDF extraction, P&ID parsing, UT grid analysis.\n"
-    "4. 'chief_reviewer': Forensic verification and statutory sign-off.\n\n"
+    "4. 'human_approval_gate': Mandatory human engineer authorization gate whenever a physical safety breach is detected (e.g. wall thickness deficit), high-risk operations, or when operational sign-off/approval is requested.\n"
+    "5. 'chief_reviewer': Forensic verification and statutory sign-off. Select once all specialist tasks are complete and authorized.\n\n"
     "ROUTING PROTOCOL:\n"
     "• ASME / UG-27 / wall thickness / pressure vessel → 'coder_agent'\n"
     "• Material stress lookup → 'coder_agent'\n"
@@ -53,13 +54,14 @@ _SYSTEM_PROMPT = (
     "• Python scripts / algorithms / file creation → 'coder_agent'\n"
     "• Statutory / compliance auditing → 'reasoning_agent'\n"
     "• Document / image / grid inspection → 'vision_agent'\n"
-    "• Once specialist work completed cleanly → 'chief_reviewer'\n\n"
+    "• Operational sign-off / human approval requested → 'human_approval_gate'\n"
+    "• Once specialist work completed cleanly and authorized → 'chief_reviewer'\n\n"
     "Return ONLY valid JSON:\n"
     "{\n"
     "  \"user_intent\": \"<autonomous summary of the user's real objective>\",\n"
     "  \"subtasks\": [\"<subtask 1>\", \"<subtask 2>\", ...],\n"
     "  \"current_step\": \"<the immediate subtask to execute now>\",\n"
-    "  \"next\": \"vision_agent\" | \"coder_agent\" | \"reasoning_agent\" | \"chief_reviewer\",\n"
+    "  \"next\": \"vision_agent\" | \"coder_agent\" | \"reasoning_agent\" | \"human_approval_gate\" | \"chief_reviewer\",\n"
     "  \"instruction\": \"<detailed, self-contained instruction for the selected agent>\"\n"
     "}"
 )
@@ -83,6 +85,9 @@ def supervisor_node(
             last_supervisor_idx = i
             break
 
+    asme = state.get("last_asme_result") or {}
+    already_approved = state.get("human_approved", False)
+
     specialist_completed = False
     for msg in msgs_list[last_supervisor_idx + 1:]:
         agent_name = str(getattr(msg, "name", "")).lower()
@@ -90,10 +95,25 @@ def supervisor_node(
         tag = _COMPLETION_TAGS.get(agent_name, "")
         if tag and tag in content_str:
             specialist_completed = True
-            logger.info(f"Supervisor Loop Guard: {agent_name} completed — routing to chief_reviewer")
+            logger.info(f"Supervisor Loop Guard: {agent_name} completed")
             break
 
     if specialist_completed:
+        # Mandatory Safety Interlock: Physical wall thickness deficit mandates competent person sign-off
+        if asme.get("is_breach", False) and not already_approved:
+            logger.warning("Safety Interlock: Vessel wall thickness deficit detected. Routing to human_approval_gate.")
+            clean = json.dumps({
+                "next": "human_approval_gate",
+                "instruction": "Physical wall thickness deficit detected. Operational sign-off required.",
+                "user_intent": "Mandatory Safety Interlock",
+                "current_step": "Awaiting operational authorization"
+            })
+            return Command(
+                update={"messages": [HumanMessage(content=clean, name="supervisor")]},
+                goto="human_approval_gate"
+            )
+
+        logger.info("Supervisor Loop Guard: routing to chief_reviewer")
         clean = json.dumps({
             "next": "chief_reviewer",
             "instruction": "Specialist work is complete. Review and finalize the output.",

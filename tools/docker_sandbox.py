@@ -185,7 +185,7 @@ class DockerSecureSandbox:
         # 2. Fast local LLM titling via llama3.2:3b
         try:
             from langchain_ollama import ChatOllama
-            title_llm = ChatOllama(model="llama3.2:3b", temperature=0.0)
+            title_llm = ChatOllama(model="llama3.2:3b", temperature=0.0, name="llama3.2:3b (Task Titling)").with_config({"run_name": "llama3.2:3b (Task Titling)"})
             code_lines = [l for l in code_string.strip().splitlines() if l.strip() and not l.strip().startswith("#")][:10]
             sample = "\n".join(code_lines)
             prompt = (

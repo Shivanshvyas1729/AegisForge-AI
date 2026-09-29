@@ -275,20 +275,33 @@ with tab1:
             }
         ]
 
+    # Session state for Human Approval Gate
+    if "awaiting_approval" not in st.session_state:
+        st.session_state["awaiting_approval"] = False
+    if "gate_data" not in st.session_state:
+        st.session_state["gate_data"] = {}
+    if "gate_thread_id" not in st.session_state:
+        st.session_state["gate_thread_id"] = None
+    if "pending_gate_steps" not in st.session_state:
+        st.session_state["pending_gate_steps"] = []
+
     # Session controls & Quick Prompts
     with st.expander("⚡ Quick Engineering Prompts & Actions", expanded=False):
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3, c4, c5 = st.columns(5)
         with c1:
-            if st.button("🚀 Process HP Separator 11-V-102", width="stretch"):
+            if st.button("🚀 HP Separator 11-V-102", width="stretch"):
                 st.session_state["preset_prompt"] = "Process inspection dossier for vessel 11-V-102, calculate ASME Section VIII UG-27 minimum thickness, check compliance under GFR 2017 Rule 194, and generate certified NFA document."
         with c2:
-            if st.button("🧮 Calculate ASME UG-27 Math", width="stretch"):
+            if st.button("🧮 ASME UG-27 Math", width="stretch"):
                 st.session_state["preset_prompt"] = "Calculate ASME Section VIII Div 1 UG-27 required wall thickness for design pressure 14.5 MPa, inside radius 1200 mm, allowable stress 138 MPa, CA 4 mm, actual thickness 138.2 mm."
         with c3:
-            if st.button("⚖️ Audit Emergency Spares (GFR 194)", width="stretch"):
-                st.session_state["preset_prompt"] = "Audit single-source procurement for emergency replacement impellers for pump 14-P-101 costing 18.5 lakhs under GFR 2017 Rule 194."
+            if st.button("🚨 Test Human Gate", width="stretch"):
+                st.session_state["preset_prompt"] = "Calculate ASME Section VIII Div 1 wall thickness for vessel 11-V-102 with P=14.5 MPa, R=1200 mm, S=138 MPa, CA=4.0 mm, actual thickness=138.2 mm (breach condition) and require Human Approval Gate authorization before final sign-off."
         with c4:
-            if st.button("🐳 Run Script in Docker Sandbox", width="stretch"):
+            if st.button("⚖️ Audit Spares (GFR 194)", width="stretch"):
+                st.session_state["preset_prompt"] = "Audit single-source procurement for emergency replacement impellers for pump 14-P-101 costing 18.5 lakhs under GFR 2017 Rule 194."
+        with c5:
+            if st.button("🐳 Docker Sandbox", width="stretch"):
                 st.session_state["preset_prompt"] = "Write a Python script to calculate the first 10 factorials and execute it in the secure Docker sandbox."
 
     # Prominent File Ingestion Zone for Sovereign Copilot
@@ -314,6 +327,10 @@ with tab1:
                     }
                 ]
                 st.session_state["session_thread_id"] = f"session_{int(time.time())}"
+                st.session_state["awaiting_approval"] = False
+                st.session_state["gate_data"] = {}
+                st.session_state["gate_thread_id"] = None
+                st.session_state["pending_gate_steps"] = []
                 st.rerun()
 
         saved_attachment_path = None
@@ -323,15 +340,31 @@ with tab1:
 
     # -----------------------------------------------------------------------
     # BADGE_MAP & _render_trace_step: shared helpers for trace rendering
+    # Dynamically generated from model registry constants to avoid hardcoding
     # -----------------------------------------------------------------------
+    try:
+        from agent_orchestrator.models import (
+            ROUTER_MODEL, SUPERVISOR_MODEL, CODER_MODEL,
+            REASONING_MODEL, VISION_MODEL, REVIEWER_MODEL,
+        )
+    except ImportError:
+        ROUTER_MODEL = "laya:421m"
+        SUPERVISOR_MODEL = "llama3.1:8b"
+        CODER_MODEL = "qwen2.5-coder:7b"
+        REASONING_MODEL = "llama3.1:8b"
+        VISION_MODEL = "llama3.2:3b"
+        REVIEWER_MODEL = "llama3.1:8b"
+
     BADGE_MAP = {
-        "SUPERVISOR": "🧠 Chief Orchestrator",
-        "CODER_AGENT": "🧮 ASME Mechanics & Computing Agent",
-        "REASONING_AGENT": "⚖️ Statutory Compliance & CVC Auditor",
-        "VISION_AGENT": "👁️ Vision & Blueprint Inspector",
-        "CHIEF_REVIEWER": "🛡️ Chief Technical Reviewer",
+        "SUPERVISOR": f"🧠 Chief Orchestrator ({SUPERVISOR_MODEL})",
+        "CODER_AGENT": f"🧮 ASME Mechanics & Coder ({CODER_MODEL})",
+        "REASONING_AGENT": f"⚖️ Statutory Compliance & Auditor ({REASONING_MODEL})",
+        "VISION_AGENT": f"👁️ Vision & Blueprint Inspector ({VISION_MODEL})",
+        "CHIEF_REVIEWER": f"🛡️ Chief Technical Reviewer ({REVIEWER_MODEL})",
         "DELIVERABLE_PUBLISHER": "📑 Certified Deliverable Publisher",
-        "DIRECT_ANSWER": "⚡ Sovereign Fast-Path",
+        "DIRECT_ANSWER": f"⚡ Fast-Path ({ROUTER_MODEL})",
+        "HUMANGATE": "🛡️ Human Engineering Gate (Operational Sign-Off)",
+        "HUMAN_APPROVAL_GATE": "🛡️ Human Engineering Gate (Operational Sign-Off)",
         # Tool names when displayed as step agent or tool header
         "CALCULATE_ASME_STRESSES": "🧮 ASME UG-27 Stress Engine",
         "LOOKUP_MATERIAL": "📚 Material Allowable Stress Registry",
@@ -440,17 +473,210 @@ with tab1:
 
             st.markdown(msg["content"])
 
-            # Render document download if generated
-            if msg.get("docx_path") and os.path.exists(msg["docx_path"]):
-                with open(msg["docx_path"], "rb") as f:
-                    doc_bytes = f.read()
-                st.download_button(
-                    label=f"📥 Download Certified Deliverable ({os.path.basename(msg['docx_path'])})",
-                    data=doc_bytes,
-                    file_name=os.path.basename(msg["docx_path"]),
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    key=f"dl_{idx}_{os.path.basename(msg['docx_path'])}"
-                )
+            # Render Deliverable Preview & Multi-Format Downloads (pypandoc pipeline)
+            has_md = bool(msg.get("md_path") and os.path.exists(msg["md_path"]))
+            has_docx = bool(msg.get("docx_path") and os.path.exists(msg["docx_path"]))
+            has_pdf = bool(msg.get("pdf_path") and os.path.exists(msg["pdf_path"]))
+
+            if has_md or has_docx or has_pdf:
+                # Expandable Deliverable Markdown Preview
+                if has_md:
+                    try:
+                        with open(msg["md_path"], "r", encoding="utf-8") as f_preview:
+                            preview_text = f_preview.read()
+                        with st.expander("📄 **Preview Published Deliverable (Rendered Markdown)**", expanded=False):
+                            st.markdown(preview_text)
+                    except Exception:
+                        pass
+
+                # Multi-Format Download Buttons
+                dl_col1, dl_col2, dl_col3 = st.columns(3)
+                if has_docx:
+                    with dl_col1:
+                        with open(msg["docx_path"], "rb") as f_doc:
+                            st.download_button(
+                                label="📥 Word Doc (.docx)",
+                                data=f_doc.read(),
+                                file_name=os.path.basename(msg["docx_path"]),
+                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                key=f"dl_docx_{idx}_{os.path.basename(msg['docx_path'])}",
+                                width="stretch"
+                            )
+                if has_pdf:
+                    with dl_col2:
+                        with open(msg["pdf_path"], "rb") as f_pdf:
+                            st.download_button(
+                                label="📑 Certified PDF (.pdf)",
+                                data=f_pdf.read(),
+                                file_name=os.path.basename(msg["pdf_path"]),
+                                mime="application/pdf",
+                                key=f"dl_pdf_{idx}_{os.path.basename(msg['pdf_path'])}",
+                                width="stretch"
+                            )
+                if has_md:
+                    with dl_col3:
+                        with open(msg["md_path"], "r", encoding="utf-8") as f_md:
+                            st.download_button(
+                                label="📝 Markdown (.md)",
+                                data=f_md.read(),
+                                file_name=os.path.basename(msg["md_path"]),
+                                mime="text/markdown",
+                                key=f"dl_md_{idx}_{os.path.basename(msg['md_path'])}",
+                                width="stretch"
+                            )
+
+                if msg.get("sha256"):
+                    st.caption(f"🔒 **Cryptographic SHA-256 Audit Seal:** `{msg['sha256']}` (Committed to SQLite Ledger)")
+
+
+    # Render Interactive Human Approval Gate if pipeline is paused
+    if st.session_state.get("awaiting_approval"):
+        gate_data = st.session_state.get("gate_data", {})
+        gate_thread_id = st.session_state.get("gate_thread_id", st.session_state.get("session_thread_id"))
+        pending_steps = st.session_state.get("pending_gate_steps", [])
+        asme_info = gate_data.get("asme_result", {}) or {}
+
+        with st.chat_message("assistant", avatar="🛡️"):
+            # Display intermediate trace steps leading up to the gate
+            if pending_steps:
+                with st.expander("🔍 Intermediate Execution Trace (Prior to Gate)", expanded=False):
+                    for step in pending_steps:
+                        _render_trace_step(step, BADGE_MAP)
+
+            # High-impact Gate Card
+            st.markdown(
+                """
+                <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+                            border: 2px solid #f59e0b; border-radius: 12px; padding: 20px; margin-bottom: 16px;
+                            box-shadow: 0 4px 24px rgba(245, 158, 11, 0.25);">
+                    <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 10px;">
+                        <span style="font-size: 2.2rem;">🚨</span>
+                        <div>
+                            <div style="font-size: 1.15rem; font-weight: 800; color: #fbbf24; letter-spacing: 0.04em;">
+                                HUMAN-IN-THE-LOOP APPROVAL GATE | OPERATIONAL SIGN-OFF
+                            </div>
+                            <div style="font-size: 0.85rem; color: #cbd5e1;">
+                                Multi-Agent Autonomous Execution Paused — Competent Authority Authorization Required
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            # Warning reason
+            st.warning(f"**Gate Trigger Reason:** {gate_data.get('message', 'Engineering authorization required.')}")
+
+            eq_name = gate_data.get("equipment_id") or "Industrial Asset"
+
+            # Critical Metric Cards if ASME Breach or Data Available
+            m1, m2, m3, m4 = st.columns(4)
+            with m1:
+                st.metric("Equipment ID", eq_name)
+            with m2:
+                req_t = asme_info.get("t_req_mm")
+                st.metric("Required Thickness (t_req)", f"{req_t:.2f} mm" if req_t else "N/A")
+            with m3:
+                act_t = asme_info.get("measured_thickness_mm")
+                st.metric("Measured Thickness (t_act)", f"{act_t:.2f} mm" if act_t else "N/A")
+            with m4:
+                delta = asme_info.get("delta_mm")
+                st.metric("Safety Margin (Delta)", f"{delta:.2f} mm" if delta else "N/A", delta_color="inverse" if (delta and delta < 0) else "normal")
+
+            st.markdown("---")
+            st.markdown("##### ✍️ Competent Authority Sign-Off & Directive")
+            # Build operational directive dynamically from equipment and engineering parameters
+            if asme_info.get("is_breach"):
+                mawp_val = asme_info.get("derated_mawp_mpa")
+                if mawp_val:
+                    dyn_default_directive = f"Operational sign-off authorized for {eq_name} under derated pressure of {mawp_val:.2f} MPa with API 579 Level 1 re-inspection schedule."
+                else:
+                    dyn_default_directive = f"Operational sign-off authorized for {eq_name} subject to mandatory NDT re-inspection."
+            elif gate_data.get("message"):
+                dyn_default_directive = f"Authorized following engineering review of {gate_data.get('message')}."
+            else:
+                dyn_default_directive = f"Authorized by Competent Authority for {eq_name}."
+
+            human_directive = st.text_area(
+                "Enter Operational Directive or Verification Notes:",
+                value=dyn_default_directive,
+                key="gate_human_directive",
+                help="These engineering directives will be injected directly into the multi-agent context for the Chief Reviewer and Audit Seal."
+            )
+
+            btn_col1, btn_col2, btn_col3 = st.columns([2, 2, 1])
+            with btn_col1:
+                approve_clicked = st.button("✅ Authorize & Approve (Proceed to Chief Reviewer)", type="primary", width="stretch")
+            with btn_col2:
+                reject_clicked = st.button("🔄 Reject & Re-route (Return to Supervisor)", width="stretch")
+            with btn_col3:
+                cancel_clicked = st.button("❌ Dismiss Gate", width="stretch")
+
+            if cancel_clicked:
+                st.session_state["awaiting_approval"] = False
+                st.session_state["gate_data"] = {}
+                st.session_state["gate_thread_id"] = None
+                st.session_state["pending_gate_steps"] = []
+                st.rerun()
+
+            if approve_clicked or reject_clicked:
+                approved = bool(approve_clicked)
+                action_label = "Authorizing & Proceeding..." if approved else "Rejecting & Re-routing..."
+                resume_container = st.status(f"🚀 Resuming Pipeline with Human Sign-Off ({action_label})", expanded=True)
+                resumed_steps = list(pending_steps)
+                final_text = ""
+                resume_res = None
+
+                try:
+                    for event in backend.resume_approval_stream(
+                        thread_id=gate_thread_id,
+                        approved=approved,
+                        feedback=human_directive,
+                        existing_steps=resumed_steps
+                    ):
+                        if event["type"] == "step":
+                            step = event["step"]
+                            resumed_steps = event.get("steps", [])
+                            with resume_container:
+                                _render_trace_step(step, BADGE_MAP)
+                        elif event["type"] == "done":
+                            resume_res = event
+                            final_text = resume_res.get("final_answer", "Operational review completed.")
+                            resume_container.update(
+                                label="✅ Human Gate Resolved & Execution Completed!",
+                                state="complete",
+                                expanded=False
+                            )
+                        elif event["type"] == "interrupt":
+                            st.session_state["awaiting_approval"] = True
+                            st.session_state["gate_data"] = event.get("gate_data", {})
+                            st.session_state["gate_thread_id"] = event.get("thread_id", gate_thread_id)
+                            st.session_state["pending_gate_steps"] = resumed_steps
+                            st.rerun()
+
+                    # Success: clear gate state
+                    st.session_state["awaiting_approval"] = False
+                    st.session_state["gate_data"] = {}
+                    st.session_state["gate_thread_id"] = None
+                    st.session_state["pending_gate_steps"] = []
+
+                    docx_file = resume_res.get("docx_path") if resume_res else None
+                    pdf_file  = resume_res.get("pdf_path") if resume_res else None
+                    md_file   = resume_res.get("md_path") if resume_res else None
+                    st.session_state["chat_messages"].append({
+                        "role": "assistant",
+                        "content": final_text,
+                        "steps": resumed_steps,
+                        "docx_path": docx_file,
+                        "pdf_path": pdf_file,
+                        "md_path": md_file,
+                        "sha256": resume_res.get("sha256_hash") if resume_res else None
+                    })
+                    st.rerun()
+                except Exception as ex:
+                    resume_container.update(label="❌ Resume Execution Error", state="error", expanded=True)
+                    st.error(f"Error resuming from approval gate: {ex}")
 
     # Auto-scroll to bottom (no deprecated st.components.v1.html)
     st.markdown(
@@ -519,6 +745,19 @@ with tab1:
                         with status_container:
                             _render_trace_step(step, BADGE_MAP)
 
+                    elif event["type"] == "interrupt":
+                        st.session_state["awaiting_approval"] = True
+                        st.session_state["gate_data"] = event.get("gate_data", {})
+                        st.session_state["gate_thread_id"] = event.get("thread_id", st.session_state.get("session_thread_id"))
+                        st.session_state["pending_gate_steps"] = steps_accumulated
+                        anim_placeholder.empty()
+                        status_container.update(
+                            label="⏸️ Human Approval Gate Triggered — Operational Sign-Off Required!",
+                            state="error",
+                            expanded=False
+                        )
+                        st.rerun()
+
                     elif event["type"] == "done":
                         chat_res = event
                         final_text = chat_res.get("final_answer", "Task completed.")
@@ -544,18 +783,10 @@ with tab1:
                 if final_text:
                     st.markdown(final_text)
 
-                # Download button if Word deliverable generated
+                # Track deliverable files generated
                 docx_file = chat_res.get("docx_path") if chat_res else None
-                if docx_file and os.path.exists(docx_file):
-                    with open(docx_file, "rb") as f:
-                        doc_bytes = f.read()
-                    st.download_button(
-                        label=f"📥 Download Certified Deliverable ({os.path.basename(docx_file)})",
-                        data=doc_bytes,
-                        file_name=os.path.basename(docx_file),
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        key=f"dl_live_{os.path.basename(docx_file)}"
-                    )
+                pdf_file  = chat_res.get("pdf_path") if chat_res else None
+                md_file   = chat_res.get("md_path") if chat_res else None
 
                 # Save completed turn to chat history
                 st.session_state["chat_messages"].append({
@@ -563,6 +794,8 @@ with tab1:
                     "content": final_text,
                     "steps": steps_accumulated,
                     "docx_path": docx_file,
+                    "pdf_path": pdf_file,
+                    "md_path": md_file,
                     "sha256": chat_res.get("sha256_hash") if chat_res else None
                 })
                 st.rerun()
@@ -664,18 +897,52 @@ with tab2:
                     st.markdown("##### 🔏 Cryptographic SHA-256 Audit Seal")
                     st.code(result.get("sha256_hash", "SHA-256 Verified"), language="text")
 
-                    docx_path = result.get("docx_path")
-                    if docx_path and os.path.exists(docx_path):
-                        with open(docx_path, "rb") as f:
-                            docx_bytes = f.read()
-                        st.download_button(
-                            label="📥 Download Certified NFA Document (.docx)",
-                            data=docx_bytes,
-                            file_name=os.path.basename(docx_path),
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            width="stretch",
-                            key="tab2_dl"
-                        )
+                    # Render deliverable preview if available
+                    prev_md = result.get("preview_markdown")
+                    if prev_md:
+                        with st.expander("📄 **Preview Published Deliverable (Rendered Markdown)**", expanded=False):
+                            st.markdown(prev_md)
+
+                    # Multi-format downloads
+                    d_cols = st.columns(3)
+                    docx_p = result.get("docx_path")
+                    pdf_p  = result.get("pdf_path")
+                    md_p   = result.get("md_path")
+
+                    if docx_p and os.path.exists(docx_p):
+                        with d_cols[0]:
+                            with open(docx_p, "rb") as f_d:
+                                st.download_button(
+                                    label="📥 Word Doc (.docx)",
+                                    data=f_d.read(),
+                                    file_name=os.path.basename(docx_p),
+                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                    width="stretch",
+                                    key="tab2_dl_docx"
+                                )
+                    if pdf_p and os.path.exists(pdf_p):
+                        with d_cols[1]:
+                            with open(pdf_p, "rb") as f_p:
+                                st.download_button(
+                                    label="📑 Certified PDF (.pdf)",
+                                    data=f_p.read(),
+                                    file_name=os.path.basename(pdf_p),
+                                    mime="application/pdf",
+                                    width="stretch",
+                                    key="tab2_dl_pdf"
+                                )
+                    if md_p and os.path.exists(md_p):
+                        with d_cols[2]:
+                            with open(md_p, "r", encoding="utf-8") as f_m:
+                                st.download_button(
+                                    label="📝 Markdown (.md)",
+                                    data=f_m.read(),
+                                    file_name=os.path.basename(md_p),
+                                    mime="text/markdown",
+                                    width="stretch",
+                                    key="tab2_dl_md"
+                                )
+
                 except Exception as ex:
                     st.error(f"Pipeline execution failed: {ex}")
         else:

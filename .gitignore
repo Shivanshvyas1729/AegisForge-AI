@@ -62,7 +62,6 @@ coverage.xml
 *.swp
 *.swo
 *~
-node_modules/
 
 # ── Operating system & Agent metadata ──
 .DS_Store
@@ -127,7 +126,7 @@ model_pool/models/*
 OllamaSetup.exe
 
 # ── Self-hosted Langfuse container setup ──
-langfuse/
+# langfuse/
 
 # ==============================================================================
 # Safety: Never ignore source code, notebooks, and docs

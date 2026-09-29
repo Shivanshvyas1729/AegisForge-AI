@@ -156,17 +156,25 @@ def execute_coder_tool(tool_name: str, args: dict, all_context: str = "") -> str
 
         # --- calculate_asme_stresses ---
         elif any(kw in name_lower for kw in ["asme", "calculate_asme", "stress"]):
-            if not args.get("design_pressure_mpa") and all_context:
-                p_m  = re.search(r'(?:design\s+pressure|pressure)[:\s=]*([\d.]+)', all_context, re.I)
-                r_m  = re.search(r'(?:inside\s+radius|radius)[:\s=]*([\d.]+)', all_context, re.I)
-                s_m  = re.search(r'(?:allowable\s+stress|stress)[:\s=]*([\d.]+)', all_context, re.I)
-                ca_m = re.search(r'(?:corrosion\s+allowance)[:\s=]*([\d.]+)', all_context, re.I)
-                t_m  = re.search(r'(?:actual\s+thickness|measured\s+thickness)[:\s=]*([\d.]+)', all_context, re.I)
-                if p_m:  args["design_pressure_mpa"]   = float(p_m.group(1))
-                if r_m:  args["inside_radius_mm"]       = float(r_m.group(1))
-                if s_m:  args["allowable_stress_mpa"]   = float(s_m.group(1))
-                if ca_m: args["corrosion_allowance_mm"] = float(ca_m.group(1))
-                if t_m:  args["measured_thickness_mm"]  = float(t_m.group(1))
+            if all_context:
+                if not args.get("design_pressure_mpa"):
+                    p_m = re.search(r'(?:design\s+pressure|pressure|\$P|P)[:\s=]*([\d.]+)', all_context, re.I)
+                    if p_m: args["design_pressure_mpa"] = float(p_m.group(1))
+                if not args.get("inside_radius_mm"):
+                    r_m = re.search(r'(?:inside\s+radius|radius|\$R|R)[:\s=]*([\d.]+)', all_context, re.I)
+                    if r_m: args["inside_radius_mm"] = float(r_m.group(1))
+                if not args.get("allowable_stress_mpa"):
+                    s_m = re.search(r'(?:allowable\s+stress|stress|\$S|S)[:\s=]*([\d.]+)', all_context, re.I)
+                    if s_m: args["allowable_stress_mpa"] = float(s_m.group(1))
+                if not args.get("corrosion_allowance_mm"):
+                    ca_m = re.search(r'(?:corrosion\s+allowance|\$CA|CA)[:\s=]*([\d.]+)', all_context, re.I)
+                    if ca_m: args["corrosion_allowance_mm"] = float(ca_m.group(1))
+                if not args.get("measured_thickness_mm"):
+                    t_m = re.search(r'(?:actual\s+thickness|measured\s+thickness|t_actual|t_meas)[:\s=]*([\d.]+)', all_context, re.I)
+                    if t_m: args["measured_thickness_mm"] = float(t_m.group(1))
+                if not args.get("corrosion_rate_mm_yr"):
+                    cr_m = re.search(r'(?:corrosion\s+rate|\$CR|CR)[:\s=]*([\d.]+)', all_context, re.I)
+                    if cr_m: args["corrosion_rate_mm_yr"] = float(cr_m.group(1))
             res = asme_calculator.calculate_asme_stresses.invoke(args, config=LANGFUSE_CONFIG)
             return f"[CALCULATION_RESULT]:\n{json.dumps(res, indent=2, default=str)}"
 

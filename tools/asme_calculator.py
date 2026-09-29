@@ -40,6 +40,8 @@ class AsmeCalculator:
             status = "CRITICAL_BREACH" if is_breach else "SAFE"
             
         result = AsmeResult(
+            equipment_id=inp.equipment_id,
+            measured_thickness_mm=round(inp.measured_thickness_mm, 2),
             t_req_mm=round(t_req, 2),
             delta_mm=round(delta, 2),
             is_breach=is_breach,
@@ -76,20 +78,22 @@ from pydantic import BaseModel, ConfigDict, Field
 class AsmeStressInput(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    equipment_id: str = Field(default="VESSEL-001", description="Equipment tag or identifier")
+    equipment_id: Optional[str] = Field(default=None, description="Equipment tag or identifier")
     design_pressure_mpa: Optional[float] = Field(default=None, description="Design pressure in MPa")
     inside_radius_mm: Optional[float] = Field(default=None, description="Inside radius in mm")
-    allowable_stress_mpa: Optional[float] = Field(default=None, description="Allowable stress in MPa")
+    allowable_stress_mpa: Optional[float] = Field(default=None, description="Allowable stress in MPa (S). If omitted, provide material_grade and temperature_c.")
     joint_efficiency: Optional[float] = Field(default=1.0, description="Joint efficiency E (0.0 to 1.0)")
     corrosion_allowance_mm: Optional[float] = Field(default=None, description="Corrosion allowance in mm")
     measured_thickness_mm: Optional[float] = Field(default=None, description="Measured wall thickness in mm")
     corrosion_rate_mm_yr: Optional[float] = Field(default=None, description="Corrosion rate in mm/year")
+    material_grade: Optional[str] = Field(default=None, description="Material specification (e.g. 'SA-387 Gr 22') to auto-resolve allowable stress")
+    temperature_c: Optional[float] = Field(default=None, description="Operating temperature in Celsius for material lookup")
     kwargs: Optional[Any] = Field(default=None, description="Optional extra arguments dictionary")
 
 
 @tool(args_schema=AsmeStressInput)
 def calculate_asme_stresses(
-    equipment_id: str = "VESSEL-001",
+    equipment_id: Optional[str] = None,
     design_pressure_mpa: Optional[float] = None,
     inside_radius_mm: Optional[float] = None,
     allowable_stress_mpa: Optional[float] = None,
@@ -97,20 +101,72 @@ def calculate_asme_stresses(
     corrosion_allowance_mm: Optional[float] = None,
     measured_thickness_mm: Optional[float] = None,
     corrosion_rate_mm_yr: Optional[float] = None,
+    material_grade: Optional[str] = None,
+    temperature_c: Optional[float] = None,
     **kwargs: Any
 ) -> dict:
     """Calculates ASME Section VIII Division 1 (UG-27) minimum thickness, MAWP, and RSL."""
-    print(f"\n--- EXECUTING TOOL: calculate_asme_stresses ---\n")
-    logger.info(f"Executing tool: calculate_asme_stresses (Equipment: {equipment_id})")
+    # Merge direct kwargs and nested kwargs
+    inner = kwargs.get("kwargs") if isinstance(kwargs.get("kwargs"), dict) else {}
+    all_kw = {**kwargs, **inner}
+    eq_tag = equipment_id or all_kw.get("equipment_id") or all_kw.get("tag") or all_kw.get("vessel_id") or "Industrial Equipment"
+
+    print(f"\n--- EXECUTING TOOL: calculate_asme_stresses --- (Equipment: {eq_tag})\n")
+    logger.info(f"Executing tool: calculate_asme_stresses (Equipment: {eq_tag})")
     try:
-        # Resolve aliases from kwargs if provided
-        p = design_pressure_mpa or kwargs.get("p") or kwargs.get("pressure")
-        r = inside_radius_mm or kwargs.get("r") or kwargs.get("radius")
-        s = allowable_stress_mpa or kwargs.get("s") or kwargs.get("stress") or kwargs.get("allowable_stress")
-        e = joint_efficiency or kwargs.get("e") or kwargs.get("joint_eff") or 1.0
-        ca = corrosion_allowance_mm or kwargs.get("ca") or kwargs.get("corrosion_allowance")
-        t_meas = measured_thickness_mm or kwargs.get("t_actual") or kwargs.get("t_meas") or kwargs.get("thickness")
-        cr = corrosion_rate_mm_yr or kwargs.get("cr") or kwargs.get("corrosion_rate")
+
+        p = design_pressure_mpa or all_kw.get("p") or all_kw.get("P") or all_kw.get("pressure") or all_kw.get("design_pressure")
+        r = inside_radius_mm or all_kw.get("r") or all_kw.get("R") or all_kw.get("radius") or all_kw.get("inside_radius")
+        s = (
+            allowable_stress_mpa
+            or all_kw.get("s")
+            or all_kw.get("S")
+            or all_kw.get("stress")
+            or all_kw.get("allowable_stress")
+            or all_kw.get("allowable_stress_mpa")
+        )
+        e = joint_efficiency or all_kw.get("e") or all_kw.get("E") or all_kw.get("joint_eff") or 1.0
+        ca = corrosion_allowance_mm or all_kw.get("ca") or all_kw.get("CA") or all_kw.get("corrosion_allowance")
+        t_meas = (
+            measured_thickness_mm
+            or all_kw.get("t_actual")
+            or all_kw.get("t_actual_mm")
+            or all_kw.get("t_meas")
+            or all_kw.get("thickness")
+            or all_kw.get("measured_thickness")
+            or all_kw.get("t")
+        )
+        cr = corrosion_rate_mm_yr or all_kw.get("cr") or all_kw.get("CR") or all_kw.get("corrosion_rate")
+
+        # Auto-resolve allowable stress from material_grade if s is not explicitly passed
+        if s is None:
+            mat = (
+                material_grade
+                or all_kw.get("material_grade")
+                or all_kw.get("material")
+                or all_kw.get("material_spec")
+                or all_kw.get("grade")
+            )
+            temp = (
+                temperature_c
+                or all_kw.get("temperature_c")
+                or all_kw.get("temperature")
+                or all_kw.get("temp")
+                or all_kw.get("T")
+                or 350.0
+            )
+            if mat:
+                try:
+                    from tools.material_lookup_tool import MaterialLookupTool, MaterialLookupInput
+                    mat_tool = MaterialLookupTool(use_audit_trail=False)
+                    res_mat = mat_tool.lookup_material(
+                        MaterialLookupInput(material_grade=str(mat), temperature_c=float(temp) if temp is not None else 350.0)
+                    )
+                    if res_mat and res_mat.allowable_stress_mpa:
+                        s = res_mat.allowable_stress_mpa
+                        logger.info(f"Auto-resolved allowable_stress_mpa={s} from material='{mat}' at {temp}C")
+                except Exception as mex:
+                    logger.debug(f"Material lookup fallback failed: {mex}")
 
         # If any essential parameter is missing, attempt dynamic extraction from local dossier
         if any(v is None for v in [p, r, s, ca, t_meas, cr]):
@@ -171,7 +227,7 @@ def calculate_asme_stresses(
         cr_val = float(cr) if cr is not None else 0.1
 
         inp = InspectionInput(
-            equipment_id=equipment_id or "EQUIPMENT-001",
+            equipment_id=eq_tag,
             design_pressure_mpa=p_val,
             inside_radius_mm=r_val,
             allowable_stress_mpa=s_val,

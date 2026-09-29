@@ -238,8 +238,9 @@ class AuditLedger:
                     
                 previous_block_hash = row_dict["block_hash"]
                 
-        print(f"✅ Audit ledger integrity verified! {len(rows)} blocks cryptographically validated.")
+        print(f"[OK] Audit ledger integrity verified! {len(rows)} blocks cryptographically validated.")
         return True
+
 
     def get_latest_events(self, limit=50):
         """Fetches the latest audit events from SQLite as dictionaries."""

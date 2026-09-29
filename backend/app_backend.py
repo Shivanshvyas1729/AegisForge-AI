@@ -157,15 +157,13 @@ class AegisForgeBackend:
     # -------------------------------------------------------------------------
     # Internal helpers
     # -------------------------------------------------------------------------
-    def _find_docx_path(self, content: str) -> Optional[str]:
-        """Extracts and validates a .docx file path from agent output content."""
-        m_docx = re.search(
-            r'([A-Za-z]:[^\s\n\'"]+\.docx|/output/[^\s\n\'"]+\.docx|[a-zA-Z0-9_./\\-]+\.docx)',
-            content
-        )
-        if not m_docx:
+    def _find_file_by_ext(self, content: str, ext: str) -> Optional[str]:
+        """Extracts and validates a file path with given extension from agent output content."""
+        pattern = rf'([A-Za-z]:[^\s\n\'"]+\.{ext}|/output/[^\s\n\'"]+\.{ext}|[a-zA-Z0-9_./\\-]+\.{ext})'
+        m = re.search(pattern, content)
+        if not m:
             return None
-        candidate = m_docx.group(1)
+        candidate = m.group(1).rstrip("`'\",.:;)")
         if candidate.startswith("/output/"):
             candidate = os.path.join("data", "output", candidate[len("/output/"):])
         candidate_path = Path(candidate)
@@ -173,10 +171,20 @@ class AegisForgeBackend:
             candidate_path = Path(os.getcwd()) / candidate
         return str(candidate_path) if candidate_path.exists() else None
 
+    def _find_docx_path(self, content: str) -> Optional[str]:
+        return self._find_file_by_ext(content, "docx")
+
+    def _find_pdf_path(self, content: str) -> Optional[str]:
+        return self._find_file_by_ext(content, "pdf")
+
+    def _find_md_path(self, content: str) -> Optional[str]:
+        return self._find_file_by_ext(content, "md")
+
     def _find_sha256(self, content: str) -> Optional[str]:
         """Extracts a SHA-256 hash from agent output content."""
         m_sha = re.search(r'\b([a-fA-F0-9]{64})\b', content)
         return m_sha.group(1) if m_sha else None
+
 
     def _classify_step(self, msg) -> Dict[str, Any]:
         """
@@ -267,6 +275,8 @@ class AegisForgeBackend:
         steps = []
         final_answer = ""
         doc_path = None
+        pdf_path = None
+        md_path = None
         sha256 = None
 
         all_msgs = res.get("messages", [])
@@ -286,7 +296,7 @@ class AegisForgeBackend:
             name_str = str(getattr(msg, "name", None) or getattr(msg, "type", None) or "").lower()
             content = str(getattr(msg, "content", str(msg)))
 
-            if name_str in ["chief_reviewer", "direct_answer"]:
+            if name_str in ["chief_reviewer", "direct_answer", "deliverable_publisher"]:
                 final_answer = content
 
             # Exclude raw user prompt echo
@@ -295,7 +305,9 @@ class AegisForgeBackend:
                 steps.append(step)
 
             doc_path = doc_path or self._find_docx_path(content)
-            sha256 = sha256 or self._find_sha256(content)
+            pdf_path = pdf_path or self._find_pdf_path(content)
+            md_path  = md_path  or self._find_md_path(content)
+            sha256   = sha256   or self._find_sha256(content)
 
         if not final_answer and steps:
             final_answer = steps[-1]["content"]
@@ -303,11 +315,31 @@ class AegisForgeBackend:
         if len(steps) == 1 and steps[0]["agent"].lower() == "direct_answer":
             steps = []
 
+        # Check if the execution paused at a Human Approval Gate
+        current_state = app.get_state(config)
+        for task in getattr(current_state, "tasks", []):
+            if getattr(task, "interrupts", None):
+                gate_data = getattr(task.interrupts[0], "value", task.interrupts[0])
+                return {
+                    "status": "INTERRUPTED",
+                    "prompt": prompt,
+                    "gate_data": gate_data,
+                    "thread_id": thread_id,
+                    "steps": steps,
+                    "final_answer": gate_data.get("message", "Operational authorization required."),
+                    "docx_path": doc_path,
+                    "pdf_path": pdf_path,
+                    "md_path": md_path,
+                    "sha256_hash": sha256,
+                }
+
         return {
             "prompt": prompt,
             "final_answer": final_answer,
             "steps": steps,
             "docx_path": doc_path,
+            "pdf_path": pdf_path,
+            "md_path": md_path,
             "sha256_hash": sha256,
         }
 
@@ -329,9 +361,11 @@ class AegisForgeBackend:
         - Tool invocations (AIMessage with tool_calls)
         - Tool results (ToolMessage)
         - Agent reasoning and final answers
+        - Human Approval Gate interrupts
 
         Yields events:
           {"type": "step", "step": {...}, "steps": [...]}
+          {"type": "interrupt", "gate_data": {...}, "thread_id": "...", "steps": [...]}
           {"type": "done", "final_answer": "...", "steps": [...], ...}
         """
         full_prompt = prompt
@@ -347,12 +381,12 @@ class AegisForgeBackend:
         steps = []
         final_answer = ""
         doc_path = None
+        pdf_path = None
+        md_path = None
         sha256 = None
 
         # stream_mode="updates" + subgraphs=True:
         # Each event is a 2-tuple: (namespace_tuple, update_dict)
-        # namespace_tuple is () for the outer graph, ("node_name:uuid",) for subgraphs
-        # update_dict is {"node_name": {"messages": [...]}} 
         for event in app.stream(
             {"messages": [("user", full_prompt)]},
             config=config,
@@ -368,6 +402,18 @@ class AegisForgeBackend:
 
             if not isinstance(update, dict):
                 continue
+
+            # Intercept Human Approval Gate interrupt
+            if "__interrupt__" in update:
+                interrupt_list = update["__interrupt__"]
+                gate_data = getattr(interrupt_list[0], "value", interrupt_list[0]) if interrupt_list else {}
+                yield {
+                    "type": "interrupt",
+                    "gate_data": gate_data,
+                    "thread_id": thread_id,
+                    "steps": list(steps)
+                }
+                return
 
             for node_name, node_update in update.items():
                 msgs = []
@@ -389,16 +435,15 @@ class AegisForgeBackend:
                     if content.strip() == full_prompt.strip() or not content.strip():
                         continue
 
-                    # Skip raw human/user messages
-                    if name_str in ["human", "user"]:
+                    # Skip raw human/user messages (unless it is HumanGate sign-off)
+                    if name_str in ["human", "user"] and name_str != "humangate":
                         continue
 
-                    # Track final answer (direct_answer and chief_reviewer are final)
-                    if name_str in ["chief_reviewer", "direct_answer"]:
+                    # Track final answer (direct_answer, chief_reviewer, deliverable_publisher)
+                    if name_str in ["chief_reviewer", "direct_answer", "deliverable_publisher"]:
                         final_answer = content
 
-                    # Only add to trace if it's NOT a direct_answer (those are shown as
-                    # final_answer only — no trace expander for simple conversations)
+                    # Only add to trace if it's NOT a direct_answer
                     if name_str != "direct_answer":
                         step_data = self._classify_step(msg)
 
@@ -412,7 +457,9 @@ class AegisForgeBackend:
 
                         # Track deliverable paths and hashes
                         doc_path = doc_path or self._find_docx_path(content)
-                        sha256 = sha256 or self._find_sha256(content)
+                        pdf_path = pdf_path or self._find_pdf_path(content)
+                        md_path  = md_path  or self._find_md_path(content)
+                        sha256   = sha256   or self._find_sha256(content)
 
                         yield {
                             "type": "step",
@@ -422,7 +469,22 @@ class AegisForgeBackend:
                     else:
                         # Still track deliverables from direct_answer content
                         doc_path = doc_path or self._find_docx_path(content)
-                        sha256 = sha256 or self._find_sha256(content)
+                        pdf_path = pdf_path or self._find_pdf_path(content)
+                        md_path  = md_path  or self._find_md_path(content)
+                        sha256   = sha256   or self._find_sha256(content)
+
+        # Check if the execution stopped at an interrupt
+        current_state = app.get_state(config)
+        for task in getattr(current_state, "tasks", []):
+            if getattr(task, "interrupts", None):
+                gate_data = getattr(task.interrupts[0], "value", task.interrupts[0])
+                yield {
+                    "type": "interrupt",
+                    "gate_data": gate_data,
+                    "thread_id": thread_id,
+                    "steps": list(steps)
+                }
+                return
 
         if not final_answer and steps:
             final_answer = steps[-1]["content"]
@@ -436,5 +498,178 @@ class AegisForgeBackend:
             "final_answer": final_answer,
             "steps": steps,
             "docx_path": doc_path,
+            "pdf_path": pdf_path,
+            "md_path": md_path,
             "sha256_hash": sha256,
         }
+
+    # -------------------------------------------------------------------------
+    # Resume Human Approval Gate (Streaming & Non-Streaming)
+    # -------------------------------------------------------------------------
+    def resume_approval_stream(
+        self,
+        thread_id: str = "default_session",
+        approved: bool = True,
+        feedback: str = "",
+        existing_steps: Optional[list] = None,
+    ):
+        """
+        Resumes execution at the Human Approval Gate using Command(resume=...).
+        Streams remaining execution steps and delivers the finalized review/output.
+        """
+        from agent_orchestrator.pipeline import app
+        from langgraph.types import Command
+
+        config = {"configurable": {"thread_id": thread_id}}
+        steps = list(existing_steps) if existing_steps else []
+        final_answer = ""
+        doc_path = None
+        pdf_path = None
+        md_path = None
+        sha256 = None
+
+        default_feedback = "Approved by operator." if approved else "Rejected by operator."
+        resume_payload = {
+            "approved": bool(approved),
+            "feedback": str(feedback).strip() if feedback else default_feedback
+        }
+
+        for event in app.stream(
+            Command(resume=resume_payload),
+            config=config,
+            stream_mode="updates",
+            subgraphs=True
+        ):
+            if isinstance(event, tuple) and len(event) == 2:
+                namespace, update = event
+            else:
+                namespace = ()
+                update = event
+
+            if not isinstance(update, dict):
+                continue
+
+            # In case of nested/subsequent gate
+            if "__interrupt__" in update:
+                interrupt_list = update["__interrupt__"]
+                gate_data = getattr(interrupt_list[0], "value", interrupt_list[0]) if interrupt_list else {}
+                yield {
+                    "type": "interrupt",
+                    "gate_data": gate_data,
+                    "thread_id": thread_id,
+                    "steps": list(steps)
+                }
+                return
+
+            for node_name, node_update in update.items():
+                msgs = []
+                if isinstance(node_update, dict):
+                    msgs = node_update.get("messages", [])
+                elif hasattr(node_update, "get"):
+                    msgs = node_update.get("messages", [])
+
+                for msg in msgs:
+                    name_str = str(getattr(msg, "name", None) or getattr(msg, "type", None) or node_name).lower()
+                    content = str(getattr(msg, "content", str(msg)))
+                    if isinstance(getattr(msg, "content", None), list):
+                        content = " ".join(
+                            part.get("text", "") if isinstance(part, dict) else str(part)
+                            for part in msg.content
+                        )
+
+                    if not content.strip() or (name_str in ["human", "user"] and name_str != "humangate"):
+                        continue
+
+                    if name_str in ["chief_reviewer", "direct_answer", "deliverable_publisher"]:
+                        final_answer = content
+
+                    step_data = self._classify_step(msg)
+                    if namespace:
+                        parent_agent = str(namespace[0]).split(":")[0] if namespace else ""
+                        if parent_agent and step_data["agent"].lower() in ["ai", "tool", "aichat", ""]:
+                            step_data["agent"] = parent_agent
+
+                    steps.append(step_data)
+                    doc_path = doc_path or self._find_docx_path(content)
+                    pdf_path = pdf_path or self._find_pdf_path(content)
+                    md_path  = md_path  or self._find_md_path(content)
+                    sha256   = sha256   or self._find_sha256(content)
+
+                    yield {
+                        "type": "step",
+                        "step": step_data,
+                        "steps": list(steps)
+                    }
+
+        current_state = app.get_state(config)
+        for task in getattr(current_state, "tasks", []):
+            if getattr(task, "interrupts", None):
+                gate_data = getattr(task.interrupts[0], "value", task.interrupts[0])
+                yield {
+                    "type": "interrupt",
+                    "gate_data": gate_data,
+                    "thread_id": thread_id,
+                    "steps": list(steps)
+                }
+                return
+
+        if not final_answer and steps:
+            final_answer = steps[-1]["content"]
+
+        yield {
+            "type": "done",
+            "prompt": "Human Approval Decision",
+            "final_answer": final_answer,
+            "steps": steps,
+            "docx_path": doc_path,
+            "pdf_path": pdf_path,
+            "md_path": md_path,
+            "sha256_hash": sha256,
+        }
+
+    def resume_approval(
+        self,
+        thread_id: str = "default_session",
+        approved: bool = True,
+        feedback: str = "",
+    ) -> Dict[str, Any]:
+        """Synchronously resume a paused human approval gate."""
+        from agent_orchestrator.pipeline import app
+        from langgraph.types import Command
+
+        config = {"configurable": {"thread_id": thread_id}}
+        default_feedback = "Approved by operator." if approved else "Rejected by operator."
+        resume_payload = {
+            "approved": bool(approved),
+            "feedback": str(feedback).strip() if feedback else default_feedback
+        }
+        res = app.invoke(Command(resume=resume_payload), config=config)
+
+        steps = []
+        final_answer = ""
+        doc_path = None
+        pdf_path = None
+        md_path = None
+        sha256 = None
+        for msg in res.get("messages", []):
+            content = str(getattr(msg, "content", str(msg)))
+            name_str = str(getattr(msg, "name", None) or getattr(msg, "type", None) or "").lower()
+            if name_str in ["chief_reviewer", "direct_answer", "deliverable_publisher"]:
+                final_answer = content
+            step = self._classify_step(msg)
+            steps.append(step)
+            doc_path = doc_path or self._find_docx_path(content)
+            pdf_path = pdf_path or self._find_pdf_path(content)
+            md_path  = md_path  or self._find_md_path(content)
+            sha256   = sha256   or self._find_sha256(content)
+
+        return {
+            "final_answer": final_answer,
+            "steps": steps,
+            "docx_path": doc_path,
+            "pdf_path": pdf_path,
+            "md_path": md_path,
+            "sha256_hash": sha256,
+        }
+
+

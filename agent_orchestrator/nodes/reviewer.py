@@ -105,7 +105,7 @@ def chief_reviewer_node(
             initial_user_msg = msg.content
             break
     q_lower = initial_user_msg.lower()
-    needs_publishing = any(w in q_lower for w in _PUBLISH_KEYWORDS)
+    needs_publishing = any(w in q_lower for w in _PUBLISH_KEYWORDS) or bool(state.get("human_approved"))
 
     if not needs_publishing:
         logger.info("Chief Reviewer: Task approved and finalized. Ending pipeline.")
