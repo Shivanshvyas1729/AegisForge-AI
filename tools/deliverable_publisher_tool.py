@@ -285,10 +285,11 @@ def publish_deliverable(
         if "CRYPTOGRAPHIC AUDIT LEDGER SEAL" not in content_md:
             seal_block = (
                 f"\n\n---\n\n"
-                f"> **🔒 CRYPTOGRAPHIC AUDIT LEDGER SEAL**  \n"
+                f"> **[SEAL] CRYPTOGRAPHIC AUDIT LEDGER SEAL**  \n"
                 f"> **SHA-256 Hash:** `{integrity_hash}`  \n"
                 f"> **Classification:** INTERNAL / PSU STATUTORY DELIVERABLE  \n"
                 f"> **Timestamp:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} IST | Status: CERTIFIED_TAMPER_EVIDENT\n"
+
             )
             with open(md_path, "a", encoding="utf-8") as f_md:
                 f_md.write(seal_block)

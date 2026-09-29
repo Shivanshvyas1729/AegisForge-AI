@@ -164,12 +164,20 @@ class AegisForgeBackend:
         if not m:
             return None
         candidate = m.group(1).rstrip("`'\",.:;)")
+
         if candidate.startswith("/output/"):
             candidate = os.path.join("data", "output", candidate[len("/output/"):])
         candidate_path = Path(candidate)
         if not candidate_path.is_absolute():
             candidate_path = Path(os.getcwd()) / candidate
+        if not candidate_path.exists():
+            try:
+                import subprocess
+                subprocess.run(["docker", "cp", "aegisforge-sandbox-daemon:/output/.", "data/output"], capture_output=True)
+            except Exception:
+                pass
         return str(candidate_path) if candidate_path.exists() else None
+
 
     def _find_docx_path(self, content: str) -> Optional[str]:
         return self._find_file_by_ext(content, "docx")

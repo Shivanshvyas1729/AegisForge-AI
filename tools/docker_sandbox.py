@@ -26,9 +26,14 @@ def start_daemon() -> dict:
         if is_daemon_running():
             return {"status": "RUNNING", "message": "Sandbox daemon is already active."}
         subprocess.run(["docker", "rm", "-f", DAEMON_CONTAINER_NAME], capture_output=True)
+        workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        host_output = os.path.join(workspace_root, "data", "output")
+        os.makedirs(host_output, exist_ok=True)
+
         res = subprocess.run([
             "docker", "run", "-d",
             "--name", DAEMON_CONTAINER_NAME,
+            "-v", f"{host_output}:/output",
             "--network", "none",
             "--memory", "256m",
             "--cpus", "1.0",
@@ -41,6 +46,7 @@ def start_daemon() -> dict:
             return {"status": "ERROR", "error": res.stderr.strip()}
     except Exception as e:
         return {"status": "ERROR", "error": str(e)}
+
 
 def stop_daemon() -> dict:
     """Gracefully stops and removes the standing sandbox container."""
@@ -343,7 +349,18 @@ except subprocess.TimeoutExpired:
             if cmd_result.returncode == 0:
                 raw_output = cmd_result.stdout.strip()
                 
+                # Auto-sync any files written to container /output/ to host data/output/
+                try:
+                    workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+                    host_output = os.path.join(workspace_root, "data", "output")
+                    os.makedirs(host_output, exist_ok=True)
+                    target_cname = DAEMON_CONTAINER_NAME if is_daemon_running() else container_name
+                    subprocess.run(["docker", "cp", f"{target_cname}:/output/.", host_output], capture_output=True)
+                except Exception:
+                    pass
+
                 # Check if the AI generated a file (Code Interpreter Pattern)
+
                 import re
                 import base64
                 file_match = re.search(r'<<<<FILE_START>>>>(.*?)<<<<FILE_END>>>>', raw_output, re.DOTALL)

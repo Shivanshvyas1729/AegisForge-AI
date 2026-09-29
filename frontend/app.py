@@ -473,60 +473,124 @@ with tab1:
 
             st.markdown(msg["content"])
 
-            # Render Deliverable Preview & Multi-Format Downloads (pypandoc pipeline)
-            has_md = bool(msg.get("md_path") and os.path.exists(msg["md_path"]))
-            has_docx = bool(msg.get("docx_path") and os.path.exists(msg["docx_path"]))
-            has_pdf = bool(msg.get("pdf_path") and os.path.exists(msg["pdf_path"]))
+            # Render Deliverable Preview & Multi-Format Downloads
+            content_str = str(msg.get("content", ""))
+            docx_cand = msg.get("docx_path") or backend._find_docx_path(content_str)
+            pdf_cand  = msg.get("pdf_path")  or backend._find_pdf_path(content_str)
+            md_cand   = msg.get("md_path")   or backend._find_md_path(content_str)
+
+            if not docx_cand:
+                for step in msg.get("steps", []):
+                    s_text = str(step.get("content", ""))
+                    docx_cand = backend._find_docx_path(s_text)
+                    if docx_cand:
+                        break
+
+            if not pdf_cand:
+                for step in msg.get("steps", []):
+                    s_text = str(step.get("content", ""))
+                    pdf_cand = backend._find_pdf_path(s_text)
+                    if pdf_cand:
+                        break
+
+            if not md_cand:
+                for step in msg.get("steps", []):
+                    s_text = str(step.get("content", ""))
+                    md_cand = backend._find_md_path(s_text)
+                    if md_cand:
+                        break
+
+            # Auto-link companion files (e.g. if .docx exists, link companion .pdf and .md)
+            if docx_cand:
+                if not pdf_cand:
+                    c_pdf = Path(docx_cand).with_suffix(".pdf")
+                    if c_pdf.exists():
+                        pdf_cand = str(c_pdf)
+                if not md_cand:
+                    c_md = Path(docx_cand).with_suffix(".md")
+                    if c_md.exists():
+                        md_cand = str(c_md)
+
+            if md_cand:
+                if not docx_cand:
+                    c_docx = Path(md_cand).with_suffix(".docx")
+                    if c_docx.exists():
+                        docx_cand = str(c_docx)
+                if not pdf_cand:
+                    c_pdf = Path(md_cand).with_suffix(".pdf")
+                    if c_pdf.exists():
+                        pdf_cand = str(c_pdf)
+
+            has_docx = bool(docx_cand and os.path.exists(docx_cand))
+            has_pdf  = bool(pdf_cand and os.path.exists(pdf_cand))
+            has_md   = bool(md_cand and os.path.exists(md_cand))
+
 
             if has_md or has_docx or has_pdf:
-                # Expandable Deliverable Markdown Preview
+                # Expandable Deliverable Preview (Markdown or Word content)
+                preview_text = ""
                 if has_md:
                     try:
-                        with open(msg["md_path"], "r", encoding="utf-8") as f_preview:
+                        with open(md_cand, "r", encoding="utf-8") as f_preview:
                             preview_text = f_preview.read()
-                        with st.expander("📄 **Preview Published Deliverable (Rendered Markdown)**", expanded=False):
-                            st.markdown(preview_text)
                     except Exception:
                         pass
+                elif has_docx:
+                    try:
+                        import pypandoc
+                        preview_text = pypandoc.convert_file(docx_cand, "md")
+                    except Exception:
+                        try:
+                            from docx import Document
+                            doc_obj = Document(docx_cand)
+                            preview_text = "\n\n".join([p.text for p in doc_obj.paragraphs if p.text.strip()])
+                        except Exception:
+                            pass
+
+                if preview_text:
+                    with st.expander("📄 **Preview Generated Deliverable / Word Document**", expanded=False):
+                        st.markdown(preview_text)
 
                 # Multi-Format Download Buttons
                 dl_col1, dl_col2, dl_col3 = st.columns(3)
                 if has_docx:
                     with dl_col1:
-                        with open(msg["docx_path"], "rb") as f_doc:
+                        with open(docx_cand, "rb") as f_doc:
                             st.download_button(
-                                label="📥 Word Doc (.docx)",
+                                label=f"📥 Word Doc ({os.path.basename(docx_cand)})",
                                 data=f_doc.read(),
-                                file_name=os.path.basename(msg["docx_path"]),
+                                file_name=os.path.basename(docx_cand),
                                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                key=f"dl_docx_{idx}_{os.path.basename(msg['docx_path'])}",
+                                key=f"dl_docx_{idx}_{os.path.basename(docx_cand)}",
                                 width="stretch"
                             )
                 if has_pdf:
                     with dl_col2:
-                        with open(msg["pdf_path"], "rb") as f_pdf:
+                        with open(pdf_cand, "rb") as f_pdf:
                             st.download_button(
-                                label="📑 Certified PDF (.pdf)",
+                                label=f"📑 Certified PDF ({os.path.basename(pdf_cand)})",
                                 data=f_pdf.read(),
-                                file_name=os.path.basename(msg["pdf_path"]),
+                                file_name=os.path.basename(pdf_cand),
                                 mime="application/pdf",
-                                key=f"dl_pdf_{idx}_{os.path.basename(msg['pdf_path'])}",
+                                key=f"dl_pdf_{idx}_{os.path.basename(pdf_cand)}",
                                 width="stretch"
                             )
                 if has_md:
                     with dl_col3:
-                        with open(msg["md_path"], "r", encoding="utf-8") as f_md:
+                        with open(md_cand, "r", encoding="utf-8") as f_md:
                             st.download_button(
-                                label="📝 Markdown (.md)",
+                                label=f"📝 Markdown ({os.path.basename(md_cand)})",
                                 data=f_md.read(),
-                                file_name=os.path.basename(msg["md_path"]),
+                                file_name=os.path.basename(md_cand),
                                 mime="text/markdown",
-                                key=f"dl_md_{idx}_{os.path.basename(msg['md_path'])}",
+                                key=f"dl_md_{idx}_{os.path.basename(md_cand)}",
                                 width="stretch"
                             )
 
-                if msg.get("sha256"):
-                    st.caption(f"🔒 **Cryptographic SHA-256 Audit Seal:** `{msg['sha256']}` (Committed to SQLite Ledger)")
+                sha_val = msg.get("sha256") or backend._find_sha256(content_str)
+                if sha_val:
+                    st.caption(f"🔒 **Cryptographic SHA-256 Audit Seal:** `{sha_val}` (Committed to SQLite Ledger)")
+
 
 
     # Render Interactive Human Approval Gate if pipeline is paused
@@ -1104,3 +1168,4 @@ with tab5:
             st.info("No audit events logged yet.")
     except Exception as e:
         st.error(f"Could not load audit ledger: {e}")
+
