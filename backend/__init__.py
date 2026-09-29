@@ -11,6 +11,7 @@ from .services.compliance_service import ComplianceService
 from .services.telemetry_service import TelemetryService
 from .services.sandbox_service import SandboxService
 from .services.audit_service import AuditService
+from .services.langfuse_service import LangfuseService
 
 
 def get_backend(workspace_root=None) -> AegisForgeBackend:
@@ -32,4 +33,6 @@ __all__ = [
     "TelemetryService",
     "SandboxService",
     "AuditService",
+    "LangfuseService",
 ]
+

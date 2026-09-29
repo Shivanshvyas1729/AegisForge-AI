@@ -17,6 +17,7 @@ from .services.compliance_service import ComplianceService
 from .services.telemetry_service import TelemetryService
 from .services.sandbox_service import SandboxService
 from .services.audit_service import AuditService
+from .services.langfuse_service import LangfuseService
 
 
 class AegisForgeBackend:
@@ -30,6 +31,7 @@ class AegisForgeBackend:
     - Hardware Telemetry & Air-Gap Verification (`backend.telemetry`)
     - Secure Docker Sandbox Daemon Lifecycle (`backend.sandbox`)
     - Tamper-Proof Cryptographic Audit Ledger (`backend.audit`)
+    - Langfuse Container & Observability Lifecycle (`backend.langfuse`)
     """
 
     _instance: Optional["AegisForgeBackend"] = None
@@ -47,6 +49,8 @@ class AegisForgeBackend:
         self.telemetry = TelemetryService(self.workspace_root)
         self.sandbox = SandboxService()
         self.audit = AuditService()
+        self.langfuse = LangfuseService(self.workspace_root)
+
 
     @classmethod
     def get_instance(cls, workspace_root: Optional[Path] = None) -> "AegisForgeBackend":
@@ -54,6 +58,23 @@ class AegisForgeBackend:
         if cls._instance is None:
             cls._instance = cls(workspace_root)
         return cls._instance
+
+    # -------------------------------------------------------------------------
+    # Output Sanitization
+    # -------------------------------------------------------------------------
+    def sanitize_output(self, text: str) -> str:
+        """Strip internal debug/status tags from agent output before rendering."""
+        if not isinstance(text, str):
+            return str(text) if text is not None else ""
+        # Remove [STATUS: ...] blocks emitted by nodes for internal signalling
+        text = re.sub(r"\[STATUS:[^\]]*\]", "", text, flags=re.IGNORECASE)
+        # Remove any leftover XML-style internal tags like <think>, <reasoning>
+        text = re.sub(r"<(?:think|reasoning|internal)[^>]*>.*?</(?:think|reasoning|internal)>", "", text, flags=re.DOTALL | re.IGNORECASE)
+        # Normalize Windows paths to Unix style for display cleanliness
+        text = re.sub(r"([A-Za-z]):\\\\", r"/", text)
+        # Collapse excessive blank lines (3+ → 2)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return text.strip()
 
     # -------------------------------------------------------------------------
     # High-Level Delegated Convenience APIs
@@ -157,27 +178,84 @@ class AegisForgeBackend:
     # -------------------------------------------------------------------------
     # Internal helpers
     # -------------------------------------------------------------------------
+    def sanitize_output(self, content: str) -> str:
+        """Cleans internal execution flags, delimiters, and container paths for clean human presentation."""
+        if not content:
+            return ""
+        text = str(content)
+        # Strip internal status tokens
+        tokens_to_remove = [
+            r'\[STATUS:\s*CALCULATION_COMPLETED\]',
+            r'\[STATUS:\s*COMPLIANCE_COMPLETED\]',
+            r'\[STATUS:\s*SUCCESS\]',
+            r'\[STATUS:\s*COMPLETED\]',
+            r'\[STATUS:\s*ERROR\]',
+            r'\[DOCKER_SANDBOX_OUTPUT\]:\s*',
+            r'\[TOOL_ERROR\]:\s*',
+            r'<<<<FILE_START>>>>.*?<<<<FILE_END>>>>',
+        ]
+        for pat in tokens_to_remove:
+            text = re.sub(pat, '', text, flags=re.DOTALL)
+
+        # Normalize internal Linux container path /output/ to data/output/
+        text = re.sub(r'/output/([a-zA-Z0-9_\-\.]+)', r'data/output/\1', text)
+
+        # Clean excessive blank lines
+        text = re.sub(r'\n{3,}', '\n\n', text).strip()
+        return text
+
     def _find_file_by_ext(self, content: str, ext: str) -> Optional[str]:
-        """Extracts and validates a file path with given extension from agent output content."""
-        pattern = rf'([A-Za-z]:[^\s\n\'"]+\.{ext}|/output/[^\s\n\'"]+\.{ext}|[a-zA-Z0-9_./\\-]+\.{ext})'
-        m = re.search(pattern, content)
-        if not m:
+        """Extracts and validates an absolute file path with given extension from agent output content."""
+        if not content:
             return None
-        candidate = m.group(1).rstrip("`'\",.:;)")
 
-        if candidate.startswith("/output/"):
-            candidate = os.path.join("data", "output", candidate[len("/output/"):])
-        candidate_path = Path(candidate)
-        if not candidate_path.is_absolute():
-            candidate_path = Path(os.getcwd()) / candidate
-        if not candidate_path.exists():
-            try:
-                import subprocess
-                subprocess.run(["docker", "cp", "aegisforge-sandbox-daemon:/output/.", "data/output"], capture_output=True)
-            except Exception:
-                pass
-        return str(candidate_path) if candidate_path.exists() else None
+        output_dir = (self.workspace_root / "data" / "output").resolve()
+        output_dir.mkdir(parents=True, exist_ok=True)
 
+        pattern = rf'([A-Za-z]:[^\s\n\'"`]+?\.{ext}|(?:/output/|data/output/|output/)[^\s\n\'"`]+?\.{ext}|[\w\-.]+\.{ext})'
+        matches = re.findall(pattern, content, re.IGNORECASE)
+
+        # 1. Direct check in output directory and candidate paths
+        for m in matches:
+            clean = m.strip("`'\",.:;)\n\r\t ")
+            fname = Path(clean).name
+
+            candidate_paths = [
+                output_dir / fname,
+                (self.workspace_root / clean).resolve(),
+            ]
+            if Path(clean).is_absolute():
+                candidate_paths.insert(0, Path(clean).resolve())
+
+            for cp in candidate_paths:
+                if cp and cp.exists() and cp.is_file():
+                    return str(cp)
+
+        # 2. If not found on host, try auto-copy from docker container into host data/output
+        try:
+            import subprocess
+            from tools.docker_sandbox import DAEMON_CONTAINER_NAME, is_daemon_running
+            c_name = DAEMON_CONTAINER_NAME if is_daemon_running() else "aegisforge-sandbox-daemon"
+            subprocess.run(["docker", "cp", f"{c_name}:/output/.", str(output_dir)], capture_output=True, timeout=5)
+
+            for m in matches:
+                clean = m.strip("`'\",.:;)\n\r\t ")
+                fname = Path(clean).name
+                cp = output_dir / fname
+                if cp.exists() and cp.is_file():
+                    return str(cp)
+        except Exception:
+            pass
+
+        # 3. Fuzzy search: if any file currently in data/output has its name/stem mentioned in content
+        try:
+            for f in output_dir.glob(f"*.{ext}"):
+                if f.name.lower() in content.lower() or f.stem.lower() in content.lower():
+                    return str(f)
+        except Exception:
+            pass
+
+        return None
 
     def _find_docx_path(self, content: str) -> Optional[str]:
         return self._find_file_by_ext(content, "docx")
@@ -192,6 +270,7 @@ class AegisForgeBackend:
         """Extracts a SHA-256 hash from agent output content."""
         m_sha = re.search(r'\b([a-fA-F0-9]{64})\b', content)
         return m_sha.group(1) if m_sha else None
+
 
 
     def _classify_step(self, msg) -> Dict[str, Any]:
@@ -500,16 +579,40 @@ class AegisForgeBackend:
         if len(steps) == 1 and steps[0]["agent"].lower() == "direct_answer":
             steps = []
 
+        # Deliverable discovery from final_answer
+        if final_answer:
+            doc_path = doc_path or self._find_docx_path(final_answer)
+            pdf_path = pdf_path or self._find_pdf_path(final_answer)
+            md_path  = md_path  or self._find_md_path(final_answer)
+            sha256   = sha256   or self._find_sha256(final_answer)
+
+        # Auto-link companion files in data/output
+        if doc_path and Path(doc_path).exists():
+            p_doc = Path(doc_path)
+            if not pdf_path and p_doc.with_suffix(".pdf").exists():
+                pdf_path = str(p_doc.with_suffix(".pdf"))
+            if not md_path and p_doc.with_suffix(".md").exists():
+                md_path = str(p_doc.with_suffix(".md"))
+        elif md_path and Path(md_path).exists():
+            p_md = Path(md_path)
+            if not doc_path and p_md.with_suffix(".docx").exists():
+                doc_path = str(p_md.with_suffix(".docx"))
+            if not pdf_path and p_md.with_suffix(".pdf").exists():
+                pdf_path = str(p_md.with_suffix(".pdf"))
+
+        cleaned_final_answer = self.sanitize_output(final_answer)
+
         yield {
             "type": "done",
             "prompt": prompt,
-            "final_answer": final_answer,
+            "final_answer": cleaned_final_answer,
             "steps": steps,
             "docx_path": doc_path,
             "pdf_path": pdf_path,
             "md_path": md_path,
             "sha256_hash": sha256,
         }
+
 
     # -------------------------------------------------------------------------
     # Resume Human Approval Gate (Streaming & Non-Streaming)
@@ -624,16 +727,38 @@ class AegisForgeBackend:
         if not final_answer and steps:
             final_answer = steps[-1]["content"]
 
+        if final_answer:
+            doc_path = doc_path or self._find_docx_path(final_answer)
+            pdf_path = pdf_path or self._find_pdf_path(final_answer)
+            md_path  = md_path  or self._find_md_path(final_answer)
+            sha256   = sha256   or self._find_sha256(final_answer)
+
+        if doc_path and Path(doc_path).exists():
+            p_doc = Path(doc_path)
+            if not pdf_path and p_doc.with_suffix(".pdf").exists():
+                pdf_path = str(p_doc.with_suffix(".pdf"))
+            if not md_path and p_doc.with_suffix(".md").exists():
+                md_path = str(p_doc.with_suffix(".md"))
+        elif md_path and Path(md_path).exists():
+            p_md = Path(md_path)
+            if not doc_path and p_md.with_suffix(".docx").exists():
+                doc_path = str(p_md.with_suffix(".docx"))
+            if not pdf_path and p_md.with_suffix(".pdf").exists():
+                pdf_path = str(p_md.with_suffix(".pdf"))
+
+        cleaned_final_answer = self.sanitize_output(final_answer)
+
         yield {
             "type": "done",
             "prompt": "Human Approval Decision",
-            "final_answer": final_answer,
+            "final_answer": cleaned_final_answer,
             "steps": steps,
             "docx_path": doc_path,
             "pdf_path": pdf_path,
             "md_path": md_path,
             "sha256_hash": sha256,
         }
+
 
     def resume_approval(
         self,

@@ -27,22 +27,26 @@ chief_reviewer_agent = create_react_agent(
         "You are the Sovereign Chief Technical & Engineering Reviewer for AegisForge-AI.\n"
         "Your mission is to conduct forensic validation of specialist outputs.\n\n"
         "ADAPTIVE VERIFICATION INSTRUCTIONS:\n"
-        "1. For Python Code / Algorithms / Sandbox Executions:\n"
-        "   - Verify the code ran inside the Docker sandbox with exit status 'COMPLETED' or exit 0.\n"
-        "   - Report the exact output. Do NOT mention t_req, MAWP, or CVC for code tasks!\n"
-        "   - If clean: VERDICT: 'APPROVED'. If errors: VERDICT: 'REJECT'.\n\n"
+        "1. For Python Code / Algorithms / Sandbox Executions & Document Generation:\n"
+        "   - Verify the code ran inside the Docker sandbox with exit status 0 / completed.\n"
+        "   - If a file or document was created (e.g. Word .docx, PDF, script, data file), clearly confirm the deliverable was created, state its file name, and provide a clear, concise executive summary.\n"
+        "   - Do NOT echo the entire raw document content into the chat.\n"
+        "   - Do NOT output internal status tags like [STATUS: CALCULATION_COMPLETED] or [STATUS: SUCCESS].\n"
+        "   - For document/script creation, use a clean, professional engineering summary instead of a rigid audit template.\n\n"
         "2. For ASME Pressure Vessel Calculations:\n"
         "   - Verify UG-27 t_req, t_actual, safety margin (delta), MAWP, and RSL.\n"
         "   - COMPLIANCE: vessel is ONLY safe if t_actual >= t_req (delta >= 0).\n"
         "   - If t_actual < t_req: issue VERDICT: 'REJECT' — state it's a safety violation.\n"
-        "   - If verified: VERDICT: 'APPROVED'.\n\n"
+        "   - If verified: VERDICT: 'APPROVED'.\n"
+        "   - Use the FORMAL VERDICT STRUCTURE below.\n\n"
         "3. For Statutory Procurement / Vigilance Audits:\n"
         "   - Verify compliance against CVC guidelines and GFR 2017 rules.\n"
-        "   - If verified: VERDICT: 'APPROVED'.\n\n"
-        "FORMAL VERDICT STRUCTURE:\n"
+        "   - If verified: VERDICT: 'APPROVED'.\n"
+        "   - Use the FORMAL VERDICT STRUCTURE below.\n\n"
+        "FORMAL VERDICT STRUCTURE (For ASME Safety Calculations and Statutory Audits):\n"
         "• VERDICT: 'APPROVED' or 'REJECT'\n"
         "• EXECUTIVE SUMMARY: Concise summary of what was executed and verified.\n"
-        "• EXECUTION RESULTS: The actual output or calculation result.\n"
+        "• EXECUTION RESULTS: The actual calculation or audit result.\n"
         "• RECOMMENDATION: Operational guidance."
     )
 )
@@ -99,17 +103,21 @@ def chief_reviewer_node(
         )
 
     # APPROVED — check if formal publication is required
-    initial_user_msg = ""
-    for msg in state["messages"]:
+    latest_user_msg = ""
+    for msg in reversed(state.get("messages", [])):
         if isinstance(msg, HumanMessage) and getattr(msg, "name", None) in (None, "user", "Human"):
-            initial_user_msg = msg.content
+            latest_user_msg = str(msg.content)
             break
-    q_lower = initial_user_msg.lower()
+    q_lower = latest_user_msg.lower()
     needs_publishing = any(w in q_lower for w in _PUBLISH_KEYWORDS) or bool(state.get("human_approved"))
 
-    if not needs_publishing:
-        logger.info("Chief Reviewer: Task approved and finalized. Ending pipeline.")
-        return Command(update={"messages": [out_msg]}, goto=END)
+    # If a specialist already generated a Word .docx deliverable directly in the sandbox,
+    # we don't need a redundant conversion run by deliverable_publisher
+    has_direct_docx = any(".docx" in str(getattr(m, "content", "")) for m in state.get("messages", []))
+    if needs_publishing and not has_direct_docx:
+        logger.info("Chief Reviewer: Task approved. Routing to Deliverable Publisher.")
+        return Command(update={"messages": [out_msg]}, goto="deliverable_publisher")
 
-    logger.info("Chief Reviewer: Task approved. Routing to Deliverable Publisher.")
-    return Command(update={"messages": [out_msg]}, goto="deliverable_publisher")
+    logger.info("Chief Reviewer: Task approved and finalized. Ending pipeline.")
+    return Command(update={"messages": [out_msg]}, goto=END)
+
