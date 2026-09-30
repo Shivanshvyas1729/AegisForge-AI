@@ -35,7 +35,53 @@ CMPDI and CIL subsidiaries (ECL, BCCL, CCL, WCL, SECL, MCL, NCL) handle vast vol
 **The Solution:** **AegisForge-Mining** is a 100% on-premise, air-gapped agentic workbench powered by local open-weight multimodal LLMs and deterministic mining math engines. It ingests degraded borehole scans and production spreadsheets, computes statutory reserves and stripping ratios, audits regulatory compliance, extracts recurring topics/word clouds, and publishes formal Ministry deliverables with cryptographic integrity seals—**all on local hardware with zero external network connectivity**.
 
 ---
+Don't worry — **it is completely safe to delete them!** Deleting them frees up ~6.25 GB of disk space on your computer, and none of your project code will be lost because the blueprints ([sandbox_image/Dockerfile](file:///c:/Users/DELL/Desktop/SIH/sandbox_image/Dockerfile) and [langfuse/docker-compose.yml](file:///c:/Users/DELL/Desktop/SIH/langfuse/docker-compose.yml)) remain safely in your folder.
 
+Here is the exact step-by-step guide for deleting them cleanly and restoring them whenever you need them:
+
+---
+
+### Step 1: Before Deleting (Stop Any Running Containers)
+If any containers are currently running, Docker Desktop might show an error saying *"image is being used by running container"*.
+
+In your terminal (PowerShell) inside `c:\Users\DELL\Desktop\SIH`, run this once to stop and remove any active containers:
+```powershell
+docker compose -f langfuse/docker-compose.yml down
+docker rm -f aegisforge-sandbox-daemon
+```
+Now, you can freely click the 🗑️ **trash bin icon** on all 8 images in Docker Desktop.
+
+---
+
+### Step 2: How to Rebuild & Restore Everything When Needed
+
+Whenever you want to run the project again, open PowerShell in your project folder (`c:\Users\DELL\Desktop\SIH`) and run:
+
+#### Option A: The All-in-One One-Liner (Fastest)
+```powershell
+docker build -t sih-agent-sandbox ./sandbox_image; docker compose -f langfuse/docker-compose.yml up -d
+```
+
+---
+
+#### Option B: Step-by-Step
+
+1. **Rebuild the Sandbox Image:**
+   ```powershell
+   docker build -t sih-agent-sandbox ./sandbox_image
+   ```
+   *(Takes ~30 seconds; builds `sih-agent-sandbox` and downloads `python:3.9-alpine`)*
+
+2. **Re-download & Start the Langfuse Stack:**
+   ```powershell
+   docker compose -f langfuse/docker-compose.yml up -d
+   ```
+   *(Docker Compose will automatically pull the 6 images: `langfuse`, `langfuse-worker`, `clickhouse`, `minio`, `redis`, and `postgres`, and start them).*
+
+---
+
+### 💡 Bonus: The Sandbox Even Auto-Heals!
+If you ever forget to run the `docker build` command for the sandbox, the Python backend in `tools/docker_sandbox.py` automatically detects that `sih-agent-sandbox` is missing and **rebuilds it automatically** the next time you run a test or sandbox code!
 ## 💡 Core Innovations & Real End-User Pain Points Matrix
 
 ### The Industrial Reality (MRPL Refinery End-User Pain Points)
@@ -708,6 +754,7 @@ To prevent VRAM thrashing when switching agents, enforce single-model residency:
 
 ### Prerequisites
 * Python 3.11+
+* [Docker Desktop](https://www.docker.com/) installed and running locally (required for isolated code sandbox & Langfuse observability stack)
 * [Ollama](https://ollama.com/) installed and running locally
 * Local open-weight models installed:
   ```bash
@@ -792,6 +839,139 @@ python main.py download-models
 
 ### 4. Interactive Agent Testing in Jupyter
 Open and run [`agent_orchestrator/agents.ipynb`](agent_orchestrator/agents.ipynb) or [`agent_orchestrator/agent_testing.ipynb`](agent_orchestrator/agent_testing.ipynb) to test the multi-agent LangGraph pipeline step-by-step, inspect graph transitions, stream node outputs, and test human-in-the-loop overrides.
+
+### 5. 🐳 Docker Environment: Rebuilding Sandbox & Langfuse Images
+
+If you delete or prune Docker images (e.g., via `docker rmi`, `docker system prune -a`, or Docker Desktop cleanup), follow these steps to rebuild or re-pull both the **Deterministic Python Sandbox** and the **Langfuse Observability Stack**:
+
+#### A. Rebuilding the Python Sandbox Image (`sih-agent-sandbox`)
+
+The deterministic code execution sandbox uses an isolated, network-disabled Alpine Linux container (`sih-agent-sandbox`) built from [`sandbox_image/Dockerfile`](sandbox_image/Dockerfile).
+
+* **Manual Rebuild (Recommended):**
+  From the project root directory, run:
+  ```powershell
+  docker build -t sih-agent-sandbox ./sandbox_image
+  ```
+
+* **Automatic Rebuild via CLI / Python:**
+  `tools/docker_sandbox.py` includes built-in auto-healing logic (`_ensure_image_exists`). If it detects that `sih-agent-sandbox` is missing, running any sandbox command will automatically rebuild the image from `./sandbox_image`:
+  ```powershell
+  python main.py sandbox --code "print('Sandbox image rebuild verified!')"
+  ```
+
+* **Restarting / Spawning the Sandbox Daemon Container:**
+  If the standing daemon container (`aegisforge-sandbox-daemon`) was stopped or removed:
+  ```powershell
+  # Remove any stale container instance
+  docker rm -f aegisforge-sandbox-daemon
+
+  # Launch a fresh air-gapped daemon instance (256 MB RAM limit, 0 network egress)
+  docker run -d --name aegisforge-sandbox-daemon -v "${PWD}/data/output:/output" --network none --memory 256m --cpus 1.0 sih-agent-sandbox tail -f /dev/null
+  ```
+  *(Note: The Streamlit Web UI and `main.py` CLI automatically manage and launch this daemon container when needed).*
+
+* **Verify Sandbox Image:**
+  ```powershell
+  docker images sih-agent-sandbox
+  ```
+
+---
+
+#### B. Re-pulling & Restoring the Langfuse Observability Stack
+
+Langfuse provides local, air-gapped telemetry, token tracking, and agent trace debugging. The stack is defined in [`langfuse/docker-compose.yml`](langfuse/docker-compose.yml) and consists of 6 microservices:
+1. `docker.langfuse.com/langfuse/langfuse:4` (Web Dashboard on port 3000)
+2. `docker.langfuse.com/langfuse/langfuse-worker:4` (Async Task Worker)
+3. `clickhouse/clickhouse-server:25.12` (Trace Database)
+4. `cgr.dev/chainguard/minio` (S3 Object Storage on port 9090)
+5. `redis:7` (Event Broker)
+6. `postgres:17` (Relational State Store on port 5433)
+
+* **Option 1: Using Docker Compose from Root (Recommended):**
+  ```powershell
+  # Pull all official Langfuse stack images
+  docker compose -f langfuse/docker-compose.yml pull
+
+  # Launch the entire multi-container stack in detached mode
+  docker compose -f langfuse/docker-compose.yml up -d
+  ```
+
+* **Option 2: From the `langfuse/` Subdirectory:**
+  ```powershell
+  cd langfuse
+  docker compose pull
+  docker compose up -d
+  cd ..
+  ```
+
+* **Option 3: One-Click via Streamlit Web UI:**
+  1. Start the web dashboard: `python main.py ui`
+  2. Open the **Observability / Telemetry** tab.
+  3. Click **"🚀 Start Langfuse Stack"**. The backend service automatically invokes `docker compose up -d`, re-pulling any missing images in the background.
+
+* **Check Langfuse Stack Status:**
+  ```powershell
+  docker compose -f langfuse/docker-compose.yml ps
+  ```
+  Once up, open the dashboard at **`http://localhost:3000`** (Default: `admin@aegisforge.local` / `Admin123456!`).
+
+* **Clean Reset (If containers/networks are conflicted or unhealthy):**
+  ```powershell
+  # Tear down running containers and networks
+  docker compose -f langfuse/docker-compose.yml down
+
+  # (Optional) Wipe persistent database volumes if resetting to brand-new state:
+  # docker compose -f langfuse/docker-compose.yml down -v
+
+  # Force recreate and relaunch
+  docker compose -f langfuse/docker-compose.yml up -d --force-recreate
+  ```
+
+---
+
+#### C. All-in-One Command to Rebuild & Restore Everything
+
+If you executed a full system prune (`docker system prune -a`) and want to restore both Sandbox and Langfuse in a single line:
+
+**In PowerShell:**
+```powershell
+docker build -t sih-agent-sandbox ./sandbox_image; docker compose -f langfuse/docker-compose.yml pull; docker compose -f langfuse/docker-compose.yml up -d
+```
+
+**In Command Prompt (cmd) / Bash:**
+```bash
+docker build -t sih-agent-sandbox ./sandbox_image && docker compose -f langfuse/docker-compose.yml pull && docker compose -f langfuse/docker-compose.yml up -d
+```
+
+---
+
+#### D. 📍 Where Are These Images & Data Stored?
+
+1. **In the Project Workspace (Source Definitions & Outputs):**
+   * **Sandbox Image Definition:** [`sandbox_image/Dockerfile`](sandbox_image/Dockerfile) (the blueprint used to build `sih-agent-sandbox`).
+   * **Langfuse Stack Definition:** [`langfuse/docker-compose.yml`](langfuse/docker-compose.yml) (defines all 6 service image references and configurations).
+   * **Sandbox Generated Outputs:** [`data/output/`](data/output/) (mounted live into the sandbox container at `/output`).
+
+2. **On Your Windows Host Machine (Docker Engine Internal Storage):**
+   * Docker does not save standalone image files like `.iso` or `.exe` in project folders. Instead, **Docker Desktop for Windows** manages all pulled and built image layers, snapshots, and containers inside its WSL 2 virtual disk file:
+     * **Path:** `%LOCALAPPDATA%\Docker\wsl\data\ext4.vhdx`  
+       *(e.g., `C:\Users\<username>\AppData\Local\Docker\wsl\data\ext4.vhdx`)*
+   * This is managed entirely by the Docker daemon engine.
+
+3. **How to Locate & Inspect Them in Docker:**
+   * **List Sandbox Image:**
+     ```powershell
+     docker images sih-agent-sandbox
+     ```
+   * **List All Langfuse Stack Images:**
+     ```powershell
+     docker images | Select-String -Pattern "langfuse|clickhouse|minio|redis|postgres"
+     ```
+   * **List Persistent Database Volumes:**
+     ```powershell
+     docker volume ls --filter "name=langfuse"
+     ```
 
 ---
 
