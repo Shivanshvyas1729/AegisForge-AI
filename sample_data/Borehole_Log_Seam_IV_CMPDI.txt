@@ -1,0 +1,55 @@
+================================================================================
+CENTRAL MINE PLANNING & DESIGN INSTITUTE LIMITED (CMPDI)
+EXPLORATORY DRILLING DIVISION — REGIONAL INSTITUTE-II, RANCHI
+LITHOLOGY STRATA LOG & PROXIMATE CORE ANALYSIS RECORD
+================================================================================
+Borehole ID: CMPDI-DH-42
+Coalfield / Mine Block: North Karanpura Block A
+Subsidiary: CCL (Central Coalfields Limited)
+Geological Formation: Barakar Formation (Damuda Group, Gondwana Supergroup)
+Collar Coordinates: Lat 23°51'14" N, Long 85°08'22" E
+Collar Elevation: 342.5 m Above Mean Sea Level (MSL)
+Total Drilling Depth: 245.0 m
+Drilling Rig: Voltas 400 Core Drill (NX Core Bit)
+Date Completed: 12-Nov-2025
+Target Coal Seam: Seam IV (Barakar Formation)
+
+STRATIGRAPHIC SUCCESSION & LITHOLOGY PROFILE:
+--------------------------------------------------------------------------------
+Depth From (m) | Depth To (m) | Thickness (m) | Lithological Description
+--------------------------------------------------------------------------------
+0.0            | 32.5         | 32.5          | Alluvium & Weathered Sandstone (Overburden)
+32.5           | 68.2         | 35.7          | Coarse Feldspathic Sandstone
+68.2           | 84.0         | 15.8          | Carbonaceous Shale & Siltstone Parting
+84.0           | 88.8         | 4.8           | Coal Seam IV (Clean Bituminous Coal)
+88.8           | 145.0        | 56.2          | Medium-grained Micaceous Sandstone
+145.0          | 148.2        | 3.2           | Coal Seam III (Intercalated)
+148.2          | 245.0        | 96.8          | Lower Barakar Sandstone & Shaly Siltstone
+--------------------------------------------------------------------------------
+
+PROXIMATE CORE LABORATORY ANALYSIS (SEAM IV):
+--------------------------------------------------------------------------------
+Core Recovery Rate: 92.4% (Certified UNFC-111 Proved Category)
+Clean Coal Thickness: 4.8 m
+Overburden Thickness: 32.5 m
+Ash Content (adb): 24.2 %
+Inherent Moisture: 4.5 %
+Volatile Matter: 28.6 %
+Fixed Carbon: 42.7 %
+Gross Calorific Value (GCV): 4850 kcal/kg
+Indian Coal Classification Grade: Grade G8 (4600 - 4900 kcal/kg)
+In-situ Specific Gravity: 1.40 tonnes/m3
+Exploration Block Area: 50,000 m2 (0.05 sq km)
+
+ESTIMATED GEOLOGICAL PARAMETERS:
+- In-situ Geological Reserves: 50,000 m2 x 4.8 m x 1.40 t/m3 = 336,000 Tonnes (0.336 MT)
+- Stripping Ratio (Volumetric OB to Coal): 32.5 m / 4.8 m = 6.77 m3/tonne
+- Mineability Classification: Highly Viable Opencast Mining Candidate
+
+GEOLOGICAL & STATUTORY REMARKS:
+Seam IV exhibits uniform lateral persistence across Block A without major faulting.
+Core recovery exceeds 90%, qualifying the reserve block for UNFC-111 (Proved Mineral
+Resource). Overburden bench geometry conforms to Coal Mines Regulations (CMR) 2017
+Regulation 104 parameters for electric shovel/dumper extraction.
+Certified by: Chief Geologist, CMPDI RI-II
+================================================================================

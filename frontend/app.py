@@ -459,10 +459,10 @@ with tab1:
         st.markdown(
             """
             <div style="text-align: center; padding: 40px 20px 20px 20px;">
-                <div style="font-size: 2.6rem; margin-bottom: 12px; filter: drop-shadow(0 0 16px rgba(56,189,248,0.35));">🛡️</div>
-                <div style="font-size: 1.3rem; font-weight: 700; color: #7dd3fc; margin-bottom: 6px;">How can AegisForge assist your refinery operations today?</div>
+                <div style="font-size: 2.6rem; margin-bottom: 12px; filter: drop-shadow(0 0 16px rgba(56,189,248,0.35));">⛏️</div>
+                <div style="font-size: 1.3rem; font-weight: 700; color: #7dd3fc; margin-bottom: 6px;">How can AegisForge-Mining assist your CMPDI operations today?</div>
                 <div style="font-size: 0.88rem; color: #94a3b8; max-width: 580px; margin: 0 auto 20px auto;">
-                    Air-gapped multi-agent engineering workbench powered by local open-weight models for ASME compliance, procurement audits & Docker sandboxing.
+                    Autonomous multi-agent geological & mining reporting workbench. Upload borehole logs or monthly production spreadsheets to extract seam metrics, calculate UNFC-111 reserves, and auto-draft Parliamentary inquiry responses.
                 </div>
             </div>
             """,
@@ -471,24 +471,24 @@ with tab1:
         # Small starter chips
         chip_col1, chip_col2, chip_col3, chip_col4, chip_col5 = st.columns(5)
         with chip_col1:
-            if st.button("🚀 Vessel 11-V-102", key="chip_vessel", width="stretch", help="Full Dossier + ASME + NFA"):
-                st.session_state["preset_prompt"] = "Process inspection dossier for vessel 11-V-102, calculate ASME Section VIII UG-27 minimum thickness, check compliance under GFR 2017 Rule 194, and generate certified NFA document."
+            if st.button("⛏️ Borehole Seam IV", key="chip_vessel", width="stretch", help="Analyze Borehole Log & UNFC Reserves"):
+                st.session_state["preset_prompt"] = "Analyze the CMPDI-DH-42 borehole log for North Karanpura Block A (Seam IV). Extract coal seam thickness, ash content (24.2%), gross calorific value, calculate geological reserves under UNFC-111, compute stripping ratio, and check compliance under CMR 2017."
                 st.rerun()
         with chip_col2:
-            if st.button("🧮 ASME UG-27", key="chip_asme", width="stretch", help="UG-27 Math computation"):
-                st.session_state["preset_prompt"] = "Calculate ASME Section VIII Div 1 UG-27 required wall thickness for design pressure 14.5 MPa, inside radius 1200 mm, allowable stress 138 MPa, CA 4 mm, actual thickness 138.2 mm."
+            if st.button("📊 Stripping Ratio", key="chip_asme", width="stretch", help="Calculate Overburden & Stripping Ratio"):
+                st.session_state["preset_prompt"] = "Calculate stripping ratio for North Karanpura Seam IV: overburden thickness 32.5 m, clean coal thickness 4.8 m, specific gravity 1.40 t/m3, block area 50,000 m2. Determine if stripping ratio meets CIL opencast benchmark."
                 st.rerun()
         with chip_col3:
-            if st.button("🚨 Human Gate", key="chip_gate", width="stretch", help="Test authorization gate"):
-                st.session_state["preset_prompt"] = "Calculate ASME Section VIII Div 1 wall thickness for vessel 11-V-102 with P=14.5 MPa, R=1200 mm, S=138 MPa, CA=4.0 mm, actual thickness=138.2 mm (breach condition) and require Human Approval Gate authorization before final sign-off."
+            if st.button("🏛️ Parliamentary PQ", key="chip_pq", width="stretch", help="Draft response for Lok Sabha / Rajya Sabha PQ"):
+                st.session_state["preset_prompt"] = "Draft an official Ministry of Coal / Parliamentary Inquiry response regarding coal production, stripping ratio anomalies, and geological reserve status for CCL Amrapali and North Karanpura blocks for FY 2025-26."
                 st.rerun()
         with chip_col4:
-            if st.button("⚖️ Spares Audit", key="chip_audit", width="stretch", help="GFR 194 procurement audit"):
-                st.session_state["preset_prompt"] = "Audit single-source procurement for emergency replacement impellers for pump 14-P-101 costing 18.5 lakhs under GFR 2017 Rule 194."
+            if st.button("🚨 Human Gate", key="chip_gate", width="stretch", help="Statutory Chief Geologist sign-off"):
+                st.session_state["preset_prompt"] = "Execute reserve audit for Block A with coal thickness 4.8 m and require Chief Geologist Human Approval Gate authorization before releasing certified Coal Controller report."
                 st.rerun()
         with chip_col5:
-            if st.button("🐳 Sandbox", key="chip_sandbox", width="stretch", help="Execute Python script in Docker"):
-                st.session_state["preset_prompt"] = "Write a Python script to calculate the first 10 factorials and execute it in the secure Docker sandbox."
+            if st.button("🐳 Geo Sandbox", key="chip_sandbox", width="stretch", help="Python reserve estimation code in sandbox"):
+                st.session_state["preset_prompt"] = "Write a Python script to compute UNFC-111 coal reserves across 5 boreholes with varying coal thickness and specific gravities, then execute it securely in the sandbox."
                 st.rerun()
         st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
     # -----------------------------------------------------------------------
@@ -914,7 +914,7 @@ with tab1:
 
     # Chat Input with Integrated File Upload (Gemini / ChatGPT style)
     chat_val = st.chat_input(
-        "Ask AegisForge anything (e.g. ASME math, code sandbox, statutory compliance, document review)...",
+        "Ask AegisForge anything — or attach a borehole log / production spreadsheet / scanned PDF for instant CMPDI analysis...",
         accept_file="multiple",
         file_type=["pdf", "png", "jpg", "jpeg", "tiff", "tif", "bmp", "webp", "txt", "py", "csv", "xlsx"]
     )
@@ -939,7 +939,7 @@ with tab1:
         # Fallback prompt if user only attached file(s) without typing text
         if not active_prompt and uploaded_attachment_paths:
             fnames = ", ".join([Path(p).name for p in uploaded_attachment_paths])
-            active_prompt = f"Analyze attached industrial document(s): {fnames}"
+            active_prompt = f"Analyze attached borehole/geological dossier: {fnames}. Extract all seam parameters, calculate UNFC-111 geological reserves, compute stripping ratio, audit CMR 2017 compliance, and generate an official CMPDI Geological Assessment & Parliamentary Inquiry Response report."
 
     elif "preset_prompt" in st.session_state:
         active_prompt = st.session_state.pop("preset_prompt", None)

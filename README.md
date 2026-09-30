@@ -1,29 +1,38 @@
-# 🛡️ AegisForge-AI: Sovereign Industrial Multi-Agent Workbench
-> **Self-Hosted, Air-Gapped Agentic AI Workbench using Open-Weight Multimodal LLMs for Confidential Industrial Operations**  
-> *Developed for Mangalore Refinery and Petrochemicals Limited (MRPL) — Smart India Hackathon*
+# ⛏️ AegisForge-Mining: Sovereign Geological & Parliamentary Intelligence Workbench
+> **Self-Hosted, Air-Gapped Multi-Agent AI Workbench using Open-Weight Multimodal LLMs for CMPDI / Coal India Limited (CIL)**  
+> *Developed for Central Mine Planning & Design Institute Limited (CMPDI) & Ministry of Coal — Smart India Hackathon*
 
 ---
 
 ## 🎯 Official SIH Problem Statement
 
-**Title:** Sovereign On-Premise Agentic AI Workbench using Open-Weight Multimodal LLMs for Confidential Industrial Work
+**Title:** AI-Powered Geological, Mining and other Reporting Solution for CMPDI/CIL subsidiaries
 
-* **Background:** Refineries, PSUs, defence-linked manufacturing units and government offices generate a lot of routine but sensitive knowledge work. Approval notes, board presentations, engineering calculations, code for internal tools, review of scanned drawings and inspection reports. None of this can go through cloud AI assistants like Claude or Codex because the underlying data is confidential: Piping & Instrument Diagrams, financials, vendor negotiations, unreleased designs, internal correspondence, confidential business strategies etc. Company policy keeps this data on premises, so people either do the work manually resulting in productivity gain, or they quietly paste confidential material into public tools anyway. Open weight large reasoning models have reached a point where a genuinely useful assistant built on them is realistic. But nothing deployable exists today that industrial users can actually work with the way they use Claude or Codex.
-* **Description:** The idea is a self-hosted, air gapped AI workbench running entirely on the organization's own GPU server. Nothing leaves the premises. The backend should not be locked to one model. It needs to support multiple open weight models at once and automatically pick the right one for a given task based on what that task needs, a coding request handled differently from a document summary request. New open weight models should be addable later without redesigning the system, since this space is moving fast.
+* **Background:** CMPDI/CIL subsidiaries play a key role in providing geological and mining information to the Ministry of Coal and responding to parliamentary and high-priority administrative inquiries. These reports require compilation of data from scanned PDFs, digital documents, spreadsheets, images, and historical archives. The current workflow is largely manual, resulting in:
+  - High dependence on individual expertise
+  - Delay in generating reports and analytics
+  - Higher probability of manual errors
+  - Limited ability to quickly retrieve insights when required
+* **Objectives:**
+  1. **Deploy an automated platform** for AI-assisted geological, mining and production figures document processing and reporting.
+  2. **Enhance data validation, consistency, and accuracy** in compliance and reserves reporting (UNFC-111, Coal Mines Regulations CMR 2017).
+  3. **Streamline high-priority parliamentary inquiry workflows** with verified statutory draft answers and audit-backed facts.
+  4. **Provide advanced visual analytics and automated topic identification** (Word Cloud generation rendering high-res PNGs and top 5 recurring themes).
+  5. **Compile official government deliverables (.docx / .pdf)** titled *"CMPDI Geological Assessment & Parliamentary Inquiry Response"* with cryptographic HMAC-SHA256 audit seals and zero cloud egress.
 
 ---
 
 ## 📌 Executive Summary
 
-Refineries, PSUs, defence manufacturing units, and government industrial bodies handle vast volumes of mission-critical, highly confidential technical data:
-* **Piping & Instrumentation Diagrams (P&IDs)** and unreleased process blueprints
-* **Ultrasonic Thickness (UT) gauging surveys** and equipment inspection dossiers
-* **Proprietary Article Certificates (PAC)** and single-source commercial justifications
-* **Statutory regulatory filings** adhering to CVC, OISD, and ASME standards
+CMPDI and CIL subsidiaries (ECL, BCCL, CCL, WCL, SECL, MCL, NCL) handle vast volumes of mission-critical, highly confidential geological and mining data:
+* **Exploratory Borehole Lithology Logs & Core Analysis Records** (stratigraphic profiles, Barakar/Raniganj coal formations, proximate analysis, GCV, ash %, moisture %)
+* **Monthly Mine Production & Overburden Removal Spreadsheets** ($V_{OB}$ in BCM, coal production in tonnes, stripping ratios)
+* **Statutory Coal Reserve Classifications** under UNFC-111 (Proved Mineral Reserves: $\text{Area} \times \text{Thickness} \times \text{Specific Gravity}$)
+* **Parliamentary Questions (PQs) & High-Priority Ministry Inquiries** under Coal Mines Regulations (CMR 2017) and Annual Action Plan (AAP) targets
 
-**The Crisis:** Cloud-hosted AI assistants (e.g., ChatGPT, Claude, Microsoft Copilot) violate national data residency and sovereign enterprise security mandates. Confidential designs and vulnerability assessments cannot be transmitted over external networks.
+**The Crisis:** Cloud-hosted AI assistants (ChatGPT, Claude) violate national data residency and sovereign enterprise security mandates. Confidential geological reserves, borehole coordinates, and unreleased coal exploration data cannot be transmitted over public networks.
 
-**The Solution:** **AegisForge-AI** is a 100% on-premise, air-gapped agentic workbench powered by local open-weight multimodal LLMs and deterministic engineering tools. It ingests degraded inspection scans, performs statutory ASME/API calculations, audits procurement compliance, and publishes formal PSU deliverables (Word/PDF Notes for Approval) with cryptographic integrity seals—**all on local hardware with zero external network connectivity**.
+**The Solution:** **AegisForge-Mining** is a 100% on-premise, air-gapped agentic workbench powered by local open-weight multimodal LLMs and deterministic mining math engines. It ingests degraded borehole scans and production spreadsheets, computes statutory reserves and stripping ratios, audits regulatory compliance, extracts recurring topics/word clouds, and publishes formal Ministry deliverables with cryptographic integrity seals—**all on local hardware with zero external network connectivity**.
 
 ---
 
